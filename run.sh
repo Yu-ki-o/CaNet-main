@@ -12,4 +12,4 @@ python main.py --dataset citeseer --backbone gat --weight_decay 0 --tau 3 --drop
 python main.py --dataset pubmed --backbone gat --weight_decay 5e-5 --tau 1 --dropout 0.2 --env_type graph --combine_result --store
 python main.py --dataset arxiv --backbone gat --weight_decay 5e-5 --tau 2 --dropout 0.2 --env_type graph --store
 python main.py --dataset twitch --backbone gat --weight_decay 5e-5 --tau 2 --dropout 0 --env_type graph --store
-python main.py --dataset elliptic --backbone gat --weight_decay 0.0005 --tau 2 --dropout 0.1 --env_type graph --store
+python main.py --dataset elliptic --backbone gat --weight_decay 0.0005 --tau 2 --dropout 0.1 --env_type graph --store  

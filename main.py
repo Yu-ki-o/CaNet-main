@@ -124,7 +124,14 @@ for run in range(args.runs):
             print(m)
     logger.print_statistics(run)
 
-
 logger.print_statistics()
+# 监控自适应融合模块学到的最终权重比例
+if args.env_type in ['local_global', 'combined_vn']:
+    local_weight, global_weight = model.env_enc[0].get_fusion_weights()
+    module_name = "Transformer" if args.env_type == 'local_global' else "Virtual Node"
+    
+    print(f"\n[{args.dataset} 数据集] Run {run} 最终信息分配倾向 ({args.env_type})：")
+    print(f"  ➜ 局部结构 (GCN) 权重: {local_weight*100:.2f}%")
+    print(f"  ➜ 全局宏观 ({module_name}) 权重: {global_weight*100:.2f}%\n")
 if args.store_result:
     logger.output(args)

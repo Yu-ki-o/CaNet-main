@@ -8,6 +8,166 @@ from torch_geometric.utils import erdos_renyi_graph, remove_self_loops, add_self
 from data_utils import sys_normalized_adjacency, sparse_mx_to_torch_sparse_tensor
 from torch_sparse import SparseTensor, matmul
 
+# --- 2. 局部 GCN + 全局 Transformer 融合模块 (适用于小图: Cora, Citeseer) ---
+class LocalGlobalEnvEncoder(nn.Module):
+    def __init__(self, in_channels, out_channels, num_heads=4):
+        super(LocalGlobalEnvEncoder, self).__init__()
+        self.in_channels = in_channels
+        self.weight_local = Parameter(torch.FloatTensor(in_channels, in_channels))
+        self.self_attn = nn.MultiheadAttention(embed_dim=in_channels, num_heads=num_heads, batch_first=True)
+        self.layer_norm = nn.LayerNorm(in_channels)
+        self.alpha = nn.Parameter(torch.tensor(0.0)) # 自适应融合权重
+        self.fc = nn.Linear(in_channels, out_channels)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.in_channels)
+        self.weight_local.data.uniform_(-stdv, stdv)
+        self.self_attn._reset_parameters()
+        self.layer_norm.reset_parameters()
+        self.fc.reset_parameters()
+
+    def forward(self, x, adj, x0=None):
+        hi = gcn_conv(x, adj) 
+        local_embed = torch.mm(hi, self.weight_local)
+        
+        x_seq = x.unsqueeze(0) 
+        attn_out, _ = self.self_attn(x_seq, x_seq, x_seq)
+        global_embed = self.layer_norm(x_seq + attn_out).squeeze(0) 
+        
+        weight = torch.sigmoid(self.alpha)
+        combined_embed = weight * local_embed + (1.0 - weight) * global_embed
+        return self.fc(combined_embed)
+
+    def get_fusion_weights(self):
+        local_w = torch.sigmoid(self.alpha).item()
+        return local_w, 1.0 - local_w
+
+# --- 方案 A: 纯虚拟节点 (Pure VN) - 完全无视连边，只用节点自身特征融合全局大盘 ---
+class PureVirtualNodeEnvEncoder(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(PureVirtualNodeEnvEncoder, self).__init__()
+        self.in_channels = in_channels
+        
+        # 处理全局特征的 MLP
+        self.global_mlp = nn.Sequential(
+            nn.Linear(in_channels, in_channels),
+            nn.ReLU(),
+            nn.Linear(in_channels, in_channels)
+        )
+        # 处理节点自身特征的 MLP (替代了 GCN)
+        self.node_mlp = nn.Linear(in_channels, in_channels)
+        self.fc = nn.Linear(in_channels, out_channels)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for layer in self.global_mlp:
+            if isinstance(layer, nn.Linear):
+                layer.reset_parameters()
+        self.node_mlp.reset_parameters()
+        self.fc.reset_parameters()
+
+    def forward(self, x, adj=None, x0=None):
+        # 1. 节点自身表示 (绝对不使用 adj)
+        node_embed = self.node_mlp(x)
+        
+        # 2. 全局宏观表示
+        global_pool = x.mean(dim=0, keepdim=True) 
+        global_embed = self.global_mlp(global_pool).expand_as(x)
+        
+        # 3. 直接相加融合 (纯粹的前馈网络)
+        combined_embed = node_embed + global_embed
+        return self.fc(combined_embed)
+
+# --- 方案 B: 结合版虚拟节点 (Combined VN) - 局部 GCN 结合 全局大盘，带自适应权重 ---
+class CombinedVirtualNodeEnvEncoder(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(CombinedVirtualNodeEnvEncoder, self).__init__()
+        self.in_channels = in_channels
+        
+        # 局部 GCN 权重
+        self.weight_local = Parameter(torch.FloatTensor(in_channels, in_channels))
+        # 全局 MLP
+        self.global_mlp = nn.Sequential(
+            nn.Linear(in_channels, in_channels),
+            nn.ReLU(),
+            nn.Linear(in_channels, in_channels)
+        )
+        # 自适应权重
+        self.alpha = nn.Parameter(torch.tensor(0.0)) 
+        self.fc = nn.Linear(in_channels, out_channels)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.in_channels)
+        self.weight_local.data.uniform_(-stdv, stdv)
+        for layer in self.global_mlp:
+            if isinstance(layer, nn.Linear):
+                layer.reset_parameters()
+        self.fc.reset_parameters()
+
+    def forward(self, x, adj, x0=None):
+        # 1. 局部 GCN 表示 (使用 adj)
+        hi = gcn_conv(x, adj)
+        local_embed = torch.mm(hi, self.weight_local)
+        
+        # 2. 全局宏观表示
+        global_pool = x.mean(dim=0, keepdim=True) 
+        global_embed = self.global_mlp(global_pool).expand_as(x)
+        
+        # 3. 自适应加权融合
+        weight = torch.sigmoid(self.alpha)
+        combined_embed = weight * local_embed + (1.0 - weight) * global_embed
+        return self.fc(combined_embed)
+
+    def get_fusion_weights(self):
+        local_w = torch.sigmoid(self.alpha).item()
+        return local_w, 1.0 - local_w
+
+
+#---------------------------------------------
+#新增transformer模块
+import torch.nn as nn
+import torch.nn.functional as F
+
+class GlobalTransformerEnvEncoder(nn.Module):
+    def __init__(self, in_channels, out_channels, num_heads=4):
+        super(GlobalTransformerEnvEncoder, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        
+        # 使用 PyTorch 原生的多头自注意力机制
+        # batch_first=True 表示输入形状为 [Batch, Seq_len, Features]
+        self.self_attn = nn.MultiheadAttention(embed_dim=in_channels, num_heads=num_heads, batch_first=True)
+        self.layer_norm = nn.LayerNorm(in_channels)
+        
+        # 映射到 K 个伪环境的分类器
+        self.fc = nn.Linear(in_channels, out_channels)
+
+    def reset_parameters(self):
+        self.self_attn._reset_parameters()
+        self.layer_norm.reset_parameters()
+        self.fc.reset_parameters()
+
+    def forward(self, x, adj=None, x0=None):
+        # 原始节点特征 x 形状: [N, D]
+        # 在 Transformer 中，我们需要将其视为 Batch Size 为 1，序列长度为 N 的序列: [1, N, D]
+        x_seq = x.unsqueeze(0)
+        
+        # 全局自注意力计算：每个节点与整张图上的所有节点计算 Attention
+        # 这里不传入 adj 掩码，意味着感受野是整张全图
+        attn_out, _ = self.self_attn(x_seq, x_seq, x_seq)
+        
+        # 残差连接 + LayerNorm
+        out = self.layer_norm(x_seq + attn_out)
+        out = out.squeeze(0)  # 还原形状回 [N, D]
+        
+        # 输出 K 个伪环境的 Logits
+        logits = self.fc(out)  # [N, K]
+        return logits
+
+#---------------------------------------------------
+
 def gcn_conv(x, edge_index):
     N = x.shape[0]
     row, col = edge_index
@@ -18,6 +178,8 @@ def gcn_conv(x, edge_index):
     value = torch.nan_to_num(value, nan=0.0, posinf=0.0, neginf=0.0)
     adj = SparseTensor(row=col, col=row, value=value, sparse_sizes=(N, N))
     return matmul(adj, x) # [N, D]
+
+
 
 class GraphConvolutionBase(nn.Module):
 
@@ -131,6 +293,16 @@ class CaNet(nn.Module):
                 self.env_enc.append(nn.Linear(args.hidden_channels, args.K))
             elif args.env_type == 'graph':
                 self.env_enc.append(GraphConvolutionBase(args.hidden_channels, args.K, residual=True))
+            #新增transformer分支
+            elif args.env_type == 'transformer':
+                # 新增 Transformer 分支，默认使用 4 个注意力头
+                self.env_enc.append(GlobalTransformerEnvEncoder(args.hidden_channels, args.K, num_heads=4))
+            elif args.env_type == 'local_global':
+                self.env_enc.append(LocalGlobalEnvEncoder(args.hidden_channels, args.K, num_heads=4))
+            elif args.env_type == 'pure_vn':
+                self.env_enc.append(PureVirtualNodeEnvEncoder(args.hidden_channels, args.K))
+            elif args.env_type == 'combined_vn':
+                self.env_enc.append(CombinedVirtualNodeEnvEncoder(args.hidden_channels, args.K))
             else:
                 raise NotImplementedError
         self.act_fn = nn.ReLU()
