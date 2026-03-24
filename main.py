@@ -59,6 +59,40 @@ if len(dataset.y.shape) == 1:
     dataset.y = dataset.y.unsqueeze(1)
 
 c = max(dataset.y.max().item() + 1, dataset.y.shape[1])
+
+# ==================== 核心创新点：ICA 因果特征解耦 ====================
+from sklearn.decomposition import FastICA
+import warnings
+import time
+
+print(f"\n[ICA前] 原始节点特征维度: {dataset.x.shape}")
+start_time = time.time()
+
+# 将张量转为 numpy 以送入 sklearn
+original_x = dataset.x.cpu().numpy()
+
+# 自适应降维：如果原特征极大(如 Citeseer 的 3703)，降至 512；否则保持不变
+n_components = min(original_x.shape[1], 512) 
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    # whiten='unit-variance' 确保解耦后的特征方差为 1，满足独立性假设
+    ica = FastICA(n_components=n_components, random_state=42, max_iter=1000, whiten='unit-variance')
+    disentangled_x = ica.fit_transform(original_x)
+
+# 替换回 dataset.x，使用纯净的因果特征继续后续流程
+dataset.x = torch.tensor(disentangled_x, dtype=torch.float32)
+print(f"[ICA后] 解耦特征维度: {dataset.x.shape}, 耗时: {time.time() - start_time:.2f} 秒\n")
+# ======================================================================
+
+# 这里的 d 会自动读取解耦后的新维度 (如 512)，完美适配后续的 CaNet 初始化！
+d = dataset.x.shape[1] 
+n = dataset.num_nodes
+
+print(f"dataset {args.dataset}: all nodes {dataset.num_nodes} | edges {dataset.edge_index.size(1)} | "
+        + f"classes {c} | feats {d}")
+
+
 d = dataset.x.shape[1]
 n = dataset.num_nodes
 

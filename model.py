@@ -8,6 +8,72 @@ from torch_geometric.utils import erdos_renyi_graph, remove_self_loops, add_self
 from data_utils import sys_normalized_adjacency, sparse_mx_to_torch_sparse_tensor
 from torch_sparse import SparseTensor, matmul
 
+
+class CrossAlignedEnvEncoder(nn.Module):
+    def __init__(self, in_channels, out_channels, num_heads=4):
+        super(CrossAlignedEnvEncoder, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        
+        # --- 1. 局部视图提取 (Local GCN) ---
+        self.weight_local = Parameter(torch.FloatTensor(in_channels, in_channels))
+        
+        # --- 2. 全局视图提取 (Self-Attention) ---
+        self.self_attn = nn.MultiheadAttention(embed_dim=in_channels, num_heads=num_heads, batch_first=True)
+        self.layer_norm1 = nn.LayerNorm(in_channels)
+        
+        # --- 3. 跨视图交叉注意力 (Cross-Attention Alignment) ---
+        # 灵感来自论文 3.2 节：用一种视图去 Query 另一种视图
+        self.cross_attn = nn.MultiheadAttention(embed_dim=in_channels, num_heads=num_heads, batch_first=True)
+        self.layer_norm2 = nn.LayerNorm(in_channels)
+        
+        # --- 4. 融合门控 (Gate) ---
+        # 替代简单的 alpha 加权，用非线性映射融合净化后的特征
+        self.gate = nn.Linear(in_channels * 2, in_channels)
+        
+        # 伪环境分类器
+        self.fc = nn.Linear(in_channels, out_channels)
+        
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.in_channels)
+        self.weight_local.data.uniform_(-stdv, stdv)
+        self.self_attn._reset_parameters()
+        self.cross_attn._reset_parameters()
+        self.layer_norm1.reset_parameters()
+        self.layer_norm2.reset_parameters()
+        self.gate.reset_parameters()
+        self.fc.reset_parameters()
+
+    def forward(self, x, adj, x0=None):
+        # --- A. 获取局部视图 (含有拓扑噪声) ---
+        hi = gcn_conv(x, adj)
+        local_embed = torch.mm(hi, self.weight_local)  # [N, D]
+        
+        # --- B. 获取全局视图 (纯净的宏观特征) ---
+        x_seq = x.unsqueeze(0)  # [1, N, D]
+        attn_out, _ = self.self_attn(x_seq, x_seq, x_seq)
+        global_embed = self.layer_norm1(x_seq + attn_out)  # [1, N, D]
+        
+        # --- C. 交叉注意力净化 (The Magic Happens Here) ---
+        # Q = Global, K = Local, V = Local
+        # 让纯净的全局特征去“挑选”有用的局部特征，过滤掉误导性的拓扑边
+        local_seq = local_embed.unsqueeze(0)  # [1, N, D]
+        cross_out, cross_weights = self.cross_attn(query=global_embed, key=local_seq, value=local_seq)
+        
+        # 得到被全局语义“净化”后的局部特征
+        aligned_embed = self.layer_norm2(global_embed + cross_out).squeeze(0)  # [N, D]
+        global_embed_sq = global_embed.squeeze(0)  # [N, D]
+        
+        # --- D. 最终融合 ---
+        # 拼接原始全局特征和被净化后的跨视图特征，通过 MLP 融合
+        concat_embed = torch.cat([global_embed_sq, aligned_embed], dim=-1)  # [N, 2D]
+        final_embed = torch.relu(self.gate(concat_embed))  # [N, D]
+        
+        return self.fc(final_embed)
+
+
 # --- 2. 局部 GCN + 全局 Transformer 融合模块 (适用于小图: Cora, Citeseer) ---
 class LocalGlobalEnvEncoder(nn.Module):
     def __init__(self, in_channels, out_channels, num_heads=4):
@@ -303,6 +369,8 @@ class CaNet(nn.Module):
                 self.env_enc.append(PureVirtualNodeEnvEncoder(args.hidden_channels, args.K))
             elif args.env_type == 'combined_vn':
                 self.env_enc.append(CombinedVirtualNodeEnvEncoder(args.hidden_channels, args.K))
+            elif args.env_type == 'cross_align':
+                self.env_enc.append(CrossAlignedEnvEncoder(args.hidden_channels, args.K, num_heads=4))
             else:
                 raise NotImplementedError
         self.act_fn = nn.ReLU()
