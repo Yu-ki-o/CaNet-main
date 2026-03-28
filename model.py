@@ -8,6 +8,55 @@ from torch_geometric.utils import erdos_renyi_graph, remove_self_loops, add_self
 from data_utils import sys_normalized_adjacency, sparse_mx_to_torch_sparse_tensor
 from torch_sparse import SparseTensor, matmul
 
+# ================= 新增：端到端因果解耦模块 =================
+class End2EndCausalDisentangler(nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels):
+        super(End2EndCausalDisentangler, self).__init__()
+        
+        # 1. 非线性编码器：吸收原始离散/连续特征的非线性流形
+        self.nonlinear_encoder = nn.Sequential(
+            nn.Linear(in_channels, hidden_channels),
+            nn.BatchNorm1d(hidden_channels),
+            nn.GELU(),
+            nn.Linear(hidden_channels, hidden_channels),
+            nn.BatchNorm1d(hidden_channels),
+            nn.GELU()
+        )
+        
+        # 2. 纯线性解混层：等效于 ICA 解混矩阵 W (禁止使用 bias 和激活函数)
+        self.unmixing_layer = nn.Linear(hidden_channels, out_channels, bias=False)
+
+    def forward(self, x):
+        h = self.nonlinear_encoder(x)
+        z = self.unmixing_layer(h)
+        return z
+
+    def compute_ica_loss(self, z):
+        """计算数值稳定且无泄露的可导 ICA 损失"""
+        # 1. 零均值化
+        z_centered = z - z.mean(dim=0)
+        
+        # 2. 协方差惩罚 (正交化与单位方差约束)
+        # 使用 max 防止 batch_size 为 1 时的除零错误
+        N = max(z.shape[0], 2)
+        cov = torch.mm(z_centered.T, z_centered) / (N - 1)
+        eye = torch.eye(cov.shape[0], device=z.device)
+        cov_loss = F.mse_loss(cov, eye)
+        
+        # 3. 负熵最大化 (使用数值极度稳定的 Log-Cosh 展开式)
+        z_abs = z_centered.abs()
+        g_z = z_abs - math.log(2.0) + torch.log1p(torch.exp(-2.0 * z_abs))
+        g_z_mean = g_z.mean(dim=0)
+        
+        # 标准高斯分布的 log-cosh 期望约等于 0.3745
+        negentropy = (g_z_mean - 0.3745).pow(2).mean()
+        
+        # 4. 最终可导 ICA 损失 (强约束协方差，寻找独立方向)
+        ica_loss = 10.0 * cov_loss - 1.0 * negentropy 
+        return ica_loss
+# ============================================================
+
+
 
 class CrossAlignedEnvEncoder(nn.Module):
     def __init__(self, in_channels, out_channels, num_heads=4):
@@ -347,11 +396,18 @@ class CaNetConv(nn.Module):
 class CaNet(nn.Module):
     def __init__(self, d, c, args, device):
         super(CaNet, self).__init__()
+        # 实例化端到端因果解耦器 (将原始维度 d 映射到 args.hidden_channels)
+        self.causal_disentangler = End2EndCausalDisentangler(
+            in_channels=d, 
+            hidden_channels=256,
+            out_channels=args.hidden_channels 
+        )
         self.convs = nn.ModuleList()
         for _ in range(args.num_layers):
             self.convs.append(CaNetConv(args.hidden_channels, args.hidden_channels, args.K, backbone_type=args.backbone_type, residual=True, device=device, variant=args.variant))
         self.fcs = nn.ModuleList()
-        self.fcs.append(nn.Linear(d, args.hidden_channels))
+        #这里修改了，原本前面的维度是d，现在是args.hidden_channels
+        self.fcs.append(nn.Linear(args.hidden_channels, args.hidden_channels))
         self.fcs.append(nn.Linear(args.hidden_channels, c))
         self.env_enc = nn.ModuleList()
         for _ in range(args.num_layers):
@@ -381,21 +437,37 @@ class CaNet(nn.Module):
         self.device = device
 
     def reset_parameters(self):
+        # 增加 disentangler 的重置
+        for m in self.causal_disentangler.modules():
+            if isinstance(m, nn.Linear):
+                m.reset_parameters()
+            elif isinstance(m, nn.BatchNorm1d):
+                m.reset_parameters()
         for conv in self.convs:
             conv.reset_parameters()
         for fc in self.fcs:
             fc.reset_parameters()
         for enc in self.env_enc:
             enc.reset_parameters()
-
     def forward(self, x, adj, idx=None, training=False):
         self.training = training
-        x = F.dropout(x, self.dropout, training=self.training)
-        h = self.act_fn(self.fcs[0](x))
+        
+        # 1. 原始特征流经非线性解耦器，得到纯净的独立潜变量 Z
+        z = self.causal_disentangler(x)
+        
+        ica_loss = torch.tensor(0.0, device=x.device)
+        if self.training and idx is not None:
+            # 【杜绝数据泄露】：严格只在训练节点 (idx) 上计算 ICA 独立性约束
+            z_train = z[idx]
+            ica_loss = self.causal_disentangler.compute_ica_loss(z_train)
+            
+        # 2. 将纯净的 Z 送入后续的 GNN 处理流程
+        x_dropout = F.dropout(z, self.dropout, training=self.training)
+        h = self.act_fn(self.fcs[0](x_dropout))
         h0 = h.clone()
 
         reg = 0
-        for i,con in enumerate(self.convs):
+        for i, con in enumerate(self.convs):
             h = F.dropout(h, self.dropout, training=self.training)
             if self.training:
                 if self.env_type == 'node':
@@ -413,15 +485,15 @@ class CaNet(nn.Module):
 
         h = F.dropout(h, self.dropout, training=self.training)
         out = self.fcs[-1](h)
+        
         if self.training:
-            return out, reg / self.num_layers
+            return out, reg / self.num_layers, ica_loss
         else:
             return out
 
     def reg_loss(self, z, logit, logit_0 = None):
         log_pi = logit - torch.logsumexp(logit, dim=-1, keepdim=True).repeat(1, logit.size(1))
-        return torch.mean(torch.sum(
-            torch.mul(z, log_pi), dim=1))
+        return torch.mean(torch.sum(torch.mul(z, log_pi), dim=1))
 
     def sup_loss_calc(self, y, pred, criterion, args):
         if args.dataset in ('twitch', 'elliptic'):
@@ -437,7 +509,67 @@ class CaNet(nn.Module):
         return loss
 
     def loss_compute(self, d, criterion, args):
-        logits, reg_loss = self.forward(d.x, d.edge_index, idx=d.train_idx, training=True)
+        # 确保传入了 idx=d.train_idx，以便精准计算 ICA loss
+        logits, reg_loss, ica_loss = self.forward(d.x, d.edge_index, idx=d.train_idx, training=True)
         sup_loss = self.sup_loss_calc(d.y[d.train_idx], logits[d.train_idx], criterion, args)
-        loss = sup_loss + args.lamda * reg_loss
+        
+        # 联合优化：监督损失 + 伪环境正则损失 + 端到端非线性 ICA 损失
+        # 你可以通过传入额外的 args.lambda_ica 来动态控制，此处默认设为 0.1
+        loss = sup_loss + args.lamda * reg_loss + 0.1 * ica_loss
         return loss
+
+
+        
+    # def forward(self, x, adj, idx=None, training=False):
+    #     self.training = training
+    #     x = F.dropout(x, self.dropout, training=self.training)
+    #     h = self.act_fn(self.fcs[0](x))
+    #     h0 = h.clone()
+
+    #     reg = 0
+    #     for i,con in enumerate(self.convs):
+    #         h = F.dropout(h, self.dropout, training=self.training)
+    #         if self.training:
+    #             if self.env_type == 'node':
+    #                 logit = self.env_enc[i](h)
+    #             else:
+    #                 logit = self.env_enc[i](h, adj, h0)
+    #             e = F.gumbel_softmax(logit, tau=self.tau, dim=-1)
+    #             reg += self.reg_loss(e, logit)
+    #         else:
+    #             if self.env_type == 'node':
+    #                 e = F.softmax(self.env_enc[i](h), dim=-1)
+    #             else:
+    #                 e = F.softmax(self.env_enc[i](h, adj, h0), dim=-1)
+    #         h = self.act_fn(con(h, adj, e))
+
+    #     h = F.dropout(h, self.dropout, training=self.training)
+    #     out = self.fcs[-1](h)
+    #     if self.training:
+    #         return out, reg / self.num_layers
+    #     else:
+    #         return out
+
+    # def reg_loss(self, z, logit, logit_0 = None):
+    #     log_pi = logit - torch.logsumexp(logit, dim=-1, keepdim=True).repeat(1, logit.size(1))
+    #     return torch.mean(torch.sum(
+    #         torch.mul(z, log_pi), dim=1))
+
+    # def sup_loss_calc(self, y, pred, criterion, args):
+    #     if args.dataset in ('twitch', 'elliptic'):
+    #         if y.shape[1] == 1:
+    #             true_label = F.one_hot(y, y.max() + 1).squeeze(1)
+    #         else:
+    #             true_label = y
+    #         loss = criterion(pred, true_label.squeeze(1).to(torch.float))
+    #     else:
+    #         out = F.log_softmax(pred, dim=1)
+    #         target = y.squeeze(1)
+    #         loss = criterion(out, target)
+    #     return loss
+
+    # def loss_compute(self, d, criterion, args):
+    #     logits, reg_loss = self.forward(d.x, d.edge_index, idx=d.train_idx, training=True)
+    #     sup_loss = self.sup_loss_calc(d.y[d.train_idx], logits[d.train_idx], criterion, args)
+    #     loss = sup_loss + args.lamda * reg_loss
+    #     return loss

@@ -40,3 +40,6 @@ def parser_add_main_args(parser):
                         help='whether to store results')
     parser.add_argument('--combine_result', action='store_true',
                         help='whether to combine all the ood environments')
+    
+    #自己加的，方便分辨输出result
+    parser.add_argument("--result_name",type=str,default='',choices=["ica","ica_modified","test"])
