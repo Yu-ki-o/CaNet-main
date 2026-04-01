@@ -42,4 +42,11 @@ def parser_add_main_args(parser):
                         help='whether to combine all the ood environments')
     
     #自己加的，方便分辨输出result
-    parser.add_argument("--result_name",type=str,default='',choices=["ica","ica_modified","test"])
+    parser.add_argument("--result_name",type=str,default='')
+    parser.add_argument('--lamda_ciw', type=float, default=1e-4,
+                        help='weight for regularlization')
+    parser.add_argument('--lamda_l1', type=float, default=0.5,
+                        help='weight for regularlization')
+    parser.add_argument('--lambda_dag', type=float, default=0.1, help='DAG 无环约束的权重')
+    parser.add_argument('--lambda_ind', type=float, default=0.1, help='因果特征独立性约束的权重')
+    parser.add_argument('--lambda_cl', type=float, default=0.1, help='对比学习/一致性损失的权重')
