@@ -1,7 +1,7 @@
 import argparse
 import sys
 import os, random
-from model import GraphCIW
+from model4 import GraphCIW
 import numpy as np
 import torch
 import torch.nn as nn
@@ -16,7 +16,7 @@ from data_utils import normalize, gen_normalized_adjs, to_sparse_tensor, \
     load_fixed_splits, rand_splits, get_gpu_memory_map, count_parameters, reindex_env
 from eval import evaluate_full, eval_acc, eval_rocauc, eval_f1
 from parse import parser_add_main_args
-from model import *
+from model4 import *
 import time
 
 

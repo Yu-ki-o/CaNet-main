@@ -6,56 +6,6 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from torch_geometric.nn import GCNConv 
 from torch_geometric.nn import SAGEConv
-from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import degree
-
-class CaNetBasicConv(MessagePassing):
-    """
-    完全复刻 CaNet 源码中 backbone_type='gcn' 且 K=1 时的骨干网络。
-    包含了对称归一化、[hi, x] 显式拼接、以及残差连接。
-    """
-    def __init__(self, in_channels, out_channels, residual=True):
-        # 使用 add 聚合，配合我们在 forward 中手算的归一化系数，完美等价于原版 gcn_conv
-        super(CaNetBasicConv, self).__init__(aggr='add') 
-        self.residual = residual
-        
-        # 严格对齐 CaNet: 输入维度是 in_channels * 2，且原版没有使用 bias
-        self.lin = nn.Linear(in_channels * 2, out_channels, bias=False)
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        # 严格对齐 CaNet 的均匀分布初始化方式
-        stdv = 1. / math.sqrt(self.lin.out_features)
-        self.lin.weight.data.uniform_(-stdv, stdv)
-
-    def forward(self, x, edge_index):
-        # 1. 严格复刻 CaNet 的 gcn_conv 对称度归一化 (d_norm_in * d_norm_out)
-        row, col = edge_index
-        deg = degree(col, x.size(0), dtype=x.dtype)
-        deg_inv_sqrt = deg.pow(-0.5)
-        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
-
-        # 2. 邻居信息聚合 (完全等价于原版 hi = gcn_conv(x, adj))
-        hi = self.propagate(edge_index, x=x, norm=norm)
-
-        # 3. 显式拼接：严格按照原版 torch.cat([hi, x], 1) 的顺序
-        cat_x = torch.cat([hi, x], dim=1)
-
-        # 4. 线性映射
-        out = self.lin(cat_x)
-
-        # 5. 残差连接 (对应原版的 if self.residual: output = output + x)
-        # if self.residual:
-        #     out = out + x
-
-        return out
-
-    def message(self, x_j, norm):
-        # 在传播时乘以归一化系数
-        return norm.view(-1, 1) * x_j
-
-
 class NodeWeightGenerator(nn.Module):
     def __init__(self, in_features, hidden_features):
         super(NodeWeightGenerator, self).__init__()
@@ -86,19 +36,9 @@ class GraphCIW(nn.Module):
         
         # self.conv1 = GCNConv(d_in, self.d)
         # self.conv2 = GCNConv(self.d, self.d)
-        # self.conv1 = SAGEConv(d_in, self.d)
-        # self.conv2 = SAGEConv(self.d, self.d)
 
-        # 【重要同步】：复刻 CaNet 的 fcs[0] 前置投影！
-        # 先把维度从数据集的输入维度 (d_in) 统一投射到隐藏层维度 (self.d)
-        self.pre_fc = nn.Linear(d_in, self.d)
-        
-        # 装载原汁原味的 CaNet 骨干卷积 (输入输出都是 self.d)
-        self.conv1 = CaNetBasicConv(self.d, self.d, residual=True)
-        self.conv2 = CaNetBasicConv(self.d, self.d, residual=True)
-        
-        # 激活函数也对齐 CaNet 的使用方式
-        self.act_fn = nn.GELU()
+        self.conv1 = SAGEConv(d_in, self.d)
+        self.conv2 = SAGEConv(self.d, self.d)
 
         self.classifier = nn.Linear(self.d, c)
         self.weight_net = NodeWeightGenerator(self.d, self.d // 2)
@@ -144,15 +84,13 @@ class GraphCIW(nn.Module):
         self.reset_parameters()
 
     def get_masked_A(self):
-        mask = torch.ones_like(self.A)
-        mask[self.d:, :] = 0.0
-        mask.fill_diagonal_(0.0)
-        
-        A_masked = self.A * mask
+        A_masked = self.A.clone()
+        A_masked = A_masked - torch.diag(torch.diag(A_masked))
+        # 强制物理先验：禁止 Label 指向 Feature，禁止 Label 指向 Label
+        A_masked[self.d:, :] = 0.0
         return A_masked
     
     def reset_parameters(self):
-        self.pre_fc.reset_parameters()  # 别忘了重置前置层
         self.conv1.reset_parameters()
         self.conv2.reset_parameters()
         self.classifier.reset_parameters()
@@ -355,7 +293,7 @@ class GraphCIW(nn.Module):
         loss_rec_Y = F.mse_loss(reconstructed_F[:, self.d:], F_factors[:, self.d:])
         loss_rec = loss_rec_X + (self.d / self.c) * loss_rec_Y
 
-        #loss_rec = F.mse_loss(reconstructed_F, F_factors)
+        loss_rec = F.mse_loss(reconstructed_F, F_factors)
         
         # 无环约束与稀疏正则化保持标准计算
         A_sq = A_no_diag * A_no_diag
@@ -439,21 +377,12 @@ class GraphCIW(nn.Module):
 
     def forward(self, x, edge_index, training=False):
         self.training = training
-        # x = F.dropout(x, self.dropout, training=self.training)
-        
-        # z = F.relu(self.conv1(x, edge_index))
-        # z = F.dropout(z, self.dropout, training=self.training)
-        # z = self.conv2(z, edge_index)
-        # 1. 严格对齐 CaNet 的第一步：Dropout -> 投影 -> ReLU
         x = F.dropout(x, self.dropout, training=self.training)
-        h = self.act_fn(self.pre_fc(x))
-        h = F.dropout(h, self.dropout, training=self.training)
-        h = self.act_fn(self.conv1(h, edge_index))
-        h = F.dropout(h, self.dropout, training=self.training)
-        z = self.conv2(h, edge_index) 
-        # 注意：在进入 CIW 核心因果逻辑前，z 已经是经过残差和拼接的强大特征了！
-
-
+        
+        z = F.relu(self.conv1(x, edge_index))
+        z = F.dropout(z, self.dropout, training=self.training)
+        z = self.conv2(z, edge_index)
+        
         w = self.weight_net(z.detach()) 
         
         Ca_norm, S = self.get_causal_effect_and_mask()

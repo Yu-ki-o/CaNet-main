@@ -81,7 +81,14 @@ model = GraphCIW(d, c, args, device).to(device)
 # 【关键修正】: 将 reduction 改为 'none'。
 # 因为 GraphCIW 需要逐节点进行独立性加权（Sample Weighting），必须保留 loss 的 Instance 维度
 if args.dataset in ('elliptic', 'twitch'):
-    criterion = nn.BCEWithLogitsLoss(reduction='none')
+    # 【终极补丁：类别不平衡对抗机制】
+        # 方案一：通过 argparse 手动控制（推荐，方便你后续写脚本跑 Grid Search）
+        # 如果 args 里没有传 pos_weight，默认给个 5.0 (意味着把正样本的 Loss 放大 5 倍)
+    weight_val = getattr(args, 'pos_weight', 5.0)   
+    pos_weight_tensor = torch.tensor([weight_val]).to(device)
+        
+    criterion = nn.BCEWithLogitsLoss(reduction='none', pos_weight=pos_weight_tensor)
+    # criterion = nn.BCEWithLogitsLoss(reduction='none')
 else:
     criterion = nn.CrossEntropyLoss(reduction='none')
 
