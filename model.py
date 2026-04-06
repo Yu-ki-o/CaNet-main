@@ -111,9 +111,14 @@ class GraphCIW(nn.Module):
         # 扩展 DAG 矩阵维度以容纳所有类别节点并彻底删除 self.M_dag
         self.A = Parameter(torch.zeros(self.d + self.c, self.d + self.c))
         nn.init.uniform_(self.A, a=-0.05, b=0.05)
-        self.M_dag = nn.Linear(self.d + 1, self.d + 1, bias=False)
+        self.M_dag = nn.Linear(self.d + c, self.d + c, bias=False)
 
-        self.rff_dim = args.rff_dim if hasattr(args, 'rff_dim') else 128
+        #self.rff_dim = args.rff_dim if hasattr(args, 'rff_dim') else 128
+        # 在 main.py 解析参数后，根据数据集自动分配最优 rff_dim 策略
+        if args.dataset in ['cora', 'citeseer', 'pubmed', 'twitch']:
+            self.rff_dim = 16  # 轻量级图，强力降噪
+        elif args.dataset in ['arxiv', 'elliptic']:
+            self.rff_dim = 128 # 重量级图，火力全开
         self.omega = Parameter(torch.randn(1, self.d, self.rff_dim), requires_grad=False)
         self.phi = Parameter(torch.rand(1, self.d, self.rff_dim) * 2 * math.pi, requires_grad=False)
 
@@ -141,6 +146,9 @@ class GraphCIW(nn.Module):
         self.lambda_cl = getattr(args, 'lambda_cl', 0.1) 
         self.lambda_dag = getattr(args, 'lambda_dag', 0.1) 
 
+        # 创新点：自适应粒度门控 (Adaptive Granularity Gate)
+        # 初始化为 0.0，经过 sigmoid 后刚好是 0.5，代表初始状态下宏观和微观各占一半
+        self.dag_gate = Parameter(torch.tensor([0.0]))
         self.reset_parameters()
 
     def get_masked_A(self):
@@ -166,7 +174,15 @@ class GraphCIW(nn.Module):
         self.queue_full = False
         self.proto_in.zero_()
         self.proto_cr.zero_()
-    
+
+        # 🚨 修复泄露点一：重置 RFF 基底空间
+        if hasattr(self, 'omega') and hasattr(self, 'phi'):
+            nn.init.normal_(self.omega)
+            nn.init.uniform_(self.phi, 0, 2 * math.pi)
+            
+        # 🚨 修复泄露点二：重置自适应 DAG 门控
+        if hasattr(self, 'dag_gate'):
+            nn.init.constant_(self.dag_gate, 0.0)
     #从因果图A中生成掩码
     # def get_causal_effect_and_mask(self):
     #     #每一个特征或者结果label不能自己导致自己，故将对角线元素转为0
@@ -247,24 +263,32 @@ class GraphCIW(nn.Module):
         A_sq_2 = torch.matmul(A_sq, A_sq)
         C_tot = A_sq + (A_sq_2 / 2.0)
 
-        # 提取特征节点指向所有类别节点的效应子矩阵
-        Ca_matrix = C_tot[:self.d, self.d:] 
+        # # 提取特征节点指向所有类别节点的效应子矩阵
+        # Ca_matrix = C_tot[:self.d, self.d:] 
         
-        # 坍缩聚合为一维的总因果强度向量
-        Ca = Ca_matrix.sum(dim=1) 
+        # # 坍缩聚合为一维的总因果强度向量
+        # Ca = Ca_matrix.sum(dim=1) 
         
-        Ca_min, Ca_max = Ca.min(), Ca.max()
+        # Ca_min, Ca_max = Ca.min(), Ca.max()
         
-        if Ca_max - Ca_min < 1e-4:
-            Ca_mask = (Ca - Ca.detach()) + 0.5 
-        else:
-            # 绝对的 0 到 1 缩放，彻底剔除虚假特征泄露
-            Ca_norm = (Ca - Ca_min) / (Ca_max - Ca_min + 1e-8)
-            Ca_mask = Ca_norm 
-            
+        # if Ca_max - Ca_min < 1e-4:
+        #     Ca_mask = (Ca - Ca.detach()) + 0.5 
+        # else:
+        #     # 绝对的 0 到 1 缩放，彻底剔除虚假特征泄露
+        #     Ca_norm = (Ca - Ca_min) / (Ca_max - Ca_min + 1e-8)
+        #     Ca_mask = Ca_norm 
+
+        # 修正 Ca 的提取
+        Ca_matrix = C_tot[:self.d, self.d:] # 特征到类别的子矩阵
+        Ca = torch.max(Ca_matrix, dim=1)[0] # 提取对任意类别最强的因果连接
+        # 锐化处理 (Sharpening)
+        temperature = 0.05 
+        Ca_norm = (Ca - Ca.min()) / (Ca.max() - Ca.min() + 1e-8)
+        Ca_mask = torch.sigmoid((Ca_norm - 0.5) / temperature)
+
+
         Ca_expand = Ca_mask.unsqueeze(1)
         S = 1.0 - torch.matmul(Ca_expand, Ca_expand.t())
-        
         return Ca_mask, S
 
     def update_prototypes(self, z_local, z_invariant, y, envs):
@@ -329,43 +353,179 @@ class GraphCIW(nn.Module):
 
     #     return loss_rec + loss_dag_reg
 
-    def dag_reconstruction_loss_on_prototypes(self):
-        proto_features = self.proto_in.detach().view(-1, self.d) 
+    # def dag_reconstruction_loss_on_prototypes(self):
+    #     proto_features = self.proto_in.detach().view(-1, self.d) 
 
-        # 1. 必须拉平特征方差！
-        proto_features = F.layer_norm(proto_features, (self.d,))
+    #     # 1. 必须拉平特征方差！
+    #     proto_features = F.layer_norm(proto_features, (self.d,))
 
-        labels = torch.arange(self.c, device=self.device).repeat(self.num_envs)
+    #     labels = torch.arange(self.c, device=self.device).repeat(self.num_envs)
         
-        # 生成全尺寸 One-hot 标签矩阵
-        label_factor = F.one_hot(labels, num_classes=self.c).float()
+    #     # 生成全尺寸 One-hot 标签矩阵
+    #     label_factor = F.one_hot(labels, num_classes=self.c).float()
         
-        # 拼接后的特征矩阵维度严格对齐 self.d + self.c
-        F_factors = torch.cat([proto_features, label_factor], dim=1) 
+    #     # 拼接后的特征矩阵维度严格对齐 self.d + self.c
+    #     F_factors = torch.cat([proto_features, label_factor], dim=1) 
         
-        # A_no_diag = self.A - torch.diag(torch.diag(self.A))
+    #     # A_no_diag = self.A - torch.diag(torch.diag(self.A))
 
-        # 2. 使用受限掩码
+    #     # 2. 使用受限掩码
+    #     A_no_diag = self.get_masked_A()
+    #     # 跃过 M_dag，直接执行纯粹的 NOTEARS 线性重构
+    #     reconstructed_F = torch.matmul(F_factors, A_no_diag)
+
+    #     # 3. 切分误差，强制放大标签的权重 (d/c 倍)！
+    #     loss_rec_X = F.mse_loss(reconstructed_F[:, :self.d], F_factors[:, :self.d])
+    #     loss_rec_Y = F.mse_loss(reconstructed_F[:, self.d:], F_factors[:, self.d:])
+    #     loss_rec = loss_rec_X + (self.d / self.c) * loss_rec_Y
+
+    #     #loss_rec = F.mse_loss(reconstructed_F, F_factors)
+        
+    #     # 无环约束与稀疏正则化保持标准计算
+    #     A_sq = A_no_diag * A_no_diag
+    #     h_A = torch.trace(torch.matrix_exp(A_sq)) - (self.d + self.c)
+    #     h_A_clipped = torch.clamp(h_A, min=-10.0, max=10.0)
+    #     loss_dag_reg = 0.5 * (h_A_clipped ** 2) + self.lambda_l1 * torch.norm(A_no_diag, p=1)
+
+    #     return loss_rec + loss_dag_reg
+
+    # def dag_reconstruction_loss(self, z_local, y_local):
+    #     # 1. 必须拉平特征方差！
+    #     z_norm = F.layer_norm(z_local, (self.d,))
+        
+    #     # 2. 直接使用当前 batch 的真实标签
+    #     label_factor = F.one_hot(y_local.squeeze().long(), num_classes=self.c).float()
+        
+    #     F_factors = torch.cat([z_norm, label_factor], dim=1) 
+    #     A_no_diag = self.get_masked_A()
+        
+    #     # 3. 线性重构
+    #     reconstructed_F = torch.matmul(F_factors, A_no_diag)
+
+    #     # 切分误差，强制放大标签的权重 (d/c 倍)！
+    #     loss_rec_X = F.mse_loss(reconstructed_F[:, :self.d], F_factors[:, :self.d])
+    #     loss_rec_Y = F.mse_loss(reconstructed_F[:, self.d:], F_factors[:, self.d:])
+    #     loss_rec = loss_rec_X + (self.d / self.c) * loss_rec_Y
+        
+    #     # 无环约束
+    #     A_sq = A_no_diag * A_no_diag
+    #     h_A = torch.trace(torch.matrix_exp(A_sq)) - (self.d + self.c)
+    #     h_A_clipped = torch.clamp(h_A, min=-10.0, max=10.0)
+    #     loss_dag_reg = 0.5 * (h_A_clipped ** 2) + self.lambda_l1 * torch.norm(A_no_diag, p=1)
+
+    #     return loss_rec + loss_dag_reg
+
+
+    # def dag_reconstruction_loss(self, z_local, y_local):
+    #     # -----------------------------------------
+    #     # 引擎 A：计算微观节点级别的重构误差 (Micro)
+    #     # -----------------------------------------
+    #     z_norm = F.layer_norm(z_local, (self.d,))
+    #     y_onehot = F.one_hot(y_local.squeeze().long(), num_classes=self.c).float()
+    #     F_micro = torch.cat([z_norm, y_onehot], dim=1)
+        
+    #     A_no_diag = self.get_masked_A()
+    #     rec_micro = torch.matmul(F_micro, A_no_diag)
+        
+    #     loss_rec_X_micro = F.mse_loss(rec_micro[:, :self.d], F_micro[:, :self.d])
+    #     loss_rec_Y_micro = F.mse_loss(rec_micro[:, self.d:], F_micro[:, self.d:])
+    #     loss_micro = loss_rec_X_micro + (self.d / self.c) * loss_rec_Y_micro
+
+    #     # -----------------------------------------
+    #     # 引擎 B：计算宏观原型级别的重构误差 (Macro)
+    #     # -----------------------------------------
+    #     proto_features = self.proto_in.detach().view(-1, self.d)
+    #     proto_norm = F.layer_norm(proto_features, (self.d,))
+    #     labels_seq = torch.arange(self.c, device=self.device).repeat(self.num_envs)
+    #     proto_y_onehot = F.one_hot(labels_seq, num_classes=self.c).float()
+    #     F_macro = torch.cat([proto_norm, proto_y_onehot], dim=1)
+        
+    #     rec_macro = torch.matmul(F_macro, A_no_diag)
+        
+    #     loss_rec_X_macro = F.mse_loss(rec_macro[:, :self.d], F_macro[:, :self.d])
+    #     loss_rec_Y_macro = F.mse_loss(rec_macro[:, self.d:], F_macro[:, self.d:])
+    #     loss_macro = loss_rec_X_macro + (self.d / self.c) * loss_rec_Y_macro
+
+    #     # -----------------------------------------
+    #     # 核心创新：可学习的动态加权融合
+    #     # -----------------------------------------
+    #     # 将无界的参数通过 sigmoid 压缩到 [0, 1] 之间
+    #     alpha = torch.sigmoid(self.dag_gate) 
+        
+    #     # 自动平衡：alpha 控制原型权重，(1-alpha) 控制节点权重
+    #     loss_rec_fused = alpha * loss_macro + (1.0 - alpha) * loss_micro
+
+    #     # -----------------------------------------
+    #     # 共享的无环约束与稀疏正则化
+    #     # -----------------------------------------
+    #     A_sq = A_no_diag * A_no_diag
+    #     h_A = torch.trace(torch.matrix_exp(A_sq)) - (self.d + self.c)
+    #     h_A_clipped = torch.clamp(h_A, min=-10.0, max=10.0)
+    #     loss_dag_reg = 0.5 * (h_A_clipped ** 2) + self.lambda_l1 * torch.norm(A_no_diag, p=1)
+
+    #     return loss_rec_fused + loss_dag_reg
+
+    
+    def dag_reconstruction_loss(self, z_local, y_local):
+        # 获取无对角线的邻接矩阵 A
         A_no_diag = self.get_masked_A()
-        # 跃过 M_dag，直接执行纯粹的 NOTEARS 线性重构
-        reconstructed_F = torch.matmul(F_factors, A_no_diag)
-
-        # 3. 切分误差，强制放大标签的权重 (d/c 倍)！
-        loss_rec_X = F.mse_loss(reconstructed_F[:, :self.d], F_factors[:, :self.d])
-        loss_rec_Y = F.mse_loss(reconstructed_F[:, self.d:], F_factors[:, self.d:])
-        loss_rec = loss_rec_X + (self.d / self.c) * loss_rec_Y
-
-        #loss_rec = F.mse_loss(reconstructed_F, F_factors)
         
-        # 无环约束与稀疏正则化保持标准计算
+        # -----------------------------------------
+        # 引擎 A：微观节点级别 (Micro)
+        # -----------------------------------------
+        z_norm = F.layer_norm(z_local, (self.d,))
+        y_onehot = F.one_hot(y_local.squeeze().long(), num_classes=self.c).float()
+        F_micro = torch.cat([z_norm, y_onehot], dim=1)
+        
+        # 【改造点 1】：引入 M_dag 进行映射，模拟特征与标签间的映射函数 G [cite: 211, 217]
+        rec_micro = self.M_dag(torch.matmul(F_micro, A_no_diag))
+        
+        # 特征重构保持 MSE (L2 Norm) [cite: 222, 224]
+        loss_rec_X_micro = F.mse_loss(rec_micro[:, :self.d], F_micro[:, :self.d])
+        # 【改造点 2】：标签重构改用交叉熵损失 (L_ce) 
+        logits_Y_micro = rec_micro[:, self.d:]
+        loss_rec_Y_micro = F.cross_entropy(logits_Y_micro, y_local.squeeze().long())
+        
+        # 结合损失，这里可以沿用你之前的维度平衡系数
+        loss_micro = loss_rec_X_micro + (self.d / self.c) * loss_rec_Y_micro
+
+        # -----------------------------------------
+        # 引擎 B：宏观原型级别 (Macro) - 论文推荐的稳定优化方式 [cite: 251, 253]
+        # -----------------------------------------
+        proto_features = self.proto_in.detach().view(-1, self.d)
+        proto_norm = F.layer_norm(proto_features, (self.d,))
+        # 原型对应的真实标签索引
+        labels_seq = torch.arange(self.c, device=self.device).repeat(self.num_envs)
+        proto_y_onehot = F.one_hot(labels_seq, num_classes=self.c).float()
+        F_macro = torch.cat([proto_norm, proto_y_onehot], dim=1)
+        
+        # 同样应用 M_dag
+        rec_macro = self.M_dag(torch.matmul(F_macro, A_no_diag))
+        
+        loss_rec_X_macro = F.mse_loss(rec_macro[:, :self.d], F_macro[:, :self.d])
+        # 标签重构同样改用交叉熵
+        logits_Y_macro = rec_macro[:, self.d:]
+        loss_rec_Y_macro = F.cross_entropy(logits_Y_macro, labels_seq.long())
+        
+        loss_macro = loss_rec_X_macro + (self.d / self.c) * loss_rec_Y_macro
+
+        # -----------------------------------------
+        # 动态融合与约束 (保持你原有的创新逻辑)
+        # -----------------------------------------
+        alpha = torch.sigmoid(self.dag_gate) 
+        loss_rec_fused = alpha * loss_macro + (1.0 - alpha) * loss_micro
+
+        # 共享的无环约束 (h(A)) 与稀疏正则化 (L1) [cite: 230, 232]
         A_sq = A_no_diag * A_no_diag
+        # h(A) = Tr(e^(A*A)) - (d + c)
         h_A = torch.trace(torch.matrix_exp(A_sq)) - (self.d + self.c)
         h_A_clipped = torch.clamp(h_A, min=-10.0, max=10.0)
         loss_dag_reg = 0.5 * (h_A_clipped ** 2) + self.lambda_l1 * torch.norm(A_no_diag, p=1)
 
-        return loss_rec + loss_dag_reg
-    
+        return loss_rec_fused + loss_dag_reg
 
+    
+    
     def compute_weighted_independence_loss(self, z_local, w_local, S):
         # 【抗方差修复 2】: 动态缓存绕过。
         # 图数据一次前向传播如果节点足够多(>256)，当前的协方差估计已经足够精准。
@@ -406,6 +566,39 @@ class GraphCIW(nn.Module):
         ind_loss = torch.sum(torch.triu(S * cov_blocks_sq, diagonal=1))
         num_pairs = (self.d * (self.d - 1)) / 2.0
         return ind_loss / num_pairs
+
+
+    # def compute_weighted_independence_loss(self, z_local, w_local, S):
+    #     # ... (保留你之前的全局队列逻辑) ...
+    #     if z_local.size(0) >= 256:
+    #         z_concat, w_concat = z_local, w_local
+    #     else:
+    #         valid_global = self.global_size if self.queue_full else self.global_ptr
+    #         if valid_global > 0:
+    #             z_concat = torch.cat([z_local, self.z_global[:valid_global]], dim=0)
+    #             w_concat = torch.cat([w_local, self.w_global[:valid_global]], dim=0)
+    #         else:
+    #             z_concat, w_concat = z_local, w_local
+    #     w_concat_smooth = w_concat + 0.05
+    #     w_concat = w_concat_smooth / torch.sum(w_concat_smooth)
+        
+    #     z_mean = torch.mean(z_concat, dim=0, keepdim=True)
+    #     z_std = torch.std(z_concat, dim=0, keepdim=True) + 1e-5
+    #     z_concat_norm = (z_concat - z_mean) / z_std
+        
+    #     # 🚨 删除 RFF 逻辑，直接计算线性加权协方差！🚨
+    #     # z_centered 维度: [N, D]
+    #     z_centered = z_concat_norm - torch.sum(w_concat * z_concat_norm, dim=0, keepdim=True)
+        
+    #     # cov 维度: [D, D] (例如 64 x 64，极其稳定)
+    #     cov = torch.matmul((w_concat * z_centered).t(), z_centered) 
+    #     cov_sq = cov ** 2
+        
+    #     # 直接使用 S 掩码屏蔽因果特征间的惩罚
+    #     ind_loss = torch.sum(torch.triu(S * cov_sq, diagonal=1))
+    #     num_pairs = (self.d * (self.d - 1)) / 2.0
+    #     return ind_loss / num_pairs
+
 
     def update_global_queue(self, z_local, w_local):
         batch_size = z_local.size(0)
@@ -497,7 +690,7 @@ class GraphCIW(nn.Module):
         
         self.update_prototypes(z_tr, inv_tr, y_tr, env_tr)
         loss_cl = self.compute_contrastive_loss(z_tr, inv_tr, y_tr, env_tr)
-        loss_dag = self.dag_reconstruction_loss_on_prototypes()
+        loss_dag = self.dag_reconstruction_loss(z_tr.detach(), y_tr)
         
         # if args.dataset in ('twitch', 'elliptic'):
         #     if y_tr.shape[1] == 1 and logits.shape[1] > 1:

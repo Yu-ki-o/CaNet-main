@@ -145,7 +145,7 @@ for run in range(args.runs):
             # current_lr = optimizer.param_groups[0]['lr']
 
             # 【核心修改】：在控制台极其直观地打印出 4 个 Loss 的实时博弈情况！
-            loss_str = f"Loss [Total: {total_loss:.4f} | Cls: {l_cls:.4f} | Ind: {l_ind:.6f} | DAG: {l_dag:.4f} | CL: {l_cl:.4f}]"
+            loss_str = f"Loss [Total: {total_loss.item():.4f} | Cls: {l_cls:.4f} | Ind: {l_ind:.6f} | DAG: {l_dag:.4f} | CL: {l_cl:.4f}]"
 
             m = f'Epoch: {epoch:02d}, Loss: {loss_str}\n\tTrain: {100 * result[0]:.2f}%, Valid: {100 * result[1]:.2f}%, Test In: {100 * result[2]:.2f}% '
             for i in range(len(result)-3):
