@@ -29,7 +29,7 @@ def parser_add_main_args(parser):
 
     # training
     parser.add_argument('--weight_decay', type=float, default=5e-4)
-    parser.add_argument('--dropout', type=float, default=0.0)
+    parser.add_argument('--dropout', type=float, default=0.01)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--use_bn', action='store_true', help='use batch norm')
 
@@ -45,8 +45,12 @@ def parser_add_main_args(parser):
     parser.add_argument("--result_name",type=str,default='')
     parser.add_argument('--lamda_ciw', type=float, default=1e-4,
                         help='weight for regularlization')
-    parser.add_argument('--lamda_l1', type=float, default=0.5,
+    parser.add_argument('--lambda_l1', type=float, default=0.5,
                         help='weight for regularlization')
     parser.add_argument('--lambda_dag', type=float, default=0.1, help='DAG 无环约束的权重')
     parser.add_argument('--lambda_ind', type=float, default=0.1, help='因果特征独立性约束的权重')
     parser.add_argument('--lambda_cl', type=float, default=0.1, help='对比学习/一致性损失的权重')
+
+    parser.add_argument('--lr_dag', type=float, default=0.001, help='DAG 矩阵 A 的专属学习率')
+    parser.add_argument('--gamma', type=float, default=0.99, help='EMA 滑动平均的动量系数')
+    parser.add_argument('--pos_weight', type=float, default=5.0, help='二分类数据集正样本权重')
