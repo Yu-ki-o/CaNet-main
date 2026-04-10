@@ -97,7 +97,6 @@ for run in range(args.runs):
     writer = SummaryWriter(log_dir=log_dir)
     print(f"[INFO] TensorBoard log directory: {log_dir}")
     
-    # 严格的两级优化器隔离
     dag_param_names = ['A', 'M_dag.weight', 'dag_gate','log_vars']
     base_params = [p for n, p in model.named_parameters() if n not in dag_param_names]
     dag_params = [p for n, p in model.named_parameters() if n in dag_param_names]
@@ -113,26 +112,26 @@ for run in range(args.runs):
 
     for epoch in range(args.epochs):
         model.train()
-        # === 🌟 新增：退火策略 (Annealing) ===
-        # 假设前 100 个 epoch 为退火期，权重从 0.01 倍线性增长到 1.0 倍
+        
         warmup_epochs = 100.0
         anneal_rate = min(1.0, epoch / warmup_epochs)
-        
-        # 动态修改 model 内部的惩罚系数
         model.lambda_l1 = getattr(args, 'lambda_l1', 1e-5) * (0.01 + 0.99 * anneal_rate)
         model.lambda_dag = getattr(args, 'lambda_dag', 0.1) * (0.01 + 0.99 * anneal_rate)
-        # 阶段一：严格仅优化全局 DAG 物理结构
-        _, loss_dag_opt, _, _, _ = model.loss_compute(dataset, criterion, args)
         
         optimizer_dag.zero_grad()
-        loss_dag_opt.backward() 
+        optimizer_model.zero_grad()
+
+        # ==========================================================
+        # 🌟 修复：单次前向传播！保证所有梯度都基于同一个子采样 Batch！
+        # ==========================================================
+        loss_model_opt, loss_dag_opt, l_cls, l_dag, l_cl = model.loss_compute(dataset, criterion, args)
+        
+        # 阶段一：仅优化全局 DAG 物理结构，保留计算图供模型使用
+        loss_dag_opt.backward(retain_graph=True) 
         torch.nn.utils.clip_grad_norm_(dag_params, max_norm=2.0)
         optimizer_dag.step()
         
-        # 阶段二：在 DAG 的引导下，联合优化 Transformer 表征重组与分类器
-        loss_model_opt, _, l_cls, l_dag, l_cl = model.loss_compute(dataset, criterion, args)
-        
-        optimizer_model.zero_grad()
+        # 阶段二：联合优化 Transformer 表征重组与分类器
         loss_model_opt.backward()
         torch.nn.utils.clip_grad_norm_(base_params, max_norm=2.0)
         optimizer_model.step()
@@ -144,6 +143,25 @@ for run in range(args.runs):
         tr_acc.append(result[0])
         val_acc.append(result[2])
         
+        # ==========================================================
+        # 🌟 修复：增广拉格朗日外部更新策略
+        # ==========================================================
+        h_A_val = model.current_h_A.item()
+        
+        # 频率控制：每 50 个 Epoch 进行一次评估 (防止 rho 瞬间爆炸)
+        if epoch > 0 and epoch % 50 == 0:
+            # 宽容度控制：只要环状结构没有明显下降 (下降不足 10%)，就温和惩罚 (x2)
+            if h_A_val > 0.90 * model.h_A_last.item():
+                model.rho *= 2.0
+            
+            # 更新拉格朗日乘子
+            model.lagrange_multiplier += model.rho * h_A_val
+            model.h_A_last.fill_(h_A_val)
+            
+            # 上限控制：防止 rho 过大引发计算图 NaN 崩溃
+            model.rho.clamp_(max=1e6)
+
+
         # TensorBoard 监控
         writer.add_scalar('Loss_Optimizer/Model_Total', loss_model_opt.item(), epoch)
         writer.add_scalar('Loss_Optimizer/DAG_Total', loss_dag_opt.item(), epoch)
