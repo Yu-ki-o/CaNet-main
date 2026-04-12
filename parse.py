@@ -6,7 +6,7 @@ def parser_add_main_args(parser):
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--cpu', action='store_true')
-    parser.add_argument('--seed', type=int, default=123) #123
+    parser.add_argument('--seed', type=int, default=1000) #123#2024#1000
     parser.add_argument('--runs', type=int, default=5,
                         help='number of distinct runs')
     parser.add_argument('--epochs', type=int, default=500)
@@ -17,7 +17,7 @@ def parser_add_main_args(parser):
                         help='number of layers for deep methods')
 
     # CaNet
-    parser.add_argument('--backbone_type', type=str, default='gcn', choices=['gcn', 'gat'])
+    parser.add_argument('--backbone_type', type=str, default='gcn', choices=['gcn', 'gat','transformer'])
     parser.add_argument('--K', type=int, default=3,
                         help='num of domains, each for one graph convolution filter')
     parser.add_argument('--tau', type=float, default=1,
