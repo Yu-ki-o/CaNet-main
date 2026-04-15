@@ -142,19 +142,20 @@ class ExpertNet(nn.Module):
         for fc in self.fcs:
             fc.reset_parameters()
 
-    def forward(self, x, adj, training=False):
-        self.training = training
-        x = F.dropout(x, self.dropout, training=self.training)
+    def forward(self, x, adj, training=None):
+        if training is None:
+            training = self.training
+        x = F.dropout(x, self.dropout, training=training)
         h = self.act_fn(self.fcs[0](x))
 
         # 构建一个全为 1 的 Dummy 权重，以适配 CaNetConv 的输入维度
         e_dummy = torch.ones(x.shape[0], 1).to(self.device)
 
         for con in self.convs:
-            h = F.dropout(h, self.dropout, training=self.training)
+            h = F.dropout(h, self.dropout, training=training)
             h = self.act_fn(con(h, adj, e_dummy))
 
-        h = F.dropout(h, self.dropout, training=self.training)
+        h = F.dropout(h, self.dropout, training=training)
         out = self.fcs[-1](h)
         return out
 
@@ -196,9 +197,9 @@ class CaNet(nn.Module):
                 true_label = y
             loss = criterion(pred, true_label.squeeze(1).to(torch.float))
         else:
-            out = F.log_softmax(pred, dim=1)
             target = y.squeeze(1)
-            loss = criterion(out, target)
+            # CrossEntropyLoss expects raw logits (it internally applies log_softmax).
+            loss = criterion(pred, target)
         return loss
 
     def loss_compute(self, d, criterion, args):
@@ -236,7 +237,20 @@ class CaNet(nn.Module):
             
             loss_other = 0.0
             if len(train_idx_other) > 0:
-                loss_other = self.sup_loss_calc(d.y[train_idx_other], expert_logits[train_idx_other], criterion, args)
+                if getattr(args, 'other_env_reduce', 'sample') == 'env':
+                    other_env_losses = []
+                    for other_env_id in unique_envs:
+                        if other_env_id == env_id:
+                            continue
+                        env_k_mask = (d.env == other_env_id)[d.train_idx]
+                        train_idx_k = d.train_idx[env_k_mask]
+                        if len(train_idx_k) > 0:
+                            loss_k = self.sup_loss_calc(d.y[train_idx_k], expert_logits[train_idx_k], criterion, args)
+                            other_env_losses.append(loss_k)
+                    if len(other_env_losses) > 0:
+                        loss_other = torch.stack(other_env_losses).mean()
+                else:
+                    loss_other = self.sup_loss_calc(d.y[train_idx_other], expert_logits[train_idx_other], criterion, args)
 
             # 将专家的损失整合到全局总损失中
             total_loss += (loss_self + alpha_other * loss_other)

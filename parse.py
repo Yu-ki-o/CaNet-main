@@ -6,7 +6,7 @@ def parser_add_main_args(parser):
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--cpu', action='store_true')
-    parser.add_argument('--seed', type=int, default=1000) #123#2024#1000
+    parser.add_argument('--seed', type=int, default=2024) #123#2024#1000#42#3407#777
     parser.add_argument('--runs', type=int, default=5,
                         help='number of distinct runs')
     parser.add_argument('--epochs', type=int, default=500)
@@ -26,6 +26,8 @@ def parser_add_main_args(parser):
     parser.add_argument('--lamda', type=float, default=1.0,
                         help='weight for regularlization')
     parser.add_argument('--variant', action='store_true',help='set to use variant')
+    parser.add_argument('--other_env_reduce', type=str, default='sample', choices=['sample', 'env'],
+                        help='how to aggregate losses from non-assigned environments')
 
     # training
     parser.add_argument('--weight_decay', type=float, default=5e-4)
