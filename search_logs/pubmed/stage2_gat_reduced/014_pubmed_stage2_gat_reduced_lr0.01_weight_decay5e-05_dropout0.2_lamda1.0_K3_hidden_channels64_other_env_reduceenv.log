@@ -1,0 +1,81 @@
+Namespace(K=3, backbone_type='gat', combine_result=True, cpu=False, data_dir='./data/', dataset='pubmed', device=0, display_step=1, dropout=0.2, env_type='graph', epochs=500, expert_agg='mean', gate_hidden=64, hidden_channels=64, infer_env=False, infer_env_components=64, infer_env_iters=30, infer_env_num=3, lamda=1.0, lr=0.01, num_layers=2, other_env_reduce='env', pos_weight=5.0, result_name='pubmed_stage2_gat_reduced_lr0.01_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv', runs=3, seed=2024, store_result=True, tau=1.0, use_bn=False, variant=False, weight_decay=5e-05)
+using existing synthetic data...
+dataset pubmed: all nodes 118302 | edges 531888 | classes 3 | feats 510
+train nodes 29575 | valid nodes 14788 | test in nodes 14788
+test ood1 nodes 59151 
+[INFO] env numbers: 6 train env numbers: 3
+MODEL: CaNet(
+  (experts): ModuleList(
+    (0): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+        (1): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=510, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=3, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+    (1): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+        (1): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=510, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=3, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+    (2): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+        (1): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=510, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=3, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+  )
+  (gate): Sequential(
+    (0): Linear(in_features=510, out_features=64, bias=True)
+    (1): ReLU()
+    (2): Linear(in_features=64, out_features=3, bias=True)
+  )
+)
+[INFO] TensorBoard logging activated. Logs will be saved to: ./runs/pubmed/Apr17_11-13-20_lamda_1.0
+Traceback (most recent call last):
+  File "main.py", line 140, in <module>
+    loss = model.loss_compute(dataset, criterion, args)
+  File "/public/wc/CaNet-main/model.py", line 231, in loss_compute
+    logits_list = [expert(d.x, d.edge_index, training=True) for expert in self.experts]
+  File "/public/wc/CaNet-main/model.py", line 231, in <listcomp>
+    logits_list = [expert(d.x, d.edge_index, training=True) for expert in self.experts]
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/public/wc/CaNet-main/model.py", line 156, in forward
+    h = self.act_fn(con(h, adj, e_dummy))
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/public/wc/CaNet-main/model.py", line 95, in forward
+    edge_h = torch.cat((h[:, adj_loops[0, :], :], h[:, adj_loops[1, :], :]), dim=2)  # [K, E, 2*D]
+RuntimeError: CUDA out of memory. Tried to allocate 318.00 MiB (GPU 0; 79.14 GiB total capacity; 1.44 GiB already allocated; 210.94 MiB free; 1.55 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+
+Command: python main.py --dataset pubmed --backbone_type gat --env_type graph --combine_result --store_result --epochs 500 --runs 3 --num_layers 2 --expert_agg mean --tau 1 --device 0 --lr 0.01 --weight_decay 5e-05 --dropout 0.2 --lamda 1.0 --K 3 --hidden_channels 64 --other_env_reduce env --result_name pubmed_stage2_gat_reduced_lr0.01_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+Return code: 1
+Elapsed: 39.84s

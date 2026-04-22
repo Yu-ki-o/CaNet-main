@@ -1,0 +1,203 @@
+Top 10 experiments on twitch (stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs/twitch/stage1/036_twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda2.0_K4_hidden_channels64_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda2.0_K4_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.27
+highest_valid: 73.48 ± 0.04
+highest_in_test: 74.75 ± 0.02
+final_in_test: 74.75 ± 0.02
+hyperparameters:
+  lr: 0.001
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 4
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 68.69 ± 0.08
+  final_ood_test_2: 53.57 ± 0.01
+  final_ood_test_3: 64.27 ± 0.03
+
+Rank 2
+log_file: search_logs/twitch/stage1/034_twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda1.0_K4_hidden_channels64_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda1.0_K4_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.23
+highest_valid: 73.45 ± 0.04
+highest_in_test: 74.74 ± 0.03
+final_in_test: 74.74 ± 0.03
+hyperparameters:
+  lr: 0.001
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 1.0
+  K: 4
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 68.7 ± 0.06
+  final_ood_test_2: 53.58 ± 0.02
+  final_ood_test_3: 64.23 ± 0.01
+
+Rank 3
+log_file: search_logs/twitch/stage1/032_twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda0.1_K4_hidden_channels64_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda0.1_K4_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.23
+highest_valid: 73.46 ± 0.02
+highest_in_test: 74.74 ± 0.04
+final_in_test: 74.73 ± 0.03
+hyperparameters:
+  lr: 0.001
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 0.1
+  K: 4
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 68.66 ± 0.04
+  final_ood_test_2: 53.51 ± 0.08
+  final_ood_test_3: 64.23 ± 0.03
+
+Rank 4
+log_file: search_logs/twitch/stage1/002_twitch_stage1_lr0.01_weight_decay5e-05_dropout0.0_lamda0.1_K4_hidden_channels64_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.01_weight_decay5e-05_dropout0.0_lamda0.1_K4_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.21
+highest_valid: 72.66 ± 0.09
+highest_in_test: 74.6 ± 0.03
+final_in_test: 74.58 ± 0.06
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.0
+  lamda: 0.1
+  K: 4
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 68.27 ± 0.07
+  final_ood_test_2: 54.04 ± 0.1
+  final_ood_test_3: 64.21 ± 0.0
+
+Rank 5
+log_file: search_logs/twitch/stage1/004_twitch_stage1_lr0.01_weight_decay5e-05_dropout0.0_lamda1.0_K4_hidden_channels64_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.01_weight_decay5e-05_dropout0.0_lamda1.0_K4_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.19
+highest_valid: 72.67 ± 0.14
+highest_in_test: 74.6 ± 0.09
+final_in_test: 74.57 ± 0.05
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.0
+  lamda: 1.0
+  K: 4
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 68.37 ± 0.11
+  final_ood_test_2: 54.07 ± 0.03
+  final_ood_test_3: 64.19 ± 0.02
+
+Rank 6
+log_file: search_logs/twitch/stage1/031_twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda0.1_K4_hidden_channels32_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda0.1_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.15
+highest_valid: 73.04 ± 0.03
+highest_in_test: 74.48 ± 0.02
+final_in_test: 74.45 ± 0.03
+hyperparameters:
+  lr: 0.001
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 0.1
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 68.74 ± 0.01
+  final_ood_test_2: 53.29 ± 0.04
+  final_ood_test_3: 64.15 ± 0.03
+
+Rank 7
+log_file: search_logs/twitch/stage1/014_twitch_stage1_lr0.005_weight_decay5e-05_dropout0.0_lamda0.1_K4_hidden_channels64_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.005_weight_decay5e-05_dropout0.0_lamda0.1_K4_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.13
+highest_valid: 72.54 ± 0.03
+highest_in_test: 74.55 ± 0.0
+final_in_test: 74.47 ± 0.1
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.0
+  lamda: 0.1
+  K: 4
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 67.77 ± 0.1
+  final_ood_test_2: 54.26 ± 0.01
+  final_ood_test_3: 64.13 ± 0.09
+
+Rank 8
+log_file: search_logs/twitch/stage1/035_twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda2.0_K4_hidden_channels32_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.001_weight_decay5e-05_dropout0.2_lamda2.0_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.11
+highest_valid: 73.02 ± 0.04
+highest_in_test: 74.45 ± 0.04
+final_in_test: 74.42 ± 0.01
+hyperparameters:
+  lr: 0.001
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 68.78 ± 0.06
+  final_ood_test_2: 53.28 ± 0.09
+  final_ood_test_3: 64.11 ± 0.05
+
+Rank 9
+log_file: search_logs/twitch/stage1/001_twitch_stage1_lr0.01_weight_decay5e-05_dropout0.0_lamda0.1_K4_hidden_channels32_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.01_weight_decay5e-05_dropout0.0_lamda0.1_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.11
+highest_valid: 72.44 ± 0.18
+highest_in_test: 74.46 ± 0.02
+final_in_test: 74.34 ± 0.05
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.0
+  lamda: 0.1
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 67.94 ± 0.17
+  final_ood_test_2: 53.96 ± 0.18
+  final_ood_test_3: 64.11 ± 0.1
+
+Rank 10
+log_file: search_logs/twitch/stage1/006_twitch_stage1_lr0.01_weight_decay5e-05_dropout0.0_lamda2.0_K4_hidden_channels64_other_env_reduceenv.log
+result_name: twitch_stage1_lr0.01_weight_decay5e-05_dropout0.0_lamda2.0_K4_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 64.09
+highest_valid: 72.68 ± 0.05
+highest_in_test: 74.64 ± 0.05
+final_in_test: 74.55 ± 0.07
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.0
+  lamda: 2.0
+  K: 4
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 68.02 ± 0.13
+  final_ood_test_2: 54.14 ± 0.23
+  final_ood_test_3: 64.09 ± 0.1
+

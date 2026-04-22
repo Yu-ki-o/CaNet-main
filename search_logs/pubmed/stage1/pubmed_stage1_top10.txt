@@ -1,0 +1,183 @@
+Top 10 experiments on pubmed (stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs/pubmed/stage1/010_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 91.74
+highest_valid: 97.39 ± 0.05
+highest_in_test: 97.47 ± 0.04
+final_in_test: 97.4 ± 0.03
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 0.5
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 91.74 ± 0.15
+
+Rank 2
+log_file: search_logs/pubmed/stage1/012_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 91.73
+highest_valid: 97.45 ± 0.03
+highest_in_test: 97.57 ± 0.01
+final_in_test: 97.49 ± 0.05
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 91.73 ± 1.64
+
+Rank 3
+log_file: search_logs/pubmed/stage1/024_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 91.7
+highest_valid: 97.32 ± 0.05
+highest_in_test: 97.47 ± 0.07
+final_in_test: 97.43 ± 0.03
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 91.7 ± 0.99
+
+Rank 4
+log_file: search_logs/pubmed/stage1/023_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 91.51
+highest_valid: 97.31 ± 0.05
+highest_in_test: 97.53 ± 0.06
+final_in_test: 97.44 ± 0.05
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 91.51 ± 0.69
+
+Rank 5
+log_file: search_logs/pubmed/stage1/009_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda0.1_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda0.1_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 91.34
+highest_valid: 97.34 ± 0.06
+highest_in_test: 97.42 ± 0.01
+final_in_test: 97.37 ± 0.02
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 0.1
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 91.34 ± 0.86
+
+Rank 6
+log_file: search_logs/pubmed/stage1/011_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 91.14
+highest_valid: 97.42 ± 0.06
+highest_in_test: 97.52 ± 0.06
+final_in_test: 97.42 ± 0.02
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 91.14 ± 0.53
+
+Rank 7
+log_file: search_logs/pubmed/stage1/021_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda0.1_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda0.1_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 90.93
+highest_valid: 97.19 ± 0.03
+highest_in_test: 97.4 ± 0.04
+final_in_test: 97.37 ± 0.01
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 0.1
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 90.93 ± 1.44
+
+Rank 8
+log_file: search_logs/pubmed/stage1/022_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 90.8
+highest_valid: 97.24 ± 0.02
+highest_in_test: 97.47 ± 0.06
+final_in_test: 97.41 ± 0.11
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 0.5
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 90.8 ± 1.21
+
+Rank 9
+log_file: search_logs/pubmed/stage1/017_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda0.1_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda0.1_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 90.73
+highest_valid: 98.09 ± 0.04
+highest_in_test: 98.14 ± 0.01
+final_in_test: 98.11 ± 0.04
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 0.1
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 90.73 ± 0.93
+
+Rank 10
+log_file: search_logs/pubmed/stage1/019_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 90.58
+highest_valid: 98.07 ± 0.02
+highest_in_test: 98.08 ± 0.02
+final_in_test: 98.04 ± 0.03
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 90.58 ± 0.41
+

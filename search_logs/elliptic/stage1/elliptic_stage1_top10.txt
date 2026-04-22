@@ -1,0 +1,253 @@
+Top 10 experiments on elliptic (stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs/elliptic/stage1/007_elliptic_stage1_lr0.01_weight_decay0.001_dropout0.2_lamda0.1_K3_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.01_weight_decay0.001_dropout0.2_lamda0.1_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 59.51
+highest_valid: 81.1 ± 0.0
+highest_in_test: 83.98 ± 0.67
+final_in_test: 78.71 ± 2.65
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.001
+  dropout: 0.2
+  lamda: 0.1
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 70.98 ± 2.61
+  final_ood_test_2: 63.79 ± 2.3
+  final_ood_test_3: 54.83 ± 1.7
+  final_ood_test_4: 51.89 ± 1.09
+  final_ood_test_5: 51.4 ± 1.72
+  final_ood_test_6: 52.14 ± 1.99
+  final_ood_test_7: 66.7 ± 5.88
+  final_ood_test_8: 59.51 ± 4.56
+
+Rank 2
+log_file: search_logs/elliptic/stage1/008_elliptic_stage1_lr0.01_weight_decay0.001_dropout0.2_lamda0.1_K4_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.01_weight_decay0.001_dropout0.2_lamda0.1_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 59.34
+highest_valid: 80.35 ± 1.29
+highest_in_test: 83.21 ± 0.0
+final_in_test: 78.69 ± 2.08
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.001
+  dropout: 0.2
+  lamda: 0.1
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 74.58 ± 3.0
+  final_ood_test_2: 66.44 ± 4.0
+  final_ood_test_3: 55.19 ± 2.11
+  final_ood_test_4: 52.44 ± 1.77
+  final_ood_test_5: 52.29 ± 1.3
+  final_ood_test_6: 53.35 ± 1.61
+  final_ood_test_7: 65.92 ± 3.89
+  final_ood_test_8: 59.34 ± 2.4
+
+Rank 3
+log_file: search_logs/elliptic/stage1/010_elliptic_stage1_lr0.01_weight_decay0.001_dropout0.2_lamda0.5_K4_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.01_weight_decay0.001_dropout0.2_lamda0.5_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 58.92
+highest_valid: 80.03 ± 1.12
+highest_in_test: 83.2 ± 1.18
+final_in_test: 79.89 ± 2.76
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.001
+  dropout: 0.2
+  lamda: 0.5
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 73.07 ± 1.3
+  final_ood_test_2: 64.94 ± 1.6
+  final_ood_test_3: 54.89 ± 1.29
+  final_ood_test_4: 52.32 ± 1.67
+  final_ood_test_5: 51.39 ± 1.1
+  final_ood_test_6: 52.28 ± 0.94
+  final_ood_test_7: 63.21 ± 4.71
+  final_ood_test_8: 58.92 ± 4.06
+
+Rank 4
+log_file: search_logs/elliptic/stage1/004_elliptic_stage1_lr0.01_weight_decay0.001_dropout0.1_lamda0.5_K4_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.01_weight_decay0.001_dropout0.1_lamda0.5_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 57.86
+highest_valid: 81.47 ± 1.56
+highest_in_test: 84.7 ± 0.58
+final_in_test: 81.27 ± 0.65
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.001
+  dropout: 0.1
+  lamda: 0.5
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 78.8 ± 2.27
+  final_ood_test_2: 69.81 ± 1.31
+  final_ood_test_3: 55.87 ± 0.7
+  final_ood_test_4: 53.22 ± 1.36
+  final_ood_test_5: 52.26 ± 1.03
+  final_ood_test_6: 53.18 ± 0.79
+  final_ood_test_7: 65.45 ± 3.21
+  final_ood_test_8: 57.86 ± 3.79
+
+Rank 5
+log_file: search_logs/elliptic/stage1/020_elliptic_stage1_lr0.005_weight_decay0.001_dropout0.1_lamda0.1_K4_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.005_weight_decay0.001_dropout0.1_lamda0.1_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 57.73
+highest_valid: 76.34 ± 2.78
+highest_in_test: 82.8 ± 1.36
+final_in_test: 79.62 ± 2.08
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.001
+  dropout: 0.1
+  lamda: 0.1
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 78.72 ± 1.9
+  final_ood_test_2: 67.08 ± 5.07
+  final_ood_test_3: 54.19 ± 1.43
+  final_ood_test_4: 52.5 ± 1.51
+  final_ood_test_5: 50.97 ± 1.49
+  final_ood_test_6: 52.45 ± 2.61
+  final_ood_test_7: 65.35 ± 3.94
+  final_ood_test_8: 57.73 ± 3.75
+
+Rank 6
+log_file: search_logs/elliptic/stage1/013_elliptic_stage1_lr0.01_weight_decay0.001_dropout0.3_lamda0.1_K3_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.01_weight_decay0.001_dropout0.3_lamda0.1_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 57.58
+highest_valid: 74.73 ± 3.04
+highest_in_test: 80.33 ± 1.46
+final_in_test: 74.94 ± 3.95
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.001
+  dropout: 0.3
+  lamda: 0.1
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 65.93 ± 3.44
+  final_ood_test_2: 55.41 ± 5.97
+  final_ood_test_3: 52.94 ± 1.53
+  final_ood_test_4: 51.02 ± 2.83
+  final_ood_test_5: 50.73 ± 2.34
+  final_ood_test_6: 50.7 ± 1.55
+  final_ood_test_7: 62.06 ± 6.19
+  final_ood_test_8: 57.58 ± 4.38
+
+Rank 7
+log_file: search_logs/elliptic/stage1/002_elliptic_stage1_lr0.01_weight_decay0.001_dropout0.1_lamda0.1_K4_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.01_weight_decay0.001_dropout0.1_lamda0.1_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 56.94
+highest_valid: 81.14 ± 1.03
+highest_in_test: 84.37 ± 0.0
+final_in_test: 80.43 ± 0.81
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.001
+  dropout: 0.1
+  lamda: 0.1
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 78.12 ± 2.07
+  final_ood_test_2: 68.01 ± 1.05
+  final_ood_test_3: 54.49 ± 1.28
+  final_ood_test_4: 51.85 ± 1.84
+  final_ood_test_5: 50.81 ± 3.21
+  final_ood_test_6: 51.52 ± 2.18
+  final_ood_test_7: 62.98 ± 5.91
+  final_ood_test_8: 56.94 ± 5.28
+
+Rank 8
+log_file: search_logs/elliptic/stage1/026_elliptic_stage1_lr0.005_weight_decay0.001_dropout0.2_lamda0.1_K4_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.005_weight_decay0.001_dropout0.2_lamda0.1_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 56.94
+highest_valid: 76.43 ± 2.46
+highest_in_test: 81.17 ± 1.46
+final_in_test: 79.97 ± 1.85
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.001
+  dropout: 0.2
+  lamda: 0.1
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 72.03 ± 2.47
+  final_ood_test_2: 63.6 ± 3.49
+  final_ood_test_3: 53.54 ± 1.31
+  final_ood_test_4: 50.96 ± 1.66
+  final_ood_test_5: 49.34 ± 0.69
+  final_ood_test_6: 51.65 ± 2.27
+  final_ood_test_7: 62.5 ± 7.08
+  final_ood_test_8: 56.94 ± 3.73
+
+Rank 9
+log_file: search_logs/elliptic/stage1/028_elliptic_stage1_lr0.005_weight_decay0.001_dropout0.2_lamda0.5_K4_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.005_weight_decay0.001_dropout0.2_lamda0.5_K4_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 56.21
+highest_valid: 78.82 ± 2.3
+highest_in_test: 82.01 ± 0.0
+final_in_test: 79.49 ± 0.0
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.001
+  dropout: 0.2
+  lamda: 0.5
+  K: 4
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 72.25 ± 1.68
+  final_ood_test_2: 64.06 ± 3.06
+  final_ood_test_3: 53.48 ± 1.18
+  final_ood_test_4: 50.29 ± 0.9
+  final_ood_test_5: 49.31 ± 0.73
+  final_ood_test_6: 51.15 ± 0.99
+  final_ood_test_7: 60.04 ± 2.72
+  final_ood_test_8: 56.21 ± 1.3
+
+Rank 10
+log_file: search_logs/elliptic/stage1/009_elliptic_stage1_lr0.01_weight_decay0.001_dropout0.2_lamda0.5_K3_hidden_channels32_other_env_reduceenv.log
+result_name: elliptic_stage1_lr0.01_weight_decay0.001_dropout0.2_lamda0.5_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 55.82
+highest_valid: 82.49 ± 1.21
+highest_in_test: 81.64 ± 0.65
+final_in_test: 79.24 ± 1.43
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.001
+  dropout: 0.2
+  lamda: 0.5
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 74.87 ± 4.54
+  final_ood_test_2: 63.78 ± 1.58
+  final_ood_test_3: 55.16 ± 0.78
+  final_ood_test_4: 51.44 ± 0.34
+  final_ood_test_5: 50.87 ± 0.7
+  final_ood_test_6: 50.6 ± 0.82
+  final_ood_test_7: 59.73 ± 6.16
+  final_ood_test_8: 55.82 ± 1.53
+

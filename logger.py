@@ -17,6 +17,28 @@ class Logger(object):
         assert run >= 0 and run < len(self.results)
         self.results[run].append(result)
 
+    def _build_result_filename(self, args):
+        result_name = str(getattr(args, 'result_name', '')).strip()
+        if not result_name:
+            result_name = datetime.now().strftime("run_%Y%m%d-%H%M%S")
+
+        safe_name = "".join(
+            ch if ch.isalnum() or ch in ('-', '_', '.') else '_'
+            for ch in result_name
+        ).strip('._')
+
+        if not safe_name:
+            safe_name = datetime.now().strftime("run_%Y%m%d-%H%M%S")
+
+        return f"{safe_name}.txt"
+
+    def _build_args_table(self, args):
+        table = Texttable()
+        table.add_row(["Parameter", "Value"])
+        for key, value in vars(args).items():
+            table.add_row([key, value])
+        return table.draw()
+
     def print_statistics(self, run=None):
         if run is not None:
             result = 100 * torch.tensor(self.results[run])
@@ -89,19 +111,17 @@ class Logger(object):
             best_result = [train_high, valid_high, test_in_high] + test_ood_high + [train_final, test_in_final] + test_ood_final
             best_results.append(best_result)
         best_result = torch.tensor(best_results)
-        _dict = vars(args)
-        table = Texttable()
-        table.add_row(["Parameter", "Value"])
-        for k in _dict:
-            table.add_row([k, _dict[k]])
 
-        if not os.path.exists(f'results/{args.dataset}/{args.backbone_type}'):
-            os.makedirs(f'results/{args.dataset}/{args.backbone_type}')
-        datetime_now = datetime.now().strftime("%Y%m%d-%H%M%S")
-        filename = f'results/{args.dataset}/{args.backbone_type}/lr_{args.lr}.wd_{args.weight_decay}.tau_{args.tau}.K_{args.K}.dp_{args.dropout}.env_{args.env_type}_{args.result_name}.{datetime_now}.txt'
-        with open(f"{filename}", 'a') as f:
-            f.write(table.draw())
-            f.write(f'\nAll runs:\n')
+        result_dir = f'results/{args.dataset}/{args.backbone_type}'
+        os.makedirs(result_dir, exist_ok=True)
+
+        save_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        filename = os.path.join(result_dir, self._build_result_filename(args))
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(f"Saved At: {save_time}\n")
+            f.write("Experiment Parameters:\n")
+            f.write(self._build_args_table(args))
+            f.write('\n\nAll runs:\n')
             r = best_result[:, 0]
             f.write(f'Highest Train: {r.mean():.2f} ± {r.std():.2f}\n')
             r = best_result[:, 1]

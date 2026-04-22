@@ -24,7 +24,6 @@ class GraphConvolutionBase(nn.Module):
         super(GraphConvolutionBase, self).__init__()
         self.residual = residual
         self.in_features = in_features
-
         self.out_features = out_features
         self.weight = Parameter(torch.FloatTensor(self.in_features, self.out_features))
         if self.residual:
@@ -170,22 +169,40 @@ class CaNet(nn.Module):
     def __init__(self, d, c, args, device):
         super(CaNet, self).__init__()
         # 借助启动脚本中的 --K 参数来决定并行训练的专家数量
-        self.num_experts = args.K 
+        self.num_experts = args.K
+        self.expert_agg = getattr(args, 'expert_agg', 'mean')
         self.experts = nn.ModuleList([ExpertNet(d, c, args, device) for _ in range(self.num_experts)])
+        self.gate = nn.Sequential(
+            nn.Linear(d, args.gate_hidden),
+            nn.ReLU(),
+            nn.Linear(args.gate_hidden, self.num_experts),
+        )
         self.device = device
 
     def reset_parameters(self):
         for expert in self.experts:
             expert.reset_parameters()
+        for module in self.gate:
+            if hasattr(module, 'reset_parameters'):
+                module.reset_parameters()
+
+    def compute_expert_weights(self, x):
+        gate_logits = self.gate(x)
+        return torch.softmax(gate_logits, dim=-1)
 
     def forward(self, x, adj, idx=None, training=False):
         # 1. 专家独立推断 (Independent Inference)
         logits_list = [expert(x, adj, training=training) for expert in self.experts]
-        
-        # 2. 后门均值组合 (Backdoor Adjustment via Arithmetic Mean)
+
         logits_stack = torch.stack(logits_list, dim=0) # [num_experts, N, C]
+
+        if self.expert_agg == 'gate':
+            expert_weights = self.compute_expert_weights(x)  # [N, K]
+            weighted_logits = torch.einsum('nk,knc->nc', expert_weights, logits_stack)
+            return weighted_logits
+
+        # 2. 后门均值组合 (Backdoor Adjustment via Arithmetic Mean)
         avg_logits = torch.mean(logits_stack, dim=0)   # [N, C]
-        
         return avg_logits
 
     def sup_loss_calc(self, y, pred, criterion, args):

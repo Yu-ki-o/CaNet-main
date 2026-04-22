@@ -1,41 +1,82 @@
-import torch
 import time
-from sklearn.decomposition import FastICA
-import warnings
+import torch
 
-def apply_ica_disentanglement(data, n_components=None, random_state=42):
+from data_utils import reindex_env
+
+
+def _ica_style_projection(x, n_components):
+    x = x.float()
+    x = x - x.mean(dim=0, keepdim=True)
+    n_components = min(n_components, x.size(0), x.size(1))
+
+    # ICA usually starts from whitening. We use an SVD-based whitening step so
+    # the preprocessing works without external dependencies.
+    u, s, v = torch.pca_lowrank(x, q=n_components, center=False)
+    projected = x @ v[:, :n_components]
+    scale = torch.clamp(s[:n_components], min=1e-6)
+    whitened = projected / scale.unsqueeze(0)
+    return whitened
+
+
+def _run_kmeans(x, num_clusters, num_iters=30, seed=42):
+    generator = torch.Generator(device=x.device)
+    generator.manual_seed(seed)
+
+    if x.size(0) < num_clusters:
+        raise ValueError(f"num_clusters={num_clusters} is larger than num_nodes={x.size(0)}")
+
+    perm = torch.randperm(x.size(0), generator=generator, device=x.device)
+    centroids = x[perm[:num_clusters]].clone()
+    assignments = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+
+    for _ in range(num_iters):
+        dist = torch.cdist(x, centroids)
+        new_assignments = dist.argmin(dim=1)
+        if torch.equal(new_assignments, assignments):
+            break
+        assignments = new_assignments
+
+        for cluster_id in range(num_clusters):
+            mask = assignments == cluster_id
+            if mask.any():
+                centroids[cluster_id] = x[mask].mean(dim=0)
+            else:
+                fallback_idx = torch.randint(0, x.size(0), (1,), generator=generator, device=x.device)
+                centroids[cluster_id] = x[fallback_idx].squeeze(0)
+
+    return assignments
+
+
+def infer_pseudo_envs_with_ica(
+    dataset,
+    env_num,
+    n_components=64,
+    num_iters=30,
+    seed=42,
+    debug=True,
+):
     """
-    通用的图节点特征 ICA 解耦模块
-    :param data: PyG 的 Data 对象 (需包含 data.x)
-    :param n_components: 降维后的独立成分数。如果为 None，则自适应保留一定维度。
+    Infer pseudo environments from node features with an ICA-inspired pipeline:
+    centering -> whitening -> k-means clustering.
     """
-    print("\n[INFO] 启动 FastICA 因果特征解耦 (Causal Feature Disentanglement)...")
+    if not hasattr(dataset, "x"):
+        raise ValueError("dataset must contain node features 'x'")
+
     start_time = time.time()
-    
-    original_x = data.x.cpu().numpy()
-    num_nodes, num_features = original_x.shape
-    
-    # 自适应维度策略：如果未指定，且原始特征维度极大(如Citeseer的3700+)，则进行降维去噪
-    # 如果原始特征维度较小，则保持维度不变，仅做正交解耦
-    if n_components is None:
-        n_components = min(num_features, 512) 
-        
-    # 初始化 FastICA (使用 unit-variance 白化以符合因果独立假设)
-    # 忽略 sklearn 的收敛警告
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        ica = FastICA(n_components=n_components, 
-                      random_state=random_state, 
-                      max_iter=1000, 
-                      whiten='unit-variance')
-        
-        # 1. 拟合并转换出解耦后的独立因果特征
-        disentangled_x = ica.fit_transform(original_x)
-    
-    # 2. 将纯净特征重新挂载回 PyG 的 data 对象
-    data.x = torch.tensor(disentangled_x, dtype=torch.float32)
-    
-    print(f"[INFO] 解耦完成！耗时: {time.time() - start_time:.2f} 秒")
-    print(f"[INFO] 特征纠缠解除：维度从 {num_features} 映射至 {data.x.shape[1]} 个独立因果成分\n")
-    
-    return data
+    x = dataset.x.detach().cpu()
+    whitened = _ica_style_projection(x, n_components=n_components)
+    pseudo_env = _run_kmeans(whitened, num_clusters=env_num, num_iters=num_iters, seed=seed).cpu()
+
+    dataset.env = pseudo_env.to(torch.long)
+    dataset.env_num = int(env_num)
+    dataset.train_env_num = reindex_env(dataset, debug=False)
+
+    if debug:
+        train_envs = torch.unique(dataset.env[dataset.train_idx]).numel()
+        all_envs = torch.unique(dataset.env).numel()
+        print(
+            f"[INFO] ICA-inspired pseudo environments ready in {time.time() - start_time:.2f}s | "
+            f"all envs: {all_envs} | train envs: {train_envs}"
+        )
+
+    return dataset

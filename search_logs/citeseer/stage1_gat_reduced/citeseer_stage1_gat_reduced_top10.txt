@@ -1,0 +1,183 @@
+Top 10 experiments on citeseer (stage1, GAT reduced)
+========================================================================================================================
+
+Rank 1
+log_file: search_logs/citeseer/stage1_gat_reduced/010_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.36
+highest_valid: 87.62 ± 0.06
+highest_in_test: 88.06 ± 0.11
+final_in_test: 88.04 ± 0.08
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.36 ± 0.03
+
+Rank 2
+log_file: search_logs/citeseer/stage1_gat_reduced/001_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda0.5_K3_hidden_channels32_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda0.5_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.33
+highest_valid: 88.32 ± 0.48
+highest_in_test: 88.4 ± 0.42
+final_in_test: 88.28 ± 0.48
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.1
+  lamda: 0.5
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.33 ± 0.11
+
+Rank 3
+log_file: search_logs/citeseer/stage1_gat_reduced/012_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.2_lamda2.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.2_lamda2.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.26
+highest_valid: 87.49 ± 0.17
+highest_in_test: 87.98 ± 0.06
+final_in_test: 87.82 ± 0.11
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.26 ± 0.08
+
+Rank 4
+log_file: search_logs/citeseer/stage1_gat_reduced/008_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.2_lamda0.5_K3_hidden_channels64_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.2_lamda0.5_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.26
+highest_valid: 87.6 ± 0.14
+highest_in_test: 87.98 ± 0.11
+final_in_test: 87.68 ± 0.14
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.2
+  lamda: 0.5
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.26 ± 0.03
+
+Rank 5
+log_file: search_logs/citeseer/stage1_gat_reduced/005_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda2.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda2.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.18
+highest_valid: 88.16 ± 0.65
+highest_in_test: 88.42 ± 0.51
+final_in_test: 88.1 ± 0.62
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.1
+  lamda: 2.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.18 ± 0.04
+
+Rank 6
+log_file: search_logs/citeseer/stage1_gat_reduced/003_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda1.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda1.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.18
+highest_valid: 88.06 ± 0.68
+highest_in_test: 88.14 ± 0.34
+final_in_test: 88.04 ± 0.48
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.1
+  lamda: 1.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.18 ± 0.17
+
+Rank 7
+log_file: search_logs/citeseer/stage1_gat_reduced/002_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda0.5_K3_hidden_channels64_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda0.5_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.15
+highest_valid: 87.35 ± 0.6
+highest_in_test: 87.88 ± 0.37
+final_in_test: 87.66 ± 0.57
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.1
+  lamda: 0.5
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.15 ± 0.29
+
+Rank 8
+log_file: search_logs/citeseer/stage1_gat_reduced/004_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.05
+highest_valid: 87.6 ± 0.88
+highest_in_test: 88.24 ± 0.54
+final_in_test: 87.9 ± 1.02
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.1
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.05 ± 0.7
+
+Rank 9
+log_file: search_logs/citeseer/stage1_gat_reduced/006_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda2.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.1_lamda2.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.03
+highest_valid: 87.76 ± 0.77
+highest_in_test: 88.02 ± 0.4
+final_in_test: 87.66 ± 0.74
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.1
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.03 ± 0.46
+
+Rank 10
+log_file: search_logs/citeseer/stage1_gat_reduced/011_citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.2_lamda2.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: citeseer_stage1_gat_reduced_lr0.01_weight_decay0.0_dropout0.2_lamda2.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 94.02
+highest_valid: 87.68 ± 0.26
+highest_in_test: 87.66 ± 0.06
+final_in_test: 87.38 ± 0.06
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 94.02 ± 0.09
+

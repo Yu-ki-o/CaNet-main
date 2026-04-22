@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>论文实验结果对比表</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #162033;
+      --muted: #60708b;
+      --line: #d7deea;
+      --line-strong: #7a8699;
+      --accent: #1c63d5;
+      --band: #f0f4fb;
+      --empty: #fff8dc;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, #dbe7ff 0%, transparent 30%),
+        linear-gradient(180deg, #eef3fb 0%, var(--bg) 100%);
+    }
+
+    .page {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 32px 24px 40px;
+    }
+
+    .header {
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 30px;
+      line-height: 1.2;
+    }
+
+    .desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(122, 134, 153, 0.12);
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(24, 39, 75, 0.08);
+      overflow: hidden;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      padding: 10px 14px 16px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 1180px;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    caption {
+      caption-side: top;
+      padding: 18px 6px 14px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    thead th {
+      background: var(--band);
+      color: var(--text);
+      font-weight: 700;
+      text-align: center;
+      padding: 12px 10px;
+      border-bottom: 2px solid var(--line-strong);
+    }
+
+    thead tr:first-child th {
+      border-top: 2px solid var(--line-strong);
+    }
+
+    tbody td {
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: center;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    tbody td.method {
+      text-align: left;
+      font-weight: 600;
+    }
+
+    tbody td.backbone {
+      font-weight: 700;
+      background: #fafcff;
+    }
+
+    tbody tr.group-sep td {
+      border-top: 3px double var(--line-strong);
+    }
+
+    tbody tr.our-row td {
+      background: var(--empty);
+      font-weight: 700;
+    }
+
+    .u {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-thickness: 2px;
+    }
+
+    .foot {
+      padding: 14px 20px 20px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      border-top: 1px solid rgba(122, 134, 153, 0.12);
+      background: linear-gradient(180deg, rgba(240, 244, 251, 0.45), rgba(255, 255, 255, 0.9));
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="eyebrow">LaTeX Preview</div>
+      <h1>论文实验结果对比表</h1>
+      <p class="desc">这是根据 <code>documentclass.tex</code> 手动转换的可视化预览版，保留了原始表格的分组结构、合并表头和空白待填写项。</p>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <caption>论文实验结果对比表</caption>
+          <thead>
+            <tr>
+              <th rowspan="2">Backbone</th>
+              <th rowspan="2">Method</th>
+              <th colspan="2">Cora</th>
+              <th colspan="2">Citeseer</th>
+              <th colspan="2">Pubmed</th>
+            </tr>
+            <tr>
+              <th>OOD</th>
+              <th>ID</th>
+              <th>OOD</th>
+              <th>ID</th>
+              <th>OOD</th>
+              <th>ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="backbone" rowspan="11">GCN</td>
+              <td class="method">ERM</td>
+              <td>74.30 ± 2.66</td>
+              <td>94.83 ± 0.25</td>
+              <td>74.93 ± 2.39</td>
+              <td>85.76 ± 0.26</td>
+              <td>81.36 ± 1.78</td>
+              <td>92.76 ± 0.10</td>
+            </tr>
+            <tr>
+              <td class="method">IRM</td>
+              <td>74.19 ± 2.60</td>
+              <td>94.88 ± 0.18</td>
+              <td>75.34 ± 1.61</td>
+              <td>85.34 ± 0.46</td>
+              <td>81.14 ± 1.72</td>
+              <td>92.80 ± 0.12</td>
+            </tr>
+            <tr>
+              <td class="method">Coral</td>
+              <td>74.26 ± 2.28</td>
+              <td>94.89 ± 0.18</td>
+              <td>74.97 ± 2.53</td>
+              <td>85.64 ± 0.28</td>
+              <td>81.56 ± 2.35</td>
+              <td>92.78 ± 0.11</td>
+            </tr>
+            <tr>
+              <td class="method">DANN</td>
+              <td>73.09 ± 3.24</td>
+              <td>95.03 ± 0.16</td>
+              <td>74.74 ± 2.78</td>
+              <td>85.75 ± 0.49</td>
+              <td>80.77 ± 1.43</td>
+              <td>93.20 ± 0.42</td>
+            </tr>
+            <tr>
+              <td class="method">GroupDRO</td>
+              <td>74.25 ± 2.61</td>
+              <td>94.87 ± 0.25</td>
+              <td>75.02 ± 2.05</td>
+              <td>85.33 ± 0.36</td>
+              <td>81.07 ± 1.89</td>
+              <td>92.76 ± 0.08</td>
+            </tr>
+            <tr>
+              <td class="method">Mixup</td>
+              <td>92.77 ± 1.27</td>
+              <td>94.84 ± 0.30</td>
+              <td>77.28 ± 5.28</td>
+              <td>85.00 ± 0.50</td>
+              <td>79.76 ± 4.44</td>
+              <td>92.68 ± 0.13</td>
+            </tr>
+            <tr>
+              <td class="method">SRGNN</td>
+              <td>81.91 ± 2.64</td>
+              <td>95.09 ± 0.32</td>
+              <td>76.10 ± 4.04</td>
+              <td>85.84 ± 0.37</td>
+              <td>84.75 ± 2.38</td>
+              <td>93.52 ± 0.31</td>
+            </tr>
+            <tr>
+              <td class="method">EERM</td>
+              <td>83.00 ± 0.77</td>
+              <td>89.17 ± 0.23</td>
+              <td>74.76 ± 1.15</td>
+              <td>83.81 ± 0.17</td>
+              <td>OOM</td>
+              <td>OOM</td>
+            </tr>
+            <tr>
+              <td class="method">CaNeT</td>
+              <td><span class="u">95.60 ± 0.93</span></td>
+              <td>97.96 ± 0.17</td>
+              <td><span class="u">93.05 ± 0.91</span></td>
+              <td>95.18 ± 0.24</td>
+              <td><span class="u">88.05 ± 1.09</span></td>
+              <td>97.47 ± 0.08</td>
+            </tr>
+            <tr>
+              <td class="method">Ref-Method</td>
+              <td>97.32 ± 0.29</td>
+              <td>97.85 ± 0.10</td>
+              <td>94.61 ± 0.74</td>
+              <td>95.27 ± 0.15</td>
+              <td>91.84 ± 0.59</td>
+              <td>97.16 ± 0.25</td>
+            </tr>
+            <tr class="our-row">
+              <td class="method">Our</td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+
+            <tr class="group-sep">
+              <td class="backbone" rowspan="11">GAT</td>
+              <td class="method">ERM</td>
+              <td>91.10 ± 2.26</td>
+              <td>95.57 ± 0.40</td>
+              <td>82.60 ± 0.51</td>
+              <td>89.02 ± 0.32</td>
+              <td>84.80 ± 1.47</td>
+              <td>93.98 ± 0.24</td>
+            </tr>
+            <tr>
+              <td class="method">IRM</td>
+              <td>91.63 ± 1.27</td>
+              <td>95.72 ± 0.31</td>
+              <td>82.73 ± 0.37</td>
+              <td>89.11 ± 0.36</td>
+              <td>84.95 ± 1.06</td>
+              <td>93.89 ± 0.26</td>
+            </tr>
+            <tr>
+              <td class="method">Coral</td>
+              <td>91.82 ± 1.30</td>
+              <td>95.74 ± 0.39</td>
+              <td>82.44 ± 0.58</td>
+              <td>89.05 ± 0.37</td>
+              <td>85.07 ± 0.95</td>
+              <td>94.05 ± 0.23</td>
+            </tr>
+            <tr>
+              <td class="method">DANN</td>
+              <td>92.40 ± 2.05</td>
+              <td>95.66 ± 0.28</td>
+              <td>82.49 ± 0.67</td>
+              <td>89.02 ± 0.31</td>
+              <td>83.94 ± 0.84</td>
+              <td>93.46 ± 0.31</td>
+            </tr>
+            <tr>
+              <td class="method">GroupDRO</td>
+              <td>90.54 ± 0.94</td>
+              <td>95.38 ± 0.23</td>
+              <td>82.64 ± 0.61</td>
+              <td>89.13 ± 0.27</td>
+              <td>85.17 ± 0.86</td>
+              <td>94.00 ± 0.18</td>
+            </tr>
+            <tr>
+              <td class="method">Mixup</td>
+              <td>92.94 ± 1.21</td>
+              <td>94.66 ± 0.10</td>
+              <td>82.77 ± 0.30</td>
+              <td>89.05 ± 0.05</td>
+              <td>81.58 ± 0.65</td>
+              <td>92.79 ± 0.18</td>
+            </tr>
+            <tr>
+              <td class="method">SRGNN</td>
+              <td>91.77 ± 2.43</td>
+              <td>95.36 ± 0.24</td>
+              <td>82.72 ± 0.35</td>
+              <td>89.10 ± 0.15</td>
+              <td>83.40 ± 0.67</td>
+              <td>93.21 ± 0.29</td>
+            </tr>
+            <tr>
+              <td class="method">EERM</td>
+              <td>91.80 ± 0.73</td>
+              <td>91.37 ± 0.30</td>
+              <td>74.07 ± 0.75</td>
+              <td>83.53 ± 0.56</td>
+              <td>OOM</td>
+              <td>OOM</td>
+            </tr>
+            <tr>
+              <td class="method">CaNeT</td>
+              <td><span class="u">97.52 ± 0.12</span></td>
+              <td>96.07 ± 0.44</td>
+              <td><span class="u">95.33 ± 0.22</span></td>
+              <td>89.12 ± 0.52</td>
+              <td><span class="u">89.50 ± 1.07</span></td>
+              <td>95.03 ± 0.26</td>
+            </tr>
+            <tr>
+              <td class="method">Ref-Method</td>
+              <td>97.92 ± 0.27</td>
+              <td>97.44 ± 0.08</td>
+              <td>96.78 ± 0.30</td>
+              <td>94.51 ± 0.28</td>
+              <td>91.23 ± 0.77</td>
+              <td>97.16 ± 0.16</td>
+            </tr>
+            <tr class="our-row">
+              <td class="method">Our</td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="foot">
+        预览说明：该文件为从 LaTeX 表格手动转换的 HTML 版本，适合直接在浏览器中查看和继续修改。若后续环境里安装了 TeX 编译器，也可以再进一步生成 PDF。
+      </div>
+    </div>
+  </div>
+</body>
+</html>

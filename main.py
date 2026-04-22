@@ -16,6 +16,7 @@ from data_utils import normalize, gen_normalized_adjs, to_sparse_tensor, \
 from eval import evaluate_full, eval_acc, eval_rocauc, eval_f1
 from parse import parser_add_main_args
 from model import *
+from ica_utils import infer_pseudo_envs_with_ica
 import time
 import os
 import time
@@ -57,6 +58,15 @@ elif args.dataset in ('cora', 'citeseer', 'pubmed'):
     dataset = load_synthetic_dataset(args.data_dir, args.dataset, train_num=3, combine=args.combine_result)
 else:
     raise ValueError('Invalid dataname')
+
+if args.infer_env:
+    dataset = infer_pseudo_envs_with_ica(
+        dataset,
+        env_num=args.infer_env_num,
+        n_components=args.infer_env_components,
+        num_iters=args.infer_env_iters,
+        seed=args.seed,
+    )
 
 if len(dataset.y.shape) == 1:
     dataset.y = dataset.y.unsqueeze(1)
@@ -106,7 +116,11 @@ tr_acc, val_acc = [], []
 # 自动创建形如: ./runs/cora/May13_14-30-00_lamda_1.0/ 的目录
 current_time = datetime.now().strftime('%b%d_%H-%M-%S')
 # 这里我帮你把 lamda 的值也放进了文件夹名，方便你在面板里区分消融实验！
-run_name = f"{current_time}_lamda_{args.lamda}" 
+run_name = f"{current_time}_lamda_{args.lamda}"
+if args.other_env_reduce == 'env':
+    run_name += f"_otheragg_{args.other_env_loss_agg}"
+    if args.other_env_loss_agg == 'logsumexp':
+        run_name += f"_temp_{args.other_env_loss_temp}"
 log_dir = os.path.join('.', 'runs', args.dataset, run_name)
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
@@ -144,6 +158,8 @@ for run in range(args.runs):
         global_step = run * args.epochs + epoch
         # 记录训练 Loss
         writer.add_scalar('Loss/Train_Loss', loss.item(), global_step)
+        for name, value in getattr(model, "_last_loss_breakdown", {}).items():
+            writer.add_scalar(f'LossBreakdown/{name}', float(value.item()), global_step)
         # 记录各项评估指标 (根据你原本 result 返回的顺序)
         # result[0]: Train, result[1]: Valid, result[2]: Test_In
         writer.add_scalar('Metrics/1_Train', result[0] * 100, global_step)

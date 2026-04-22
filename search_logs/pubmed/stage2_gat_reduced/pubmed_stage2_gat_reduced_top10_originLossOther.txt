@@ -1,0 +1,169 @@
+Top 10 experiments on pubmed (stage2, GAT reduced)
+========================================================================================================================
+
+Rank 1
+log_file: search_logs/pubmed/stage2_gat_reduced/005_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64_other_env_reducesample.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64_other_env_reducesample
+rank_metric (last_final_ood_test): 88.8
+highest_valid: 95.3 ± 0.17
+highest_in_test: 95.45 ± 0.19
+final_in_test: 95.4 ± 0.19
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: sample
+final_ood_metrics:
+  final_ood_test_1: 88.8 ± 0.58
+
+Rank 2
+log_file: search_logs/pubmed/stage2_gat_reduced/003_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels32_other_env_reducesample.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels32_other_env_reducesample
+rank_metric (last_final_ood_test): 83.57
+highest_valid: 93.88 ± 0.02
+highest_in_test: 93.95 ± 0.13
+final_in_test: 93.94 ± 0.13
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: sample
+final_ood_metrics:
+  final_ood_test_1: 83.57 ± 0.4
+
+Rank 3
+log_file: search_logs/pubmed/stage2_gat_reduced/004_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 83.31
+highest_valid: 93.87 ± 0.04
+highest_in_test: 93.99 ± 0.11
+final_in_test: 93.95 ± 0.11
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 83.31 ± 0.71
+
+Rank 4
+log_file: search_logs/pubmed/stage2_gat_reduced/001_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reducesample.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reducesample
+rank_metric (last_final_ood_test): None
+highest_valid: None ± None
+highest_in_test: None ± None
+final_in_test: None ± None
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: sample
+
+Rank 5
+log_file: search_logs/pubmed/stage2_gat_reduced/002_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): None
+highest_valid: None ± None
+highest_in_test: None ± None
+final_in_test: None ± None
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+
+Rank 6
+log_file: search_logs/pubmed/stage2_gat_reduced/006_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): None
+highest_valid: None ± None
+highest_in_test: None ± None
+final_in_test: None ± None
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+
+Rank 7
+log_file: search_logs/pubmed/stage2_gat_reduced/007_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels32_other_env_reducesample.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels32_other_env_reducesample
+rank_metric (last_final_ood_test): None
+highest_valid: None ± None
+highest_in_test: None ± None
+final_in_test: None ± None
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: sample
+
+Rank 8
+log_file: search_logs/pubmed/stage2_gat_reduced/008_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): None
+highest_valid: None ± None
+highest_in_test: None ± None
+final_in_test: None ± None
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+
+Rank 9
+log_file: search_logs/pubmed/stage2_gat_reduced/009_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda3.0_K3_hidden_channels64_other_env_reducesample.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda3.0_K3_hidden_channels64_other_env_reducesample
+rank_metric (last_final_ood_test): None
+highest_valid: None ± None
+highest_in_test: None ± None
+final_in_test: None ± None
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 3.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: sample
+
+Rank 10
+log_file: search_logs/pubmed/stage2_gat_reduced/010_pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda3.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: pubmed_stage2_gat_reduced_lr0.005_weight_decay5e-05_dropout0.2_lamda3.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): None
+highest_valid: None ± None
+highest_in_test: None ± None
+final_in_test: None ± None
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 3.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+

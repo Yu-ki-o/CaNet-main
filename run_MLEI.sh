@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -e
+
+# MLEI with GCN backbone
+# Follow the paper more closely: K=3 is the reported sweet spot, tau=1
+# usually works best, and citation datasets prefer much smaller lambda.
+python main_MLEI.py --dataset cora --backbone_type gcn --weight_decay 5e-5 --tau 1 --dropout 0.2 --K 3 --num_layers 2 --hidden_channels 64 --lamda 0.008 --combine_result --store_result
+python main_MLEI.py --dataset citeseer --backbone_type gcn --weight_decay 5e-5 --tau 1 --dropout 0.1 --K 3 --num_layers 2 --hidden_channels 64 --lamda 0.08 --combine_result --store_result
+python main_MLEI.py --dataset pubmed --backbone_type gcn --weight_decay 5e-5 --tau 1 --dropout 0.2 --K 3 --num_layers 2 --hidden_channels 64 --lamda 0.3 --combine_result --store_result
+python main_MLEI.py --dataset arxiv --backbone_type gcn --weight_decay 5e-4 --tau 1 --dropout 0.2 --K 3 --num_layers 2 --hidden_channels 64 --lamda 1.0 --store_result
+python main_MLEI.py --dataset twitch --backbone_type gcn --weight_decay 5e-5 --tau 1 --dropout 0.0 --K 3 --num_layers 2 --hidden_channels 64 --lamda 1.0 --store_result
+python main_MLEI.py --dataset elliptic --backbone_type gcn --weight_decay 1e-3 --tau 1 --dropout 0.2 --K 3 --num_layers 3 --hidden_channels 32 --lamda 1.0 --store_result
+
+# MLEI with GAT backbone
+python main_MLEI.py --dataset cora --backbone_type gat --weight_decay 0.0 --tau 1 --dropout 0.2 --K 3 --num_layers 2 --hidden_channels 64 --lamda 0.008 --combine_result --store_result
+python main_MLEI.py --dataset citeseer --backbone_type gat --weight_decay 0.0 --tau 1 --dropout 0.2 --K 3 --num_layers 2 --hidden_channels 64 --lamda 0.08 --combine_result --store_result
+python main_MLEI.py --dataset pubmed --backbone_type gat --weight_decay 5e-5 --tau 1 --dropout 0.2 --K 3 --num_layers 2 --hidden_channels 64 --lamda 0.3 --combine_result --store_result
+python main_MLEI.py --dataset arxiv --backbone_type gat --weight_decay 5e-5 --tau 1 --dropout 0.2 --K 3 --num_layers 2 --hidden_channels 64 --lamda 1.0 --store_result
+python main_MLEI.py --dataset twitch --backbone_type gat --weight_decay 5e-5 --tau 1 --dropout 0.0 --K 3 --num_layers 2 --hidden_channels 64 --lamda 1.0 --store_result
+python main_MLEI.py --dataset elliptic --backbone_type gat --weight_decay 5e-4 --tau 1 --dropout 0.1 --K 3 --num_layers 3 --hidden_channels 32 --lamda 1.0 --store_result

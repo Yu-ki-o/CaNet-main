@@ -28,6 +28,10 @@ def parser_add_main_args(parser):
     parser.add_argument('--variant', action='store_true',help='set to use variant')
     parser.add_argument('--other_env_reduce', type=str, default='sample', choices=['sample', 'env'],
                         help='how to aggregate losses from non-assigned environments')
+    parser.add_argument('--expert_agg', type=str, default='mean', choices=['mean', 'gate'],
+                        help='how to aggregate expert predictions at inference time')
+    parser.add_argument('--gate_hidden', type=int, default=64,
+                        help='hidden size of the shared gating network for expert weighting')
 
     # training
     parser.add_argument('--weight_decay', type=float, default=5e-4)
@@ -42,17 +46,25 @@ def parser_add_main_args(parser):
                         help='whether to store results')
     parser.add_argument('--combine_result', action='store_true',
                         help='whether to combine all the ood environments')
+    parser.add_argument('--infer_env', action='store_true',
+                        help='infer pseudo environments from node features instead of using provided env labels')
+    parser.add_argument('--infer_env_num', type=int, default=3,
+                        help='number of pseudo environments for ICA-inspired preprocessing')
+    parser.add_argument('--infer_env_components', type=int, default=64,
+                        help='number of whitened feature components used for pseudo environment discovery')
+    parser.add_argument('--infer_env_iters', type=int, default=30,
+                        help='number of k-means refinement steps for pseudo environment discovery')
     
     #自己加的，方便分辨输出result
     parser.add_argument("--result_name",type=str,default='')
-    parser.add_argument('--lamda_ciw', type=float, default=1e-4,
-                        help='weight for regularlization')
-    parser.add_argument('--lambda_l1', type=float, default=0.5,
-                        help='weight for regularlization')
-    parser.add_argument('--lambda_dag', type=float, default=0.1, help='DAG 无环约束的权重')
-    parser.add_argument('--lambda_ind', type=float, default=0.1, help='因果特征独立性约束的权重')
-    parser.add_argument('--lambda_cl', type=float, default=0.1, help='对比学习/一致性损失的权重')
+    # parser.add_argument('--lamda_ciw', type=float, default=1e-4,
+    #                     help='weight for regularlization')
+    # parser.add_argument('--lambda_l1', type=float, default=0.5,
+    #                     help='weight for regularlization')
+    # parser.add_argument('--lambda_dag', type=float, default=0.1, help='DAG 无环约束的权重')
+    # parser.add_argument('--lambda_ind', type=float, default=0.1, help='因果特征独立性约束的权重')
+    # parser.add_argument('--lambda_cl', type=float, default=0.1, help='对比学习/一致性损失的权重')
 
-    parser.add_argument('--lr_dag', type=float, default=0.001, help='DAG 矩阵 A 的专属学习率')
-    parser.add_argument('--gamma', type=float, default=0.99, help='EMA 滑动平均的动量系数')
+    # parser.add_argument('--lr_dag', type=float, default=0.001, help='DAG 矩阵 A 的专属学习率')
+    # parser.add_argument('--gamma', type=float, default=0.99, help='EMA 滑动平均的动量系数')
     parser.add_argument('--pos_weight', type=float, default=5.0, help='二分类数据集正样本权重')

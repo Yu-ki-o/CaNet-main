@@ -1,0 +1,183 @@
+Top 10 experiments on cora (stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs/cora/stage1/011_cora_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 98.39
+highest_valid: 97.27 ± 0.1
+highest_in_test: 97.51 ± 0.1
+final_in_test: 97.22 ± 0.31
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 1.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 98.39 ± 0.04
+
+Rank 2
+log_file: search_logs/cora/stage1/012_cora_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 98.36
+highest_valid: 97.24 ± 0.07
+highest_in_test: 97.44 ± 0.07
+final_in_test: 97.29 ± 0.0
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 2.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 98.36 ± 0.07
+
+Rank 3
+log_file: search_logs/cora/stage1/024_cora_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 98.31
+highest_valid: 97.02 ± 0.03
+highest_in_test: 97.46 ± 0.1
+final_in_test: 97.22 ± 0.1
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 2.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 98.31 ± 0.1
+
+Rank 4
+log_file: search_logs/cora/stage1/010_cora_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 98.25
+highest_valid: 97.34 ± 0.0
+highest_in_test: 97.56 ± 0.1
+final_in_test: 97.39 ± 0.14
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 0.5
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 98.25 ± 0.09
+
+Rank 5
+log_file: search_logs/cora/stage1/022_cora_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 98.25
+highest_valid: 97.02 ± 0.03
+highest_in_test: 97.44 ± 0.07
+final_in_test: 97.19 ± 0.07
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 0.5
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 98.25 ± 0.09
+
+Rank 6
+log_file: search_logs/cora/stage1/023_cora_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 98.23
+highest_valid: 97.02 ± 0.03
+highest_in_test: 97.44 ± 0.07
+final_in_test: 97.14 ± 0.21
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 1.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 98.23 ± 0.02
+
+Rank 7
+log_file: search_logs/cora/stage1/009_cora_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda0.1_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda0.1_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 98.17
+highest_valid: 97.27 ± 0.03
+highest_in_test: 97.59 ± 0.0
+final_in_test: 97.39 ± 0.21
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 0.1
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 98.17 ± 0.2
+
+Rank 8
+log_file: search_logs/cora/stage1/021_cora_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda0.1_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda0.1_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 97.94
+highest_valid: 97.0 ± 0.0
+highest_in_test: 97.51 ± 0.03
+final_in_test: 97.29 ± 0.0
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 0.1
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 97.94 ± 0.03
+
+Rank 9
+log_file: search_logs/cora/stage1/020_cora_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 97.67
+highest_valid: 97.0 ± 0.0
+highest_in_test: 97.49 ± 0.0
+final_in_test: 97.37 ± 0.03
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 97.67 ± 0.15
+
+Rank 10
+log_file: search_logs/cora/stage1/007_cora_stage1_lr0.01_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels32_other_env_reduceenv.log
+result_name: cora_stage1_lr0.01_weight_decay5e-05_dropout0.2_lamda1.0_K3_hidden_channels32_other_env_reduceenv
+rank_metric (last_final_ood_test): 97.61
+highest_valid: 97.24 ± 0.14
+highest_in_test: 97.69 ± 0.14
+final_in_test: 97.49 ± 0.07
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 32
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 97.61 ± 0.03
+

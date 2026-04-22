@@ -1,0 +1,203 @@
+Top 10 experiments on arxiv (stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs/arxiv/stage1/001_arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.1_lamda0.1_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.1_lamda0.1_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 60.13
+highest_valid: 62.5 ± 0.34
+highest_in_test: 62.05 ± 0.17
+final_in_test: 61.66 ± 0.03
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.1
+  lamda: 0.1
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 60.69 ± 0.22
+  final_ood_test_2: 59.05 ± 0.18
+  final_ood_test_3: 60.13 ± 0.36
+
+Rank 2
+log_file: search_logs/arxiv/stage1/011_arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.1_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.1_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 59.79
+highest_valid: 63.31 ± 0.06
+highest_in_test: 62.79 ± 0.34
+final_in_test: 62.7 ± 0.32
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.1
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 61.71 ± 0.21
+  final_ood_test_2: 59.25 ± 0.47
+  final_ood_test_3: 59.79 ± 0.97
+
+Rank 3
+log_file: search_logs/arxiv/stage1/002_arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.1_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.1_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 59.69
+highest_valid: 62.72 ± 0.07
+highest_in_test: 62.25 ± 0.26
+final_in_test: 62.06 ± 0.35
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.1
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 61.11 ± 0.03
+  final_ood_test_2: 59.04 ± 0.16
+  final_ood_test_3: 59.69 ± 0.18
+
+Rank 4
+log_file: search_logs/arxiv/stage1/013_arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.2_lamda0.1_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.2_lamda0.1_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 59.58
+highest_valid: 61.35 ± 0.09
+highest_in_test: 60.69 ± 0.11
+final_in_test: 60.5 ± 0.0
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.2
+  lamda: 0.1
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 60.11 ± 0.2
+  final_ood_test_2: 58.22 ± 0.04
+  final_ood_test_3: 59.58 ± 0.05
+
+Rank 5
+log_file: search_logs/arxiv/stage1/003_arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.1_lamda2.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.1_lamda2.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 59.48
+highest_valid: 62.77 ± 0.19
+highest_in_test: 62.32 ± 0.19
+final_in_test: 62.11 ± 0.45
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.1
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 61.0 ± 0.53
+  final_ood_test_2: 58.59 ± 0.16
+  final_ood_test_3: 59.48 ± 0.28
+
+Rank 6
+log_file: search_logs/arxiv/stage1/004_arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.2_lamda0.1_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.2_lamda0.1_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 59.35
+highest_valid: 60.42 ± 0.06
+highest_in_test: 60.05 ± 0.25
+final_in_test: 59.8 ± 0.41
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.2
+  lamda: 0.1
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 59.1 ± 0.07
+  final_ood_test_2: 57.53 ± 0.34
+  final_ood_test_3: 59.35 ± 0.49
+
+Rank 7
+log_file: search_logs/arxiv/stage1/014_arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 59.29
+highest_valid: 61.58 ± 0.09
+highest_in_test: 61.13 ± 0.04
+final_in_test: 60.88 ± 0.12
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 60.18 ± 0.12
+  final_ood_test_2: 57.98 ± 0.49
+  final_ood_test_3: 59.29 ± 0.66
+
+Rank 8
+log_file: search_logs/arxiv/stage1/018_arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.3_lamda2.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.3_lamda2.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 58.99
+highest_valid: 59.37 ± 0.01
+highest_in_test: 58.92 ± 0.03
+final_in_test: 58.73 ± 0.1
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.3
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 58.11 ± 0.09
+  final_ood_test_2: 56.75 ± 0.1
+  final_ood_test_3: 58.99 ± 0.23
+
+Rank 9
+log_file: search_logs/arxiv/stage1/010_arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.1_lamda0.1_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.005_weight_decay0.0005_dropout0.1_lamda0.1_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 58.52
+highest_valid: 62.99 ± 0.03
+highest_in_test: 62.4 ± 0.06
+final_in_test: 62.21 ± 0.03
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.1
+  lamda: 0.1
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 61.32 ± 0.17
+  final_ood_test_2: 58.25 ± 1.8
+  final_ood_test_3: 58.52 ± 3.43
+
+Rank 10
+log_file: search_logs/arxiv/stage1/005_arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv.log
+result_name: arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.2_lamda1.0_K3_hidden_channels64_other_env_reduceenv
+rank_metric (last_final_ood_test): 58.51
+highest_valid: 60.58 ± 0.34
+highest_in_test: 60.03 ± 0.02
+final_in_test: 59.81 ± 0.12
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.2
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+  other_env_reduce: env
+final_ood_metrics:
+  final_ood_test_1: 59.04 ± 0.24
+  final_ood_test_2: 56.83 ± 0.04
+  final_ood_test_3: 58.51 ± 0.43
+

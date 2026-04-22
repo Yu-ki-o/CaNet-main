@@ -1,0 +1,65 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{booktabs}   % 提供三线表命令
+\usepackage{multirow}   % 提供跨行命令
+\usepackage{amsmath}    % 提供数学符号
+\usepackage{graphicx}   % 提供 resizebox
+\usepackage[a4paper, landscape, margin=1in]{geometry} % 宽表建议横向页面
+
+\begin{document}
+
+\begin{table*}[htbp]
+\centering
+\caption{Arxiv and Twitch Datasets Results}
+\label{tab:arxiv_twitch}
+\renewcommand{\arraystretch}{1.2} % 稍微增加行高，提升可读性
+
+% 如果表格依然过宽，可以取消下一行 \resizebox 的注释来强制缩放至页面宽度
+% \resizebox{\textwidth}{!}{
+\begin{tabular}{c c | c c c c | c c c c}
+\toprule
+
+\multirow{2}{*}{\textbf{Backbone}} & \multirow{2}{*}{\textbf{Method}} & \multicolumn{4}{c}{\textbf{Arxiv}} & \multicolumn{4}{c}{\textbf{Twitch}} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10}
+& & \textbf{OOD 1} & \textbf{OOD 2} & \textbf{OOD 3} & \textbf{ID} & \textbf{OOD 1} & \textbf{OOD 2} & \textbf{OOD 3} & \textbf{ID} \\
+\midrule
+
+% ============== GCN 部分 ==============
+\multirow{11}{*}{GCN} 
+& ERM      & $56.33 \pm 0.17$ & $53.53 \pm 0.44$ & $45.83 \pm 0.47$ & $59.94 \pm 0.45$ & $66.07 \pm 0.14$ & $52.62 \pm 0.01$ & $63.15 \pm 0.08$ & $75.40 \pm 0.01$ \\
+& IRM      & $55.92 \pm 0.24$ & $53.25 \pm 0.49$ & $45.66 \pm 0.83$ & $60.28 \pm 0.23$ & $66.95 \pm 0.27$ & $52.53 \pm 0.02$ & $62.91 \pm 0.08$ & $74.88 \pm 0.02$ \\
+& Coral    & $56.42 \pm 0.26$ & $53.53 \pm 0.54$ & $45.92 \pm 0.52$ & $60.16 \pm 0.12$ & $66.15 \pm 0.14$ & $52.67 \pm 0.02$ & $63.18 \pm 0.03$ & $75.40 \pm 0.01$ \\
+& DANN     & $56.35 \pm 0.11$ & $53.81 \pm 0.33$ & $45.89 \pm 0.37$ & $60.22 \pm 0.29$ & $66.15 \pm 0.13$ & $52.66 \pm 0.02$ & $63.20 \pm 0.06$ & $75.40 \pm 0.02$ \\
+& GroupDRO & $56.52 \pm 0.27$ & $53.40 \pm 0.29$ & $45.76 \pm 0.59$ & $60.35 \pm 0.27$ & $66.82 \pm 0.26$ & $52.69 \pm 0.02$ & $62.95 \pm 0.11$ & $75.03 \pm 0.01$ \\
+& Mixup    & $56.67 \pm 0.46$ & $54.02 \pm 0.51$ & $46.09 \pm 0.58$ & $60.09 \pm 0.15$ & $65.76 \pm 0.30$ & $52.78 \pm 0.04$ & $63.15 \pm 0.08$ & $75.47 \pm 0.06$ \\
+& SRGNN    & $56.79 \pm 1.35$ & $54.33 \pm 1.78$ & $46.24 \pm 1.90$ & $60.02 \pm 0.52$ & $65.83 \pm 0.45$ & $52.47 \pm 0.06$ & $62.74 \pm 0.23$ & $75.75 \pm 0.09$ \\
+& EERM     & OOM              & OOM              & OOM              & OOM              & $67.50 \pm 0.74$ & $51.88 \pm 0.07$ & $62.56 \pm 0.02$ & $74.85 \pm 0.05$ \\
+& CaNeT    & $59.01 \pm 0.30$ & $56.88 \pm 0.70$ & $56.27 \pm 1.21$ & $61.42 \pm 0.10$ & $67.47 \pm 0.32$ & \underline{$53.59 \pm 0.19$} & \underline{$64.24 \pm 0.18$} & $75.10 \pm 0.08$ \\
+& MLEI & $\underline{60.03 \pm 0.48}$ & \underline{$57.47 \pm 0.51}$ & \undeelne{$57.64 \pm 0.87}$ & $60.92 \pm 0.44$ & $\underline{68.59 \pm 0.46}$ & $\mathbf{53.77 \pm 0.18}$ & $\mathbf{64.59 \pm 0.26}$ & $75.36 \pm 0.24$ \\
+\cline{2-10}
+& \textbf{Our} & $\textbf{61.25 \pm 0.32$} & $\textbf{59.03 \pm 0.71}$ & $\textbf{60.03 \pm 0.71}$ & $62.32 \pm 0.38$ & $\textbf{68.74 \pm 0.08}$ &$53.53 \pm 0.05$ & $64.21 \pm 0.02$& $74.69 \pm 0.05$\\ % 这里留空方便您填写
+
+\midrule \midrule
+
+% ============== GAT 部分 ==============
+\multirow{11}{*}{GAT} 
+& ERM      & $57.15 \pm 0.25$ & $55.07 \pm 0.58$ & $46.22 \pm 0.82$ & $59.72 \pm 0.35$ & $65.67 \pm 0.02$ & $52.00 \pm 0.10$ & $61.85 \pm 0.05$ & $75.75 \pm 0.15$ \\
+& IRM      & $56.55 \pm 0.18$ & $54.53 \pm 0.32$ & $46.01 \pm 0.33$ & $59.94 \pm 0.18$ & $67.27 \pm 0.19$ & $52.85 \pm 0.15$ & $62.40 \pm 0.24$ & $75.30 \pm 0.09$ \\
+& Coral    & $57.40 \pm 0.51$ & $55.14 \pm 0.71$ & $46.71 \pm 0.61$ & $60.59 \pm 0.30$ & $67.12 \pm 0.03$ & $52.61 \pm 0.01$ & $63.41 \pm 0.01$ & $75.20 \pm 0.01$ \\
+& DANN     & $57.23 \pm 0.18$ & $55.13 \pm 0.46$ & $46.61 \pm 0.57$ & $59.72 \pm 0.14$ & $66.59 \pm 0.38$ & $52.88 \pm 0.12$ & $62.47 \pm 0.32$ & $75.82 \pm 0.27$ \\
+& GroupDRO & $56.69 \pm 0.27$ & $54.51 \pm 0.49$ & $46.00 \pm 0.59$ & $60.03 \pm 0.32$ & $67.41 \pm 0.04$ & $52.99 \pm 0.08$ & $62.29 \pm 0.03$ & $75.74 \pm 0.02$ \\
+& Mixup    & $57.17 \pm 0.33$ & $55.33 \pm 0.37$ & $47.17 \pm 0.84$ & $59.84 \pm 0.50$ & $65.58 \pm 0.13$ & $52.04 \pm 0.04$ & $61.75 \pm 0.13$ & $75.72 \pm 0.07$ \\
+& SRGNN    & $56.69 \pm 0.38$ & $55.01 \pm 0.55$ & $46.88 \pm 0.58$ & $59.39 \pm 0.17$ & $66.17 \pm 0.03$ & $52.84 \pm 0.04$ & $62.07 \pm 0.04$ & $75.45 \pm 0.03$ \\
+& EERM     & OOM              & OOM              & OOM              & OOM              & $66.80 \pm 0.46$ & $52.39 \pm 0.20$ & $62.07 \pm 0.68$ & $75.19 \pm 0.50$ \\
+& CaNeT    & \underline{$60.44 \pm 0.27$} & $58.54 \pm 0.72$ & \underline{$59.61 \pm 0.28$} & $62.91 \pm 0.35$ & $\mathbf{68.08 \pm 0.19}$ & $53.49 \pm 0.14$ & \underline{$63.76 \pm 0.17$} & $76.14 \pm 0.07$ \\
+& MLEI & $\textbf{61.03 \pm 0.20}$ & $\textbf{59.73 \pm 0.23}$ & $\underline{60.28 \pm 0.76}$ & $62.37 \pm 0.34$ & $67.93 \pm 0.19$ & $\textbf{54.61 \pm 0.15}$ & $\textbf{64.69 \pm 0.08}$ & $75.98 \pm 0.20$ \\
+\cline{2-10}
+& \textbf{Our} & $59.79 \pm 0.17$ & $\textbf{58.97 \pm 0.40}$& $\textbf{60.59 \pm 0.38}$ & $61.08 \pm 0.22$ & $\underline{68.07 \pm 0.14}$& $53.90 \pm 0.10$ & $\underline{63.30 \pm 0.09} $& $75.26 \pm 0.09$\\ % 这里留空方便您填写
+
+\bottomrule
+\end{tabular}
+% } % 对应上面的 \resizebox 结尾
+
+\end{table*}
+
+\end{document}

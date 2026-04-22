@@ -1,0 +1,704 @@
+Namespace(K=3, backbone_type='gcn', combine_result=True, cpu=False, data_dir='./data/', dataset='twitch', device=0, display_step=1, dropout=0.2, env_type='graph', epochs=200, expert_agg='mean', gate_hidden=64, hidden_channels=64, infer_env=False, infer_env_components=64, infer_env_iters=30, infer_env_num=3, lamda=0.5, lr=0.005, num_layers=2, other_env_reduce='env', pos_weight=5.0, result_name='twitch_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda0.5_K3_hidden_channels64_other_env_reduceenv', runs=3, seed=123, store_result=True, tau=3.0, use_bn=False, variant=False, weight_decay=5e-05)
+dataset twitch: all nodes 34120 | edges 429113 | classes 2 | feats 3170
+train nodes 7897 | valid nodes 3949 | test in nodes 3949
+test ood1 nodes 4648 test ood2 nodes 6551 test ood3 nodes 7126 
+[INFO] env numbers: 6 train env numbers: 3
+MODEL: CaNet(
+  (experts): ModuleList(
+    (0): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv()
+        (1): CaNetConv()
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=3170, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=2, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+    (1): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv()
+        (1): CaNetConv()
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=3170, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=2, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+    (2): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv()
+        (1): CaNetConv()
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=3170, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=2, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+  )
+  (gate): Sequential(
+    (0): Linear(in_features=3170, out_features=64, bias=True)
+    (1): ReLU()
+    (2): Linear(in_features=64, out_features=3, bias=True)
+  )
+)
+[INFO] TensorBoard logging activated. Logs will be saved to: ./runs/twitch/Apr16_14-01-02_lamda_0.5
+Epoch: 00, Loss: 1.0461, Train: 54.42%, Valid: 51.47%, Test In: 52.64% Test OOD1: 45.66% Test OOD2: 51.62% Test OOD3: 50.02% 
+Epoch: 01, Loss: 1.0407, Train: 51.17%, Valid: 49.09%, Test In: 50.04% Test OOD1: 44.16% Test OOD2: 51.00% Test OOD3: 48.42% 
+Epoch: 02, Loss: 1.0340, Train: 48.83%, Valid: 47.35%, Test In: 48.17% Test OOD1: 43.11% Test OOD2: 50.78% Test OOD3: 47.56% 
+Epoch: 03, Loss: 1.0242, Train: 47.35%, Valid: 46.28%, Test In: 47.13% Test OOD1: 42.48% Test OOD2: 50.61% Test OOD3: 47.02% 
+Epoch: 04, Loss: 1.0126, Train: 46.54%, Valid: 45.73%, Test In: 46.61% Test OOD1: 42.16% Test OOD2: 50.51% Test OOD3: 46.71% 
+Epoch: 05, Loss: 1.0009, Train: 47.93%, Valid: 46.83%, Test In: 47.75% Test OOD1: 42.57% Test OOD2: 50.58% Test OOD3: 47.05% 
+Epoch: 06, Loss: 0.9981, Train: 55.90%, Valid: 53.15%, Test In: 54.11% Test OOD1: 45.31% Test OOD2: 51.16% Test OOD3: 49.48% 
+Epoch: 07, Loss: 0.9950, Train: 71.33%, Valid: 66.14%, Test In: 66.99% Test OOD1: 55.31% Test OOD2: 52.37% Test OOD3: 57.04% 
+Epoch: 08, Loss: 0.9873, Train: 74.81%, Valid: 69.34%, Test In: 70.45% Test OOD1: 65.34% Test OOD2: 51.67% Test OOD3: 62.52% 
+Epoch: 09, Loss: 0.9757, Train: 72.28%, Valid: 67.89%, Test In: 68.32% Test OOD1: 65.11% Test OOD2: 51.22% Test OOD3: 62.04% 
+Epoch: 10, Loss: 0.9651, Train: 71.54%, Valid: 67.47%, Test In: 67.72% Test OOD1: 64.88% Test OOD2: 51.16% Test OOD3: 61.86% 
+Epoch: 11, Loss: 0.9565, Train: 71.80%, Valid: 67.68%, Test In: 67.98% Test OOD1: 65.07% Test OOD2: 51.24% Test OOD3: 62.04% 
+Epoch: 12, Loss: 0.9456, Train: 72.18%, Valid: 67.98%, Test In: 68.36% Test OOD1: 65.31% Test OOD2: 51.32% Test OOD3: 62.21% 
+Epoch: 13, Loss: 0.9367, Train: 73.06%, Valid: 68.56%, Test In: 69.12% Test OOD1: 65.74% Test OOD2: 51.48% Test OOD3: 62.57% 
+Epoch: 14, Loss: 0.9228, Train: 73.55%, Valid: 68.93%, Test In: 69.53% Test OOD1: 66.02% Test OOD2: 51.57% Test OOD3: 62.77% 
+Epoch: 15, Loss: 0.9118, Train: 74.50%, Valid: 69.49%, Test In: 70.18% Test OOD1: 66.21% Test OOD2: 51.78% Test OOD3: 63.11% 
+Epoch: 16, Loss: 0.9049, Train: 74.59%, Valid: 69.57%, Test In: 70.25% Test OOD1: 66.38% Test OOD2: 51.73% Test OOD3: 63.15% 
+Epoch: 17, Loss: 0.9007, Train: 75.68%, Valid: 70.10%, Test In: 70.84% Test OOD1: 66.09% Test OOD2: 52.03% Test OOD3: 63.47% 
+Epoch: 18, Loss: 0.8954, Train: 75.86%, Valid: 70.18%, Test In: 70.91% Test OOD1: 66.20% Test OOD2: 51.98% Test OOD3: 63.48% 
+Epoch: 19, Loss: 0.8874, Train: 76.17%, Valid: 70.29%, Test In: 71.02% Test OOD1: 66.24% Test OOD2: 51.99% Test OOD3: 63.53% 
+Epoch: 20, Loss: 0.8848, Train: 76.89%, Valid: 70.45%, Test In: 71.26% Test OOD1: 65.83% Test OOD2: 52.19% Test OOD3: 63.60% 
+Epoch: 21, Loss: 0.8797, Train: 77.25%, Valid: 70.46%, Test In: 71.30% Test OOD1: 65.77% Test OOD2: 52.23% Test OOD3: 63.60% 
+Epoch: 22, Loss: 0.8702, Train: 77.49%, Valid: 70.43%, Test In: 71.28% Test OOD1: 65.82% Test OOD2: 52.24% Test OOD3: 63.57% 
+Epoch: 23, Loss: 0.8619, Train: 77.86%, Valid: 70.35%, Test In: 71.23% Test OOD1: 65.60% Test OOD2: 52.32% Test OOD3: 63.50% 
+Epoch: 24, Loss: 0.8579, Train: 78.32%, Valid: 70.31%, Test In: 71.22% Test OOD1: 65.34% Test OOD2: 52.36% Test OOD3: 63.39% 
+Epoch: 25, Loss: 0.8521, Train: 78.77%, Valid: 70.37%, Test In: 71.29% Test OOD1: 65.36% Test OOD2: 52.36% Test OOD3: 63.36% 
+Epoch: 26, Loss: 0.8457, Train: 79.20%, Valid: 70.43%, Test In: 71.37% Test OOD1: 65.40% Test OOD2: 52.35% Test OOD3: 63.33% 
+Epoch: 27, Loss: 0.8366, Train: 79.60%, Valid: 70.38%, Test In: 71.32% Test OOD1: 65.22% Test OOD2: 52.36% Test OOD3: 63.19% 
+Epoch: 28, Loss: 0.8282, Train: 79.99%, Valid: 70.26%, Test In: 71.18% Test OOD1: 64.90% Test OOD2: 52.39% Test OOD3: 62.97% 
+Epoch: 29, Loss: 0.8271, Train: 80.46%, Valid: 70.39%, Test In: 71.24% Test OOD1: 64.91% Test OOD2: 52.37% Test OOD3: 62.88% 
+Epoch: 30, Loss: 0.8214, Train: 80.95%, Valid: 70.52%, Test In: 71.30% Test OOD1: 64.86% Test OOD2: 52.35% Test OOD3: 62.78% 
+Epoch: 31, Loss: 0.8108, Train: 81.36%, Valid: 70.35%, Test In: 71.10% Test OOD1: 64.37% Test OOD2: 52.36% Test OOD3: 62.50% 
+Epoch: 32, Loss: 0.8058, Train: 81.62%, Valid: 70.27%, Test In: 70.99% Test OOD1: 64.17% Test OOD2: 52.31% Test OOD3: 62.33% 
+Epoch: 33, Loss: 0.8004, Train: 81.99%, Valid: 70.27%, Test In: 70.96% Test OOD1: 63.93% Test OOD2: 52.26% Test OOD3: 62.20% 
+Epoch: 34, Loss: 0.7988, Train: 82.49%, Valid: 70.13%, Test In: 70.80% Test OOD1: 63.44% Test OOD2: 52.25% Test OOD3: 61.92% 
+Epoch: 35, Loss: 0.7860, Train: 82.90%, Valid: 70.17%, Test In: 70.78% Test OOD1: 63.29% Test OOD2: 52.18% Test OOD3: 61.82% 
+Epoch: 36, Loss: 0.7801, Train: 83.24%, Valid: 70.17%, Test In: 70.75% Test OOD1: 63.20% Test OOD2: 52.07% Test OOD3: 61.73% 
+Epoch: 37, Loss: 0.7725, Train: 83.64%, Valid: 69.86%, Test In: 70.46% Test OOD1: 62.71% Test OOD2: 52.03% Test OOD3: 61.44% 
+Epoch: 38, Loss: 0.7661, Train: 83.70%, Valid: 70.00%, Test In: 70.60% Test OOD1: 62.96% Test OOD2: 51.88% Test OOD3: 61.53% 
+Epoch: 39, Loss: 0.7670, Train: 84.23%, Valid: 69.93%, Test In: 70.56% Test OOD1: 62.75% Test OOD2: 51.83% Test OOD3: 61.41% 
+Epoch: 40, Loss: 0.7590, Train: 84.69%, Valid: 69.82%, Test In: 70.50% Test OOD1: 62.56% Test OOD2: 51.77% Test OOD3: 61.28% 
+Epoch: 41, Loss: 0.7500, Train: 84.64%, Valid: 69.89%, Test In: 70.59% Test OOD1: 62.75% Test OOD2: 51.63% Test OOD3: 61.33% 
+Epoch: 42, Loss: 0.7413, Train: 85.05%, Valid: 69.64%, Test In: 70.36% Test OOD1: 62.29% Test OOD2: 51.64% Test OOD3: 61.01% 
+Epoch: 43, Loss: 0.7375, Train: 85.39%, Valid: 69.79%, Test In: 70.60% Test OOD1: 62.55% Test OOD2: 51.52% Test OOD3: 61.13% 
+Epoch: 44, Loss: 0.7358, Train: 86.06%, Valid: 69.74%, Test In: 70.58% Test OOD1: 62.34% Test OOD2: 51.53% Test OOD3: 60.97% 
+Epoch: 45, Loss: 0.7255, Train: 86.21%, Valid: 69.56%, Test In: 70.45% Test OOD1: 62.07% Test OOD2: 51.50% Test OOD3: 60.79% 
+Epoch: 46, Loss: 0.7191, Train: 86.34%, Valid: 69.57%, Test In: 70.55% Test OOD1: 62.11% Test OOD2: 51.41% Test OOD3: 60.77% 
+Epoch: 47, Loss: 0.7105, Train: 87.22%, Valid: 69.52%, Test In: 70.55% Test OOD1: 62.08% Test OOD2: 51.38% Test OOD3: 60.63% 
+Epoch: 48, Loss: 0.7041, Train: 87.16%, Valid: 69.55%, Test In: 70.64% Test OOD1: 62.16% Test OOD2: 51.35% Test OOD3: 60.62% 
+Epoch: 49, Loss: 0.6962, Train: 87.43%, Valid: 69.41%, Test In: 70.52% Test OOD1: 62.00% Test OOD2: 51.29% Test OOD3: 60.48% 
+Epoch: 50, Loss: 0.6884, Train: 88.00%, Valid: 69.42%, Test In: 70.61% Test OOD1: 62.28% Test OOD2: 51.25% Test OOD3: 60.53% 
+Epoch: 51, Loss: 0.6815, Train: 88.08%, Valid: 69.37%, Test In: 70.61% Test OOD1: 62.14% Test OOD2: 51.20% Test OOD3: 60.46% 
+Epoch: 52, Loss: 0.6750, Train: 88.33%, Valid: 69.19%, Test In: 70.45% Test OOD1: 61.89% Test OOD2: 51.05% Test OOD3: 60.36% 
+Epoch: 53, Loss: 0.6701, Train: 88.91%, Valid: 69.20%, Test In: 70.53% Test OOD1: 62.05% Test OOD2: 51.02% Test OOD3: 60.38% 
+Epoch: 54, Loss: 0.6590, Train: 89.03%, Valid: 69.22%, Test In: 70.48% Test OOD1: 61.79% Test OOD2: 51.03% Test OOD3: 60.22% 
+Epoch: 55, Loss: 0.6534, Train: 88.75%, Valid: 69.04%, Test In: 70.36% Test OOD1: 62.19% Test OOD2: 50.83% Test OOD3: 60.39% 
+Epoch: 56, Loss: 0.6426, Train: 89.25%, Valid: 68.82%, Test In: 70.05% Test OOD1: 61.71% Test OOD2: 50.91% Test OOD3: 60.03% 
+Epoch: 57, Loss: 0.6507, Train: 89.06%, Valid: 68.95%, Test In: 70.17% Test OOD1: 62.31% Test OOD2: 50.81% Test OOD3: 60.31% 
+Epoch: 58, Loss: 0.6309, Train: 88.98%, Valid: 69.05%, Test In: 70.24% Test OOD1: 62.23% Test OOD2: 50.79% Test OOD3: 60.22% 
+Epoch: 59, Loss: 0.6267, Train: 89.99%, Valid: 68.85%, Test In: 70.04% Test OOD1: 62.23% Test OOD2: 50.93% Test OOD3: 60.15% 
+Epoch: 60, Loss: 0.6203, Train: 89.61%, Valid: 69.03%, Test In: 70.18% Test OOD1: 61.76% Test OOD2: 50.78% Test OOD3: 60.02% 
+Epoch: 61, Loss: 0.6062, Train: 89.80%, Valid: 68.89%, Test In: 70.16% Test OOD1: 62.24% Test OOD2: 50.72% Test OOD3: 60.26% 
+Epoch: 62, Loss: 0.6058, Train: 90.43%, Valid: 68.92%, Test In: 70.19% Test OOD1: 62.13% Test OOD2: 50.79% Test OOD3: 60.19% 
+Epoch: 63, Loss: 0.5888, Train: 90.68%, Valid: 68.87%, Test In: 70.10% Test OOD1: 61.66% Test OOD2: 50.77% Test OOD3: 59.98% 
+Epoch: 64, Loss: 0.5840, Train: 90.86%, Valid: 68.86%, Test In: 70.08% Test OOD1: 61.79% Test OOD2: 50.69% Test OOD3: 60.08% 
+Epoch: 65, Loss: 0.5751, Train: 91.05%, Valid: 68.90%, Test In: 70.16% Test OOD1: 61.97% Test OOD2: 50.66% Test OOD3: 60.12% 
+Epoch: 66, Loss: 0.5715, Train: 91.68%, Valid: 68.98%, Test In: 70.12% Test OOD1: 61.61% Test OOD2: 50.72% Test OOD3: 59.88% 
+Epoch: 67, Loss: 0.5601, Train: 91.94%, Valid: 68.93%, Test In: 70.04% Test OOD1: 61.70% Test OOD2: 50.67% Test OOD3: 59.89% 
+Epoch: 68, Loss: 0.5555, Train: 91.77%, Valid: 68.78%, Test In: 69.95% Test OOD1: 61.74% Test OOD2: 50.51% Test OOD3: 60.01% 
+Epoch: 69, Loss: 0.5491, Train: 92.03%, Valid: 68.80%, Test In: 69.95% Test OOD1: 61.44% Test OOD2: 50.52% Test OOD3: 59.91% 
+Epoch: 70, Loss: 0.5325, Train: 92.55%, Valid: 68.73%, Test In: 69.95% Test OOD1: 61.28% Test OOD2: 50.55% Test OOD3: 59.88% 
+Epoch: 71, Loss: 0.5315, Train: 92.57%, Valid: 68.83%, Test In: 70.13% Test OOD1: 61.25% Test OOD2: 50.57% Test OOD3: 59.90% 
+Epoch: 72, Loss: 0.5199, Train: 92.76%, Valid: 68.76%, Test In: 70.15% Test OOD1: 61.52% Test OOD2: 50.55% Test OOD3: 60.06% 
+Epoch: 73, Loss: 0.5177, Train: 93.06%, Valid: 68.92%, Test In: 70.16% Test OOD1: 60.99% Test OOD2: 50.60% Test OOD3: 59.76% 
+Epoch: 74, Loss: 0.5074, Train: 93.63%, Valid: 68.77%, Test In: 70.04% Test OOD1: 61.30% Test OOD2: 50.59% Test OOD3: 59.76% 
+Epoch: 75, Loss: 0.5042, Train: 93.65%, Valid: 68.69%, Test In: 70.00% Test OOD1: 61.57% Test OOD2: 50.52% Test OOD3: 59.83% 
+Epoch: 76, Loss: 0.4968, Train: 93.57%, Valid: 68.84%, Test In: 70.02% Test OOD1: 61.24% Test OOD2: 50.50% Test OOD3: 59.67% 
+Epoch: 77, Loss: 0.4952, Train: 94.36%, Valid: 68.70%, Test In: 69.88% Test OOD1: 61.45% Test OOD2: 50.56% Test OOD3: 59.69% 
+Epoch: 78, Loss: 0.4869, Train: 94.38%, Valid: 68.74%, Test In: 70.00% Test OOD1: 61.47% Test OOD2: 50.57% Test OOD3: 59.65% 
+Epoch: 79, Loss: 0.4733, Train: 94.40%, Valid: 68.88%, Test In: 70.04% Test OOD1: 61.03% Test OOD2: 50.52% Test OOD3: 59.50% 
+Epoch: 80, Loss: 0.4656, Train: 94.97%, Valid: 68.86%, Test In: 69.95% Test OOD1: 60.72% Test OOD2: 50.54% Test OOD3: 59.45% 
+Epoch: 81, Loss: 0.4773, Train: 95.25%, Valid: 68.71%, Test In: 69.92% Test OOD1: 61.05% Test OOD2: 50.61% Test OOD3: 59.38% 
+Epoch: 82, Loss: 0.4540, Train: 95.04%, Valid: 68.74%, Test In: 69.99% Test OOD1: 61.28% Test OOD2: 50.58% Test OOD3: 59.45% 
+Epoch: 83, Loss: 0.4404, Train: 95.58%, Valid: 68.63%, Test In: 69.80% Test OOD1: 61.19% Test OOD2: 50.49% Test OOD3: 59.43% 
+Epoch: 84, Loss: 0.4392, Train: 95.74%, Valid: 68.73%, Test In: 69.79% Test OOD1: 61.03% Test OOD2: 50.46% Test OOD3: 59.36% 
+Epoch: 85, Loss: 0.4383, Train: 95.68%, Valid: 68.76%, Test In: 69.81% Test OOD1: 61.36% Test OOD2: 50.46% Test OOD3: 59.45% 
+Epoch: 86, Loss: 0.4331, Train: 96.16%, Valid: 68.72%, Test In: 69.69% Test OOD1: 61.26% Test OOD2: 50.51% Test OOD3: 59.31% 
+Epoch: 87, Loss: 0.4187, Train: 96.43%, Valid: 68.74%, Test In: 69.66% Test OOD1: 61.20% Test OOD2: 50.47% Test OOD3: 59.30% 
+Epoch: 88, Loss: 0.4190, Train: 96.27%, Valid: 68.87%, Test In: 69.79% Test OOD1: 60.91% Test OOD2: 50.42% Test OOD3: 59.26% 
+Epoch: 89, Loss: 0.4098, Train: 96.73%, Valid: 68.75%, Test In: 69.69% Test OOD1: 60.81% Test OOD2: 50.46% Test OOD3: 59.26% 
+Epoch: 90, Loss: 0.4024, Train: 96.79%, Valid: 68.53%, Test In: 69.59% Test OOD1: 61.28% Test OOD2: 50.47% Test OOD3: 59.52% 
+Epoch: 91, Loss: 0.3946, Train: 96.84%, Valid: 68.52%, Test In: 69.59% Test OOD1: 61.22% Test OOD2: 50.55% Test OOD3: 59.51% 
+Epoch: 92, Loss: 0.3872, Train: 97.11%, Valid: 68.38%, Test In: 69.52% Test OOD1: 61.28% Test OOD2: 50.55% Test OOD3: 59.58% 
+Epoch: 93, Loss: 0.3744, Train: 97.36%, Valid: 68.32%, Test In: 69.49% Test OOD1: 61.15% Test OOD2: 50.53% Test OOD3: 59.58% 
+Epoch: 94, Loss: 0.3783, Train: 97.52%, Valid: 68.39%, Test In: 69.49% Test OOD1: 60.95% Test OOD2: 50.58% Test OOD3: 59.38% 
+Epoch: 95, Loss: 0.3643, Train: 97.57%, Valid: 68.38%, Test In: 69.51% Test OOD1: 61.12% Test OOD2: 50.51% Test OOD3: 59.33% 
+Epoch: 96, Loss: 0.3624, Train: 97.99%, Valid: 68.34%, Test In: 69.37% Test OOD1: 61.09% Test OOD2: 50.50% Test OOD3: 59.32% 
+Epoch: 97, Loss: 0.3669, Train: 97.83%, Valid: 68.51%, Test In: 69.54% Test OOD1: 61.12% Test OOD2: 50.46% Test OOD3: 59.33% 
+Epoch: 98, Loss: 0.3638, Train: 98.24%, Valid: 68.42%, Test In: 69.31% Test OOD1: 60.92% Test OOD2: 50.47% Test OOD3: 59.15% 
+Epoch: 99, Loss: 0.3597, Train: 98.18%, Valid: 68.27%, Test In: 69.20% Test OOD1: 61.39% Test OOD2: 50.35% Test OOD3: 59.32% 
+Epoch: 100, Loss: 0.3594, Train: 98.52%, Valid: 68.31%, Test In: 69.10% Test OOD1: 60.98% Test OOD2: 50.45% Test OOD3: 59.11% 
+Epoch: 101, Loss: 0.3462, Train: 98.30%, Valid: 68.33%, Test In: 69.26% Test OOD1: 61.20% Test OOD2: 50.45% Test OOD3: 59.24% 
+Epoch: 102, Loss: 0.3391, Train: 98.44%, Valid: 68.17%, Test In: 69.19% Test OOD1: 61.31% Test OOD2: 50.41% Test OOD3: 59.34% 
+Epoch: 103, Loss: 0.3285, Train: 98.65%, Valid: 68.28%, Test In: 69.31% Test OOD1: 60.93% Test OOD2: 50.44% Test OOD3: 59.20% 
+Epoch: 104, Loss: 0.3318, Train: 98.51%, Valid: 68.37%, Test In: 69.50% Test OOD1: 60.99% Test OOD2: 50.39% Test OOD3: 59.23% 
+Epoch: 105, Loss: 0.3264, Train: 98.88%, Valid: 68.23%, Test In: 69.33% Test OOD1: 60.82% Test OOD2: 50.39% Test OOD3: 59.04% 
+Epoch: 106, Loss: 0.3171, Train: 99.07%, Valid: 68.07%, Test In: 69.07% Test OOD1: 60.84% Test OOD2: 50.36% Test OOD3: 58.96% 
+Epoch: 107, Loss: 0.3164, Train: 98.90%, Valid: 68.19%, Test In: 69.23% Test OOD1: 60.95% Test OOD2: 50.37% Test OOD3: 59.01% 
+Epoch: 108, Loss: 0.3090, Train: 99.03%, Valid: 68.22%, Test In: 69.22% Test OOD1: 60.79% Test OOD2: 50.40% Test OOD3: 58.93% 
+Epoch: 109, Loss: 0.3003, Train: 99.15%, Valid: 68.01%, Test In: 69.06% Test OOD1: 60.98% Test OOD2: 50.38% Test OOD3: 58.98% 
+Epoch: 110, Loss: 0.3045, Train: 99.16%, Valid: 68.06%, Test In: 69.21% Test OOD1: 60.85% Test OOD2: 50.38% Test OOD3: 59.02% 
+Epoch: 111, Loss: 0.2987, Train: 99.32%, Valid: 68.11%, Test In: 69.25% Test OOD1: 60.35% Test OOD2: 50.35% Test OOD3: 58.83% 
+Epoch: 112, Loss: 0.2976, Train: 99.29%, Valid: 67.97%, Test In: 69.22% Test OOD1: 60.74% Test OOD2: 50.31% Test OOD3: 59.06% 
+Epoch: 113, Loss: 0.2882, Train: 99.34%, Valid: 67.95%, Test In: 69.12% Test OOD1: 60.98% Test OOD2: 50.31% Test OOD3: 59.25% 
+Epoch: 114, Loss: 0.2859, Train: 99.29%, Valid: 68.13%, Test In: 69.27% Test OOD1: 61.12% Test OOD2: 50.33% Test OOD3: 59.38% 
+Epoch: 115, Loss: 0.2942, Train: 99.23%, Valid: 68.14%, Test In: 69.36% Test OOD1: 61.41% Test OOD2: 50.29% Test OOD3: 59.48% 
+Epoch: 116, Loss: 0.2903, Train: 99.54%, Valid: 67.99%, Test In: 69.15% Test OOD1: 61.16% Test OOD2: 50.35% Test OOD3: 59.12% 
+Epoch: 117, Loss: 0.2899, Train: 99.48%, Valid: 68.13%, Test In: 69.39% Test OOD1: 61.19% Test OOD2: 50.38% Test OOD3: 59.07% 
+Epoch: 118, Loss: 0.2698, Train: 99.43%, Valid: 68.36%, Test In: 69.59% Test OOD1: 61.08% Test OOD2: 50.40% Test OOD3: 59.05% 
+Epoch: 119, Loss: 0.2707, Train: 99.55%, Valid: 68.25%, Test In: 69.51% Test OOD1: 61.10% Test OOD2: 50.45% Test OOD3: 59.01% 
+Epoch: 120, Loss: 0.2726, Train: 99.55%, Valid: 68.03%, Test In: 69.43% Test OOD1: 61.37% Test OOD2: 50.41% Test OOD3: 59.09% 
+Epoch: 121, Loss: 0.2637, Train: 99.48%, Valid: 67.90%, Test In: 69.47% Test OOD1: 61.53% Test OOD2: 50.41% Test OOD3: 59.15% 
+Epoch: 122, Loss: 0.2703, Train: 99.64%, Valid: 67.95%, Test In: 69.40% Test OOD1: 61.07% Test OOD2: 50.50% Test OOD3: 58.94% 
+Epoch: 123, Loss: 0.2690, Train: 99.69%, Valid: 67.84%, Test In: 69.27% Test OOD1: 60.91% Test OOD2: 50.56% Test OOD3: 58.83% 
+Epoch: 124, Loss: 0.2551, Train: 99.62%, Valid: 67.71%, Test In: 69.26% Test OOD1: 61.06% Test OOD2: 50.56% Test OOD3: 58.88% 
+Epoch: 125, Loss: 0.2684, Train: 99.75%, Valid: 67.90%, Test In: 69.33% Test OOD1: 60.70% Test OOD2: 50.69% Test OOD3: 58.78% 
+Epoch: 126, Loss: 0.2525, Train: 99.75%, Valid: 67.94%, Test In: 69.39% Test OOD1: 60.91% Test OOD2: 50.76% Test OOD3: 58.93% 
+Epoch: 127, Loss: 0.2506, Train: 99.67%, Valid: 67.88%, Test In: 69.43% Test OOD1: 61.45% Test OOD2: 50.75% Test OOD3: 59.22% 
+Epoch: 128, Loss: 0.2570, Train: 99.80%, Valid: 68.03%, Test In: 69.44% Test OOD1: 61.21% Test OOD2: 50.80% Test OOD3: 59.13% 
+Epoch: 129, Loss: 0.2479, Train: 99.82%, Valid: 68.05%, Test In: 69.47% Test OOD1: 61.16% Test OOD2: 50.79% Test OOD3: 59.08% 
+Epoch: 130, Loss: 0.2464, Train: 99.77%, Valid: 67.89%, Test In: 69.44% Test OOD1: 61.43% Test OOD2: 50.67% Test OOD3: 59.13% 
+Epoch: 131, Loss: 0.2455, Train: 99.86%, Valid: 67.89%, Test In: 69.32% Test OOD1: 61.15% Test OOD2: 50.64% Test OOD3: 58.98% 
+Epoch: 132, Loss: 0.2407, Train: 99.89%, Valid: 68.05%, Test In: 69.39% Test OOD1: 60.95% Test OOD2: 50.67% Test OOD3: 58.95% 
+Epoch: 133, Loss: 0.2451, Train: 99.84%, Valid: 68.13%, Test In: 69.53% Test OOD1: 61.24% Test OOD2: 50.64% Test OOD3: 59.18% 
+Epoch: 134, Loss: 0.2436, Train: 99.87%, Valid: 68.02%, Test In: 69.40% Test OOD1: 61.47% Test OOD2: 50.67% Test OOD3: 59.29% 
+Epoch: 135, Loss: 0.2349, Train: 99.91%, Valid: 68.04%, Test In: 69.35% Test OOD1: 61.32% Test OOD2: 50.77% Test OOD3: 59.26% 
+Epoch: 136, Loss: 0.2443, Train: 99.85%, Valid: 68.11%, Test In: 69.52% Test OOD1: 61.51% Test OOD2: 50.79% Test OOD3: 59.40% 
+Epoch: 137, Loss: 0.2353, Train: 99.86%, Valid: 68.09%, Test In: 69.56% Test OOD1: 61.54% Test OOD2: 50.80% Test OOD3: 59.34% 
+Epoch: 138, Loss: 0.2320, Train: 99.91%, Valid: 67.96%, Test In: 69.32% Test OOD1: 61.33% Test OOD2: 50.81% Test OOD3: 59.09% 
+Epoch: 139, Loss: 0.2354, Train: 99.91%, Valid: 67.89%, Test In: 69.41% Test OOD1: 61.35% Test OOD2: 50.82% Test OOD3: 58.98% 
+Epoch: 140, Loss: 0.2312, Train: 99.89%, Valid: 67.75%, Test In: 69.43% Test OOD1: 61.40% Test OOD2: 50.82% Test OOD3: 58.92% 
+Epoch: 141, Loss: 0.2317, Train: 99.93%, Valid: 67.55%, Test In: 69.16% Test OOD1: 61.28% Test OOD2: 50.80% Test OOD3: 58.76% 
+Epoch: 142, Loss: 0.2384, Train: 99.92%, Valid: 67.66%, Test In: 69.28% Test OOD1: 61.34% Test OOD2: 50.78% Test OOD3: 58.95% 
+Epoch: 143, Loss: 0.2292, Train: 99.90%, Valid: 67.85%, Test In: 69.56% Test OOD1: 61.30% Test OOD2: 50.79% Test OOD3: 59.15% 
+Epoch: 144, Loss: 0.2345, Train: 99.93%, Valid: 67.82%, Test In: 69.57% Test OOD1: 61.07% Test OOD2: 50.83% Test OOD3: 59.05% 
+Epoch: 145, Loss: 0.2195, Train: 99.94%, Valid: 67.68%, Test In: 69.47% Test OOD1: 61.06% Test OOD2: 50.83% Test OOD3: 58.93% 
+Epoch: 146, Loss: 0.2230, Train: 99.92%, Valid: 67.72%, Test In: 69.63% Test OOD1: 61.05% Test OOD2: 50.83% Test OOD3: 58.88% 
+Epoch: 147, Loss: 0.2213, Train: 99.92%, Valid: 67.81%, Test In: 69.69% Test OOD1: 61.02% Test OOD2: 50.80% Test OOD3: 58.92% 
+Epoch: 148, Loss: 0.2251, Train: 99.95%, Valid: 67.89%, Test In: 69.59% Test OOD1: 60.89% Test OOD2: 50.76% Test OOD3: 58.83% 
+Epoch: 149, Loss: 0.2206, Train: 99.96%, Valid: 67.95%, Test In: 69.55% Test OOD1: 61.01% Test OOD2: 50.77% Test OOD3: 58.80% 
+Epoch: 150, Loss: 0.2159, Train: 99.94%, Valid: 67.92%, Test In: 69.50% Test OOD1: 61.27% Test OOD2: 50.77% Test OOD3: 58.85% 
+Epoch: 151, Loss: 0.2151, Train: 99.95%, Valid: 67.84%, Test In: 69.37% Test OOD1: 61.36% Test OOD2: 50.79% Test OOD3: 58.88% 
+Epoch: 152, Loss: 0.2190, Train: 99.96%, Valid: 67.87%, Test In: 69.39% Test OOD1: 61.42% Test OOD2: 50.82% Test OOD3: 59.02% 
+Epoch: 153, Loss: 0.2165, Train: 99.96%, Valid: 67.94%, Test In: 69.52% Test OOD1: 61.22% Test OOD2: 50.91% Test OOD3: 59.07% 
+Epoch: 154, Loss: 0.2122, Train: 99.98%, Valid: 67.80%, Test In: 69.44% Test OOD1: 61.05% Test OOD2: 50.97% Test OOD3: 59.08% 
+Epoch: 155, Loss: 0.2087, Train: 99.98%, Valid: 67.67%, Test In: 69.38% Test OOD1: 61.04% Test OOD2: 51.05% Test OOD3: 59.11% 
+Epoch: 156, Loss: 0.2072, Train: 99.98%, Valid: 67.72%, Test In: 69.48% Test OOD1: 61.16% Test OOD2: 51.09% Test OOD3: 59.21% 
+Epoch: 157, Loss: 0.2003, Train: 99.98%, Valid: 67.77%, Test In: 69.49% Test OOD1: 61.35% Test OOD2: 51.11% Test OOD3: 59.25% 
+Epoch: 158, Loss: 0.2026, Train: 99.97%, Valid: 67.75%, Test In: 69.41% Test OOD1: 61.57% Test OOD2: 51.12% Test OOD3: 59.19% 
+Epoch: 159, Loss: 0.2009, Train: 99.96%, Valid: 67.79%, Test In: 69.48% Test OOD1: 61.71% Test OOD2: 51.09% Test OOD3: 59.11% 
+Epoch: 160, Loss: 0.2073, Train: 99.98%, Valid: 67.79%, Test In: 69.42% Test OOD1: 61.54% Test OOD2: 51.06% Test OOD3: 58.86% 
+Epoch: 161, Loss: 0.2090, Train: 99.99%, Valid: 67.69%, Test In: 69.32% Test OOD1: 61.60% Test OOD2: 51.02% Test OOD3: 58.78% 
+Epoch: 162, Loss: 0.2059, Train: 99.99%, Valid: 67.70%, Test In: 69.46% Test OOD1: 61.73% Test OOD2: 50.93% Test OOD3: 58.90% 
+Epoch: 163, Loss: 0.2061, Train: 99.99%, Valid: 67.86%, Test In: 69.62% Test OOD1: 61.53% Test OOD2: 50.91% Test OOD3: 58.92% 
+Epoch: 164, Loss: 0.1996, Train: 99.99%, Valid: 67.91%, Test In: 69.67% Test OOD1: 61.51% Test OOD2: 50.92% Test OOD3: 59.05% 
+Epoch: 165, Loss: 0.2005, Train: 99.99%, Valid: 67.75%, Test In: 69.57% Test OOD1: 61.70% Test OOD2: 50.91% Test OOD3: 59.18% 
+Epoch: 166, Loss: 0.2003, Train: 99.99%, Valid: 67.76%, Test In: 69.66% Test OOD1: 61.50% Test OOD2: 50.84% Test OOD3: 59.15% 
+Epoch: 167, Loss: 0.1998, Train: 99.99%, Valid: 67.83%, Test In: 69.72% Test OOD1: 61.36% Test OOD2: 50.79% Test OOD3: 59.04% 
+Epoch: 168, Loss: 0.1938, Train: 99.99%, Valid: 67.93%, Test In: 69.73% Test OOD1: 61.29% Test OOD2: 50.79% Test OOD3: 58.92% 
+Epoch: 169, Loss: 0.1951, Train: 99.99%, Valid: 68.04%, Test In: 69.74% Test OOD1: 61.43% Test OOD2: 50.81% Test OOD3: 58.88% 
+Epoch: 170, Loss: 0.1959, Train: 99.99%, Valid: 68.06%, Test In: 69.70% Test OOD1: 61.62% Test OOD2: 50.78% Test OOD3: 58.80% 
+Epoch: 171, Loss: 0.1969, Train: 99.99%, Valid: 68.03%, Test In: 69.71% Test OOD1: 61.71% Test OOD2: 50.80% Test OOD3: 58.73% 
+Epoch: 172, Loss: 0.1980, Train: 99.99%, Valid: 67.96%, Test In: 69.69% Test OOD1: 61.52% Test OOD2: 50.83% Test OOD3: 58.57% 
+Epoch: 173, Loss: 0.1931, Train: 99.99%, Valid: 67.86%, Test In: 69.73% Test OOD1: 61.52% Test OOD2: 50.81% Test OOD3: 58.62% 
+Epoch: 174, Loss: 0.2047, Train: 99.99%, Valid: 67.80%, Test In: 69.76% Test OOD1: 61.35% Test OOD2: 50.80% Test OOD3: 58.62% 
+Epoch: 175, Loss: 0.1922, Train: 99.99%, Valid: 67.90%, Test In: 69.78% Test OOD1: 60.96% Test OOD2: 50.77% Test OOD3: 58.57% 
+Epoch: 176, Loss: 0.1904, Train: 100.00%, Valid: 67.84%, Test In: 69.78% Test OOD1: 61.38% Test OOD2: 50.66% Test OOD3: 58.84% 
+Epoch: 177, Loss: 0.1906, Train: 100.00%, Valid: 67.85%, Test In: 69.75% Test OOD1: 61.58% Test OOD2: 50.58% Test OOD3: 59.01% 
+Epoch: 178, Loss: 0.2000, Train: 99.99%, Valid: 68.09%, Test In: 69.93% Test OOD1: 61.37% Test OOD2: 50.62% Test OOD3: 58.99% 
+Epoch: 179, Loss: 0.1856, Train: 99.99%, Valid: 68.10%, Test In: 69.97% Test OOD1: 61.50% Test OOD2: 50.66% Test OOD3: 59.05% 
+Epoch: 180, Loss: 0.2020, Train: 100.00%, Valid: 67.80%, Test In: 69.72% Test OOD1: 61.69% Test OOD2: 50.74% Test OOD3: 58.97% 
+Epoch: 181, Loss: 0.1894, Train: 100.00%, Valid: 67.78%, Test In: 69.70% Test OOD1: 61.75% Test OOD2: 50.85% Test OOD3: 58.97% 
+Epoch: 182, Loss: 0.1897, Train: 100.00%, Valid: 67.96%, Test In: 69.79% Test OOD1: 61.38% Test OOD2: 51.00% Test OOD3: 58.83% 
+Epoch: 183, Loss: 0.1843, Train: 100.00%, Valid: 67.88%, Test In: 69.69% Test OOD1: 61.01% Test OOD2: 51.07% Test OOD3: 58.68% 
+Epoch: 184, Loss: 0.1891, Train: 100.00%, Valid: 67.71%, Test In: 69.57% Test OOD1: 61.33% Test OOD2: 51.00% Test OOD3: 58.81% 
+Epoch: 185, Loss: 0.1917, Train: 100.00%, Valid: 67.60%, Test In: 69.47% Test OOD1: 61.46% Test OOD2: 50.93% Test OOD3: 58.92% 
+Epoch: 186, Loss: 0.1921, Train: 100.00%, Valid: 67.78%, Test In: 69.58% Test OOD1: 61.36% Test OOD2: 50.92% Test OOD3: 58.98% 
+Epoch: 187, Loss: 0.1862, Train: 100.00%, Valid: 67.89%, Test In: 69.63% Test OOD1: 61.13% Test OOD2: 50.86% Test OOD3: 58.94% 
+Epoch: 188, Loss: 0.1883, Train: 100.00%, Valid: 67.80%, Test In: 69.50% Test OOD1: 61.11% Test OOD2: 50.75% Test OOD3: 58.85% 
+Epoch: 189, Loss: 0.1825, Train: 100.00%, Valid: 67.75%, Test In: 69.45% Test OOD1: 61.26% Test OOD2: 50.73% Test OOD3: 58.82% 
+Epoch: 190, Loss: 0.1869, Train: 100.00%, Valid: 67.90%, Test In: 69.59% Test OOD1: 61.33% Test OOD2: 50.79% Test OOD3: 58.85% 
+Epoch: 191, Loss: 0.1772, Train: 100.00%, Valid: 68.00%, Test In: 69.65% Test OOD1: 61.06% Test OOD2: 50.84% Test OOD3: 58.76% 
+Epoch: 192, Loss: 0.1825, Train: 100.00%, Valid: 67.94%, Test In: 69.60% Test OOD1: 61.37% Test OOD2: 50.89% Test OOD3: 58.82% 
+Epoch: 193, Loss: 0.1858, Train: 100.00%, Valid: 67.75%, Test In: 69.41% Test OOD1: 61.69% Test OOD2: 50.92% Test OOD3: 58.76% 
+Epoch: 194, Loss: 0.1815, Train: 100.00%, Valid: 67.74%, Test In: 69.36% Test OOD1: 61.61% Test OOD2: 50.93% Test OOD3: 58.61% 
+Epoch: 195, Loss: 0.1821, Train: 100.00%, Valid: 67.86%, Test In: 69.49% Test OOD1: 61.44% Test OOD2: 50.95% Test OOD3: 58.55% 
+Epoch: 196, Loss: 0.1779, Train: 100.00%, Valid: 67.88%, Test In: 69.48% Test OOD1: 61.48% Test OOD2: 50.93% Test OOD3: 58.54% 
+Epoch: 197, Loss: 0.1790, Train: 100.00%, Valid: 67.78%, Test In: 69.43% Test OOD1: 61.52% Test OOD2: 50.85% Test OOD3: 58.52% 
+Epoch: 198, Loss: 0.1762, Train: 100.00%, Valid: 67.76%, Test In: 69.47% Test OOD1: 61.51% Test OOD2: 50.78% Test OOD3: 58.50% 
+Epoch: 199, Loss: 0.1766, Train: 100.00%, Valid: 67.89%, Test In: 69.64% Test OOD1: 61.40% Test OOD2: 50.78% Test OOD3: 58.47% 
+Run 01:
+Highest Train: 100.00
+Highest Valid: 70.52
+Highest In Test: 71.37
+Highest OOD Test: 66.38
+Highest OOD Test: 52.39
+Highest OOD Test: 63.60
+Chosen epoch: 31
+Final Train: 80.95
+Final In Test: 71.30
+Final OOD Test: 64.86
+Final OOD Test: 52.35
+Final OOD Test: 62.78
+Epoch: 00, Loss: 1.0438, Train: 54.21%, Valid: 51.24%, Test In: 52.58% Test OOD1: 46.11% Test OOD2: 50.96% Test OOD3: 50.12% 
+Epoch: 01, Loss: 1.0390, Train: 48.58%, Valid: 46.97%, Test In: 48.18% Test OOD1: 42.80% Test OOD2: 50.60% Test OOD3: 47.60% 
+Epoch: 02, Loss: 1.0336, Train: 46.43%, Valid: 45.47%, Test In: 46.63% Test OOD1: 41.98% Test OOD2: 50.42% Test OOD3: 46.71% 
+Epoch: 03, Loss: 1.0263, Train: 46.01%, Valid: 45.25%, Test In: 46.37% Test OOD1: 41.85% Test OOD2: 50.39% Test OOD3: 46.53% 
+Epoch: 04, Loss: 1.0192, Train: 50.41%, Valid: 48.72%, Test In: 49.90% Test OOD1: 43.19% Test OOD2: 50.68% Test OOD3: 47.84% 
+Epoch: 05, Loss: 1.0114, Train: 61.28%, Valid: 57.59%, Test In: 58.76% Test OOD1: 47.20% Test OOD2: 51.50% Test OOD3: 51.37% 
+Epoch: 06, Loss: 1.0010, Train: 67.49%, Valid: 62.92%, Test In: 63.98% Test OOD1: 50.94% Test OOD2: 51.88% Test OOD3: 54.10% 
+Epoch: 07, Loss: 0.9917, Train: 68.99%, Valid: 64.19%, Test In: 65.29% Test OOD1: 52.43% Test OOD2: 52.02% Test OOD3: 55.04% 
+Epoch: 08, Loss: 0.9868, Train: 73.01%, Valid: 67.57%, Test In: 69.00% Test OOD1: 57.89% Test OOD2: 52.35% Test OOD3: 58.75% 
+Epoch: 09, Loss: 0.9807, Train: 74.94%, Valid: 69.21%, Test In: 70.73% Test OOD1: 64.64% Test OOD2: 51.86% Test OOD3: 62.48% 
+Epoch: 10, Loss: 0.9721, Train: 72.83%, Valid: 68.07%, Test In: 68.91% Test OOD1: 65.42% Test OOD2: 51.38% Test OOD3: 62.31% 
+Epoch: 11, Loss: 0.9622, Train: 71.61%, Valid: 67.36%, Test In: 67.90% Test OOD1: 64.94% Test OOD2: 51.25% Test OOD3: 61.88% 
+Epoch: 12, Loss: 0.9520, Train: 71.81%, Valid: 67.47%, Test In: 68.07% Test OOD1: 65.06% Test OOD2: 51.33% Test OOD3: 61.96% 
+Epoch: 13, Loss: 0.9403, Train: 72.34%, Valid: 67.81%, Test In: 68.50% Test OOD1: 65.32% Test OOD2: 51.44% Test OOD3: 62.15% 
+Epoch: 14, Loss: 0.9322, Train: 72.54%, Valid: 68.06%, Test In: 68.71% Test OOD1: 65.45% Test OOD2: 51.40% Test OOD3: 62.23% 
+Epoch: 15, Loss: 0.9211, Train: 73.36%, Valid: 68.64%, Test In: 69.36% Test OOD1: 65.75% Test OOD2: 51.49% Test OOD3: 62.55% 
+Epoch: 16, Loss: 0.9077, Train: 74.30%, Valid: 69.24%, Test In: 70.03% Test OOD1: 65.85% Test OOD2: 51.65% Test OOD3: 62.89% 
+Epoch: 17, Loss: 0.9022, Train: 74.81%, Valid: 69.62%, Test In: 70.41% Test OOD1: 65.93% Test OOD2: 51.68% Test OOD3: 63.06% 
+Epoch: 18, Loss: 0.8952, Train: 75.42%, Valid: 69.96%, Test In: 70.78% Test OOD1: 65.84% Test OOD2: 51.82% Test OOD3: 63.24% 
+Epoch: 19, Loss: 0.8884, Train: 76.08%, Valid: 70.14%, Test In: 71.03% Test OOD1: 65.54% Test OOD2: 52.04% Test OOD3: 63.33% 
+Epoch: 20, Loss: 0.8851, Train: 76.45%, Valid: 70.32%, Test In: 71.21% Test OOD1: 65.61% Test OOD2: 52.12% Test OOD3: 63.38% 
+Epoch: 21, Loss: 0.8779, Train: 77.12%, Valid: 70.41%, Test In: 71.34% Test OOD1: 65.08% Test OOD2: 52.34% Test OOD3: 63.34% 
+Epoch: 22, Loss: 0.8706, Train: 77.54%, Valid: 70.65%, Test In: 71.53% Test OOD1: 65.23% Test OOD2: 52.37% Test OOD3: 63.36% 
+Epoch: 23, Loss: 0.8637, Train: 78.02%, Valid: 70.75%, Test In: 71.63% Test OOD1: 65.17% Test OOD2: 52.43% Test OOD3: 63.32% 
+Epoch: 24, Loss: 0.8581, Train: 78.52%, Valid: 70.64%, Test In: 71.51% Test OOD1: 64.77% Test OOD2: 52.54% Test OOD3: 63.17% 
+Epoch: 25, Loss: 0.8517, Train: 78.87%, Valid: 70.61%, Test In: 71.45% Test OOD1: 64.82% Test OOD2: 52.56% Test OOD3: 63.12% 
+Epoch: 26, Loss: 0.8434, Train: 79.19%, Valid: 70.58%, Test In: 71.41% Test OOD1: 64.89% Test OOD2: 52.54% Test OOD3: 63.08% 
+Epoch: 27, Loss: 0.8387, Train: 79.62%, Valid: 70.52%, Test In: 71.33% Test OOD1: 64.75% Test OOD2: 52.55% Test OOD3: 62.95% 
+Epoch: 28, Loss: 0.8301, Train: 80.10%, Valid: 70.45%, Test In: 71.25% Test OOD1: 64.51% Test OOD2: 52.56% Test OOD3: 62.78% 
+Epoch: 29, Loss: 0.8220, Train: 80.47%, Valid: 70.52%, Test In: 71.30% Test OOD1: 64.56% Test OOD2: 52.53% Test OOD3: 62.72% 
+Epoch: 30, Loss: 0.8171, Train: 80.88%, Valid: 70.51%, Test In: 71.29% Test OOD1: 64.44% Test OOD2: 52.50% Test OOD3: 62.60% 
+Epoch: 31, Loss: 0.8069, Train: 81.41%, Valid: 70.44%, Test In: 71.18% Test OOD1: 64.04% Test OOD2: 52.52% Test OOD3: 62.38% 
+Epoch: 32, Loss: 0.8016, Train: 81.68%, Valid: 70.51%, Test In: 71.24% Test OOD1: 64.23% Test OOD2: 52.45% Test OOD3: 62.38% 
+Epoch: 33, Loss: 0.8009, Train: 82.20%, Valid: 70.26%, Test In: 70.99% Test OOD1: 63.46% Test OOD2: 52.45% Test OOD3: 62.05% 
+Epoch: 34, Loss: 0.7945, Train: 82.55%, Valid: 70.21%, Test In: 70.94% Test OOD1: 63.25% Test OOD2: 52.38% Test OOD3: 61.93% 
+Epoch: 35, Loss: 0.7865, Train: 82.65%, Valid: 70.22%, Test In: 70.90% Test OOD1: 63.37% Test OOD2: 52.27% Test OOD3: 61.90% 
+Epoch: 36, Loss: 0.7799, Train: 83.47%, Valid: 70.21%, Test In: 70.88% Test OOD1: 62.97% Test OOD2: 52.30% Test OOD3: 61.73% 
+Epoch: 37, Loss: 0.7756, Train: 83.84%, Valid: 70.04%, Test In: 70.73% Test OOD1: 62.77% Test OOD2: 52.26% Test OOD3: 61.57% 
+Epoch: 38, Loss: 0.7665, Train: 83.71%, Valid: 69.99%, Test In: 70.68% Test OOD1: 62.97% Test OOD2: 52.10% Test OOD3: 61.52% 
+Epoch: 39, Loss: 0.7609, Train: 84.15%, Valid: 70.03%, Test In: 70.77% Test OOD1: 63.00% Test OOD2: 52.04% Test OOD3: 61.51% 
+Epoch: 40, Loss: 0.7501, Train: 84.92%, Valid: 69.82%, Test In: 70.61% Test OOD1: 62.50% Test OOD2: 52.10% Test OOD3: 61.29% 
+Epoch: 41, Loss: 0.7449, Train: 84.97%, Valid: 69.89%, Test In: 70.73% Test OOD1: 62.61% Test OOD2: 51.93% Test OOD3: 61.30% 
+Epoch: 42, Loss: 0.7394, Train: 85.05%, Valid: 69.92%, Test In: 70.76% Test OOD1: 62.65% Test OOD2: 51.82% Test OOD3: 61.28% 
+Epoch: 43, Loss: 0.7346, Train: 85.91%, Valid: 69.88%, Test In: 70.78% Test OOD1: 62.34% Test OOD2: 51.90% Test OOD3: 61.16% 
+Epoch: 44, Loss: 0.7292, Train: 86.17%, Valid: 69.93%, Test In: 70.85% Test OOD1: 62.31% Test OOD2: 51.83% Test OOD3: 61.12% 
+Epoch: 45, Loss: 0.7230, Train: 86.06%, Valid: 69.92%, Test In: 70.83% Test OOD1: 62.29% Test OOD2: 51.70% Test OOD3: 61.08% 
+Epoch: 46, Loss: 0.7140, Train: 86.75%, Valid: 69.77%, Test In: 70.74% Test OOD1: 62.02% Test OOD2: 51.70% Test OOD3: 60.87% 
+Epoch: 47, Loss: 0.7071, Train: 87.12%, Valid: 69.80%, Test In: 70.84% Test OOD1: 62.13% Test OOD2: 51.63% Test OOD3: 60.85% 
+Epoch: 48, Loss: 0.7003, Train: 86.92%, Valid: 69.71%, Test In: 70.82% Test OOD1: 62.12% Test OOD2: 51.53% Test OOD3: 60.81% 
+Epoch: 49, Loss: 0.6984, Train: 87.79%, Valid: 69.44%, Test In: 70.62% Test OOD1: 61.86% Test OOD2: 51.48% Test OOD3: 60.55% 
+Epoch: 50, Loss: 0.6838, Train: 88.16%, Valid: 69.29%, Test In: 70.49% Test OOD1: 61.80% Test OOD2: 51.44% Test OOD3: 60.40% 
+Epoch: 51, Loss: 0.6777, Train: 87.96%, Valid: 69.33%, Test In: 70.53% Test OOD1: 62.04% Test OOD2: 51.31% Test OOD3: 60.44% 
+Epoch: 52, Loss: 0.6665, Train: 88.59%, Valid: 69.11%, Test In: 70.34% Test OOD1: 61.97% Test OOD2: 51.27% Test OOD3: 60.31% 
+Epoch: 53, Loss: 0.6660, Train: 89.00%, Valid: 69.03%, Test In: 70.20% Test OOD1: 61.88% Test OOD2: 51.28% Test OOD3: 60.16% 
+Epoch: 54, Loss: 0.6572, Train: 88.99%, Valid: 69.27%, Test In: 70.47% Test OOD1: 62.19% Test OOD2: 51.11% Test OOD3: 60.31% 
+Epoch: 55, Loss: 0.6476, Train: 89.52%, Valid: 69.18%, Test In: 70.40% Test OOD1: 61.93% Test OOD2: 51.11% Test OOD3: 60.23% 
+Epoch: 56, Loss: 0.6425, Train: 89.67%, Valid: 69.14%, Test In: 70.30% Test OOD1: 61.74% Test OOD2: 51.10% Test OOD3: 60.09% 
+Epoch: 57, Loss: 0.6403, Train: 90.01%, Valid: 69.18%, Test In: 70.46% Test OOD1: 62.26% Test OOD2: 50.95% Test OOD3: 60.29% 
+Epoch: 58, Loss: 0.6287, Train: 90.12%, Valid: 69.12%, Test In: 70.31% Test OOD1: 61.89% Test OOD2: 50.97% Test OOD3: 60.16% 
+Epoch: 59, Loss: 0.6226, Train: 90.25%, Valid: 69.08%, Test In: 70.17% Test OOD1: 61.72% Test OOD2: 50.93% Test OOD3: 60.01% 
+Epoch: 60, Loss: 0.6180, Train: 90.58%, Valid: 69.09%, Test In: 70.17% Test OOD1: 62.13% Test OOD2: 50.84% Test OOD3: 60.19% 
+Epoch: 61, Loss: 0.6121, Train: 90.82%, Valid: 69.01%, Test In: 69.99% Test OOD1: 61.65% Test OOD2: 50.85% Test OOD3: 60.02% 
+Epoch: 62, Loss: 0.6014, Train: 91.00%, Valid: 69.09%, Test In: 70.15% Test OOD1: 61.60% Test OOD2: 50.80% Test OOD3: 59.96% 
+Epoch: 63, Loss: 0.5984, Train: 91.38%, Valid: 69.06%, Test In: 70.26% Test OOD1: 62.06% Test OOD2: 50.71% Test OOD3: 60.11% 
+Epoch: 64, Loss: 0.5875, Train: 91.77%, Valid: 69.01%, Test In: 70.17% Test OOD1: 61.73% Test OOD2: 50.78% Test OOD3: 60.10% 
+Epoch: 65, Loss: 0.5773, Train: 91.61%, Valid: 69.04%, Test In: 70.20% Test OOD1: 61.56% Test OOD2: 50.75% Test OOD3: 59.99% 
+Epoch: 66, Loss: 0.5731, Train: 91.76%, Valid: 69.01%, Test In: 70.25% Test OOD1: 61.94% Test OOD2: 50.65% Test OOD3: 60.02% 
+Epoch: 67, Loss: 0.5575, Train: 92.68%, Valid: 68.93%, Test In: 70.12% Test OOD1: 61.76% Test OOD2: 50.71% Test OOD3: 59.87% 
+Epoch: 68, Loss: 0.5599, Train: 92.13%, Valid: 69.05%, Test In: 70.14% Test OOD1: 61.28% Test OOD2: 50.72% Test OOD3: 59.78% 
+Epoch: 69, Loss: 0.5501, Train: 92.60%, Valid: 69.05%, Test In: 70.18% Test OOD1: 60.68% Test OOD2: 50.72% Test OOD3: 59.54% 
+Epoch: 70, Loss: 0.5477, Train: 92.91%, Valid: 69.00%, Test In: 70.29% Test OOD1: 61.37% Test OOD2: 50.72% Test OOD3: 59.85% 
+Epoch: 71, Loss: 0.5360, Train: 93.19%, Valid: 68.98%, Test In: 70.32% Test OOD1: 61.30% Test OOD2: 50.76% Test OOD3: 59.91% 
+Epoch: 72, Loss: 0.5205, Train: 93.38%, Valid: 69.01%, Test In: 70.24% Test OOD1: 60.60% Test OOD2: 50.80% Test OOD3: 59.74% 
+Epoch: 73, Loss: 0.5220, Train: 93.35%, Valid: 69.04%, Test In: 70.26% Test OOD1: 60.85% Test OOD2: 50.75% Test OOD3: 59.86% 
+Epoch: 74, Loss: 0.5140, Train: 93.78%, Valid: 68.97%, Test In: 70.23% Test OOD1: 61.28% Test OOD2: 50.71% Test OOD3: 59.83% 
+Epoch: 75, Loss: 0.5018, Train: 94.09%, Valid: 68.98%, Test In: 70.16% Test OOD1: 61.26% Test OOD2: 50.68% Test OOD3: 59.71% 
+Epoch: 76, Loss: 0.4936, Train: 94.02%, Valid: 69.04%, Test In: 70.20% Test OOD1: 60.97% Test OOD2: 50.64% Test OOD3: 59.60% 
+Epoch: 77, Loss: 0.4871, Train: 94.61%, Valid: 69.00%, Test In: 70.08% Test OOD1: 60.99% Test OOD2: 50.66% Test OOD3: 59.55% 
+Epoch: 78, Loss: 0.4850, Train: 95.05%, Valid: 68.90%, Test In: 70.06% Test OOD1: 60.96% Test OOD2: 50.69% Test OOD3: 59.48% 
+Epoch: 79, Loss: 0.4718, Train: 94.77%, Valid: 68.88%, Test In: 70.21% Test OOD1: 60.94% Test OOD2: 50.66% Test OOD3: 59.51% 
+Epoch: 80, Loss: 0.4704, Train: 95.24%, Valid: 68.75%, Test In: 70.10% Test OOD1: 61.14% Test OOD2: 50.74% Test OOD3: 59.60% 
+Epoch: 81, Loss: 0.4586, Train: 95.36%, Valid: 68.76%, Test In: 70.16% Test OOD1: 61.04% Test OOD2: 50.73% Test OOD3: 59.68% 
+Epoch: 82, Loss: 0.4536, Train: 95.69%, Valid: 68.81%, Test In: 70.28% Test OOD1: 60.67% Test OOD2: 50.74% Test OOD3: 59.60% 
+Epoch: 83, Loss: 0.4428, Train: 95.91%, Valid: 68.78%, Test In: 70.35% Test OOD1: 60.85% Test OOD2: 50.72% Test OOD3: 59.63% 
+Epoch: 84, Loss: 0.4397, Train: 96.30%, Valid: 68.76%, Test In: 70.29% Test OOD1: 60.90% Test OOD2: 50.77% Test OOD3: 59.54% 
+Epoch: 85, Loss: 0.4336, Train: 96.24%, Valid: 68.81%, Test In: 70.24% Test OOD1: 61.18% Test OOD2: 50.71% Test OOD3: 59.59% 
+Epoch: 86, Loss: 0.4239, Train: 96.34%, Valid: 68.92%, Test In: 70.17% Test OOD1: 61.01% Test OOD2: 50.74% Test OOD3: 59.46% 
+Epoch: 87, Loss: 0.4199, Train: 96.75%, Valid: 68.79%, Test In: 70.09% Test OOD1: 61.21% Test OOD2: 50.71% Test OOD3: 59.31% 
+Epoch: 88, Loss: 0.4160, Train: 96.73%, Valid: 68.71%, Test In: 70.12% Test OOD1: 61.07% Test OOD2: 50.65% Test OOD3: 59.15% 
+Epoch: 89, Loss: 0.4177, Train: 97.51%, Valid: 68.63%, Test In: 69.83% Test OOD1: 60.47% Test OOD2: 50.78% Test OOD3: 58.85% 
+Epoch: 90, Loss: 0.4403, Train: 96.21%, Valid: 68.57%, Test In: 70.02% Test OOD1: 61.00% Test OOD2: 50.59% Test OOD3: 59.23% 
+Epoch: 91, Loss: 0.4716, Train: 97.19%, Valid: 68.58%, Test In: 70.07% Test OOD1: 61.06% Test OOD2: 50.79% Test OOD3: 59.22% 
+Epoch: 92, Loss: 0.3934, Train: 97.27%, Valid: 68.55%, Test In: 69.86% Test OOD1: 60.89% Test OOD2: 50.98% Test OOD3: 59.23% 
+Epoch: 93, Loss: 0.4463, Train: 97.10%, Valid: 68.58%, Test In: 69.96% Test OOD1: 61.26% Test OOD2: 50.90% Test OOD3: 59.43% 
+Epoch: 94, Loss: 0.3987, Train: 96.18%, Valid: 68.64%, Test In: 70.04% Test OOD1: 61.17% Test OOD2: 50.80% Test OOD3: 59.41% 
+Epoch: 95, Loss: 0.4252, Train: 96.27%, Valid: 68.55%, Test In: 69.92% Test OOD1: 61.44% Test OOD2: 50.83% Test OOD3: 59.40% 
+Epoch: 96, Loss: 0.4086, Train: 96.98%, Valid: 68.51%, Test In: 69.80% Test OOD1: 61.46% Test OOD2: 50.98% Test OOD3: 59.41% 
+Epoch: 97, Loss: 0.3845, Train: 97.27%, Valid: 68.54%, Test In: 69.68% Test OOD1: 61.23% Test OOD2: 51.07% Test OOD3: 59.40% 
+Epoch: 98, Loss: 0.4046, Train: 97.48%, Valid: 68.68%, Test In: 69.79% Test OOD1: 60.91% Test OOD2: 50.96% Test OOD3: 59.40% 
+Epoch: 99, Loss: 0.3816, Train: 97.47%, Valid: 68.56%, Test In: 69.81% Test OOD1: 60.97% Test OOD2: 50.87% Test OOD3: 59.46% 
+Epoch: 100, Loss: 0.3751, Train: 97.34%, Valid: 68.58%, Test In: 69.94% Test OOD1: 60.90% Test OOD2: 50.90% Test OOD3: 59.42% 
+Epoch: 101, Loss: 0.3729, Train: 97.74%, Valid: 68.47%, Test In: 69.79% Test OOD1: 61.24% Test OOD2: 51.04% Test OOD3: 59.43% 
+Epoch: 102, Loss: 0.3530, Train: 98.17%, Valid: 68.42%, Test In: 69.52% Test OOD1: 61.34% Test OOD2: 51.16% Test OOD3: 59.36% 
+Epoch: 103, Loss: 0.3517, Train: 98.27%, Valid: 68.59%, Test In: 69.68% Test OOD1: 61.03% Test OOD2: 51.14% Test OOD3: 59.26% 
+Epoch: 104, Loss: 0.3630, Train: 98.30%, Valid: 68.53%, Test In: 69.75% Test OOD1: 61.04% Test OOD2: 51.01% Test OOD3: 59.23% 
+Epoch: 105, Loss: 0.3426, Train: 98.31%, Valid: 68.43%, Test In: 69.79% Test OOD1: 61.12% Test OOD2: 50.94% Test OOD3: 59.23% 
+Epoch: 106, Loss: 0.3499, Train: 98.53%, Valid: 68.57%, Test In: 70.00% Test OOD1: 60.77% Test OOD2: 50.99% Test OOD3: 59.13% 
+Epoch: 107, Loss: 0.3306, Train: 98.78%, Valid: 68.41%, Test In: 69.83% Test OOD1: 60.82% Test OOD2: 51.10% Test OOD3: 59.18% 
+Epoch: 108, Loss: 0.3432, Train: 98.80%, Valid: 68.40%, Test In: 69.71% Test OOD1: 60.71% Test OOD2: 51.08% Test OOD3: 59.24% 
+Epoch: 109, Loss: 0.3308, Train: 98.66%, Valid: 68.48%, Test In: 69.74% Test OOD1: 60.75% Test OOD2: 51.00% Test OOD3: 59.27% 
+Epoch: 110, Loss: 0.3307, Train: 98.60%, Valid: 68.37%, Test In: 69.63% Test OOD1: 61.01% Test OOD2: 50.97% Test OOD3: 59.34% 
+Epoch: 111, Loss: 0.3245, Train: 98.70%, Valid: 68.24%, Test In: 69.51% Test OOD1: 61.16% Test OOD2: 51.03% Test OOD3: 59.34% 
+Epoch: 112, Loss: 0.3142, Train: 98.87%, Valid: 68.24%, Test In: 69.33% Test OOD1: 61.17% Test OOD2: 51.11% Test OOD3: 59.24% 
+Epoch: 113, Loss: 0.3102, Train: 98.93%, Valid: 68.41%, Test In: 69.46% Test OOD1: 61.02% Test OOD2: 51.11% Test OOD3: 59.16% 
+Epoch: 114, Loss: 0.3137, Train: 98.98%, Valid: 68.24%, Test In: 69.39% Test OOD1: 61.32% Test OOD2: 51.12% Test OOD3: 59.28% 
+Epoch: 115, Loss: 0.3023, Train: 98.97%, Valid: 68.18%, Test In: 69.46% Test OOD1: 61.35% Test OOD2: 51.09% Test OOD3: 59.30% 
+Epoch: 116, Loss: 0.3021, Train: 99.07%, Valid: 68.40%, Test In: 69.70% Test OOD1: 61.04% Test OOD2: 51.09% Test OOD3: 59.25% 
+Epoch: 117, Loss: 0.3051, Train: 99.26%, Valid: 68.25%, Test In: 69.40% Test OOD1: 61.18% Test OOD2: 51.16% Test OOD3: 59.32% 
+Epoch: 118, Loss: 0.2978, Train: 99.30%, Valid: 68.38%, Test In: 69.50% Test OOD1: 61.03% Test OOD2: 51.16% Test OOD3: 59.28% 
+Epoch: 119, Loss: 0.2953, Train: 99.25%, Valid: 68.44%, Test In: 69.64% Test OOD1: 60.90% Test OOD2: 51.06% Test OOD3: 59.22% 
+Epoch: 120, Loss: 0.2930, Train: 99.28%, Valid: 68.37%, Test In: 69.58% Test OOD1: 60.93% Test OOD2: 51.02% Test OOD3: 59.19% 
+Epoch: 121, Loss: 0.2936, Train: 99.36%, Valid: 68.32%, Test In: 69.50% Test OOD1: 61.05% Test OOD2: 51.06% Test OOD3: 59.20% 
+Epoch: 122, Loss: 0.2752, Train: 99.39%, Valid: 68.41%, Test In: 69.62% Test OOD1: 61.11% Test OOD2: 51.09% Test OOD3: 59.25% 
+Epoch: 123, Loss: 0.2802, Train: 99.42%, Valid: 68.35%, Test In: 69.59% Test OOD1: 61.31% Test OOD2: 51.09% Test OOD3: 59.36% 
+Epoch: 124, Loss: 0.2733, Train: 99.42%, Valid: 68.28%, Test In: 69.48% Test OOD1: 61.46% Test OOD2: 51.10% Test OOD3: 59.41% 
+Epoch: 125, Loss: 0.2746, Train: 99.45%, Valid: 68.35%, Test In: 69.52% Test OOD1: 61.40% Test OOD2: 51.10% Test OOD3: 59.39% 
+Epoch: 126, Loss: 0.2748, Train: 99.51%, Valid: 68.42%, Test In: 69.51% Test OOD1: 61.24% Test OOD2: 51.14% Test OOD3: 59.30% 
+Epoch: 127, Loss: 0.2739, Train: 99.57%, Valid: 68.24%, Test In: 69.25% Test OOD1: 61.34% Test OOD2: 51.18% Test OOD3: 59.23% 
+Epoch: 128, Loss: 0.2681, Train: 99.54%, Valid: 68.26%, Test In: 69.25% Test OOD1: 61.37% Test OOD2: 51.15% Test OOD3: 59.24% 
+Epoch: 129, Loss: 0.2711, Train: 99.52%, Valid: 68.40%, Test In: 69.34% Test OOD1: 61.22% Test OOD2: 51.17% Test OOD3: 59.22% 
+Epoch: 130, Loss: 0.2697, Train: 99.61%, Valid: 68.33%, Test In: 69.28% Test OOD1: 61.13% Test OOD2: 51.16% Test OOD3: 59.19% 
+Epoch: 131, Loss: 0.2572, Train: 99.64%, Valid: 68.29%, Test In: 69.19% Test OOD1: 61.06% Test OOD2: 51.14% Test OOD3: 59.12% 
+Epoch: 132, Loss: 0.2650, Train: 99.64%, Valid: 68.19%, Test In: 69.23% Test OOD1: 61.10% Test OOD2: 51.11% Test OOD3: 59.09% 
+Epoch: 133, Loss: 0.2578, Train: 99.62%, Valid: 68.18%, Test In: 69.30% Test OOD1: 60.93% Test OOD2: 51.06% Test OOD3: 59.00% 
+Epoch: 134, Loss: 0.2716, Train: 99.70%, Valid: 68.07%, Test In: 69.10% Test OOD1: 60.87% Test OOD2: 51.02% Test OOD3: 58.94% 
+Epoch: 135, Loss: 0.2560, Train: 99.72%, Valid: 68.21%, Test In: 69.12% Test OOD1: 60.64% Test OOD2: 51.04% Test OOD3: 58.87% 
+Epoch: 136, Loss: 0.2548, Train: 99.70%, Valid: 68.30%, Test In: 69.23% Test OOD1: 60.81% Test OOD2: 51.01% Test OOD3: 58.97% 
+Epoch: 137, Loss: 0.2540, Train: 99.69%, Valid: 68.17%, Test In: 69.14% Test OOD1: 61.30% Test OOD2: 50.96% Test OOD3: 59.09% 
+Epoch: 138, Loss: 0.2483, Train: 99.75%, Valid: 68.02%, Test In: 69.03% Test OOD1: 61.48% Test OOD2: 51.02% Test OOD3: 59.09% 
+Epoch: 139, Loss: 0.2553, Train: 99.79%, Valid: 68.20%, Test In: 69.16% Test OOD1: 61.40% Test OOD2: 51.11% Test OOD3: 59.04% 
+Epoch: 140, Loss: 0.2475, Train: 99.77%, Valid: 68.46%, Test In: 69.42% Test OOD1: 61.22% Test OOD2: 51.12% Test OOD3: 59.02% 
+Epoch: 141, Loss: 0.2432, Train: 99.76%, Valid: 68.40%, Test In: 69.47% Test OOD1: 61.27% Test OOD2: 51.09% Test OOD3: 59.02% 
+Epoch: 142, Loss: 0.2534, Train: 99.80%, Valid: 68.16%, Test In: 69.28% Test OOD1: 61.26% Test OOD2: 51.14% Test OOD3: 59.05% 
+Epoch: 143, Loss: 0.2399, Train: 99.83%, Valid: 68.15%, Test In: 69.35% Test OOD1: 61.06% Test OOD2: 51.17% Test OOD3: 59.05% 
+Epoch: 144, Loss: 0.2418, Train: 99.79%, Valid: 68.33%, Test In: 69.52% Test OOD1: 60.98% Test OOD2: 51.11% Test OOD3: 59.14% 
+Epoch: 145, Loss: 0.2428, Train: 99.77%, Valid: 68.43%, Test In: 69.52% Test OOD1: 61.07% Test OOD2: 51.11% Test OOD3: 59.21% 
+Epoch: 146, Loss: 0.2356, Train: 99.82%, Valid: 68.29%, Test In: 69.27% Test OOD1: 61.34% Test OOD2: 51.20% Test OOD3: 59.22% 
+Epoch: 147, Loss: 0.2399, Train: 99.85%, Valid: 68.28%, Test In: 69.23% Test OOD1: 61.41% Test OOD2: 51.24% Test OOD3: 59.16% 
+Epoch: 148, Loss: 0.2336, Train: 99.82%, Valid: 68.24%, Test In: 69.21% Test OOD1: 61.61% Test OOD2: 51.17% Test OOD3: 59.21% 
+Epoch: 149, Loss: 0.2452, Train: 99.81%, Valid: 68.31%, Test In: 69.22% Test OOD1: 61.77% Test OOD2: 51.12% Test OOD3: 59.20% 
+Epoch: 150, Loss: 0.2292, Train: 99.86%, Valid: 68.43%, Test In: 69.22% Test OOD1: 61.55% Test OOD2: 51.16% Test OOD3: 59.10% 
+Epoch: 151, Loss: 0.2338, Train: 99.89%, Valid: 68.36%, Test In: 69.21% Test OOD1: 61.38% Test OOD2: 51.10% Test OOD3: 59.06% 
+Epoch: 152, Loss: 0.2290, Train: 99.84%, Valid: 68.17%, Test In: 69.19% Test OOD1: 61.58% Test OOD2: 50.99% Test OOD3: 59.20% 
+Epoch: 153, Loss: 0.2307, Train: 99.83%, Valid: 68.21%, Test In: 69.17% Test OOD1: 61.57% Test OOD2: 51.01% Test OOD3: 59.22% 
+Epoch: 154, Loss: 0.2345, Train: 99.92%, Valid: 68.45%, Test In: 69.21% Test OOD1: 61.11% Test OOD2: 51.14% Test OOD3: 59.08% 
+Epoch: 155, Loss: 0.2290, Train: 99.93%, Valid: 68.49%, Test In: 69.17% Test OOD1: 61.01% Test OOD2: 51.21% Test OOD3: 59.07% 
+Epoch: 156, Loss: 0.2361, Train: 99.87%, Valid: 68.42%, Test In: 69.19% Test OOD1: 61.41% Test OOD2: 51.16% Test OOD3: 59.25% 
+Epoch: 157, Loss: 0.2234, Train: 99.86%, Valid: 68.31%, Test In: 69.11% Test OOD1: 61.59% Test OOD2: 51.22% Test OOD3: 59.32% 
+Epoch: 158, Loss: 0.2265, Train: 99.92%, Valid: 68.26%, Test In: 69.03% Test OOD1: 61.48% Test OOD2: 51.36% Test OOD3: 59.28% 
+Epoch: 159, Loss: 0.2287, Train: 99.93%, Valid: 68.14%, Test In: 68.98% Test OOD1: 61.42% Test OOD2: 51.35% Test OOD3: 59.25% 
+Epoch: 160, Loss: 0.2170, Train: 99.91%, Valid: 68.11%, Test In: 69.08% Test OOD1: 61.31% Test OOD2: 51.25% Test OOD3: 59.22% 
+Epoch: 161, Loss: 0.2216, Train: 99.92%, Valid: 68.03%, Test In: 69.11% Test OOD1: 61.11% Test OOD2: 51.16% Test OOD3: 59.10% 
+Epoch: 162, Loss: 0.2183, Train: 99.95%, Valid: 67.82%, Test In: 68.97% Test OOD1: 61.00% Test OOD2: 51.12% Test OOD3: 58.99% 
+Epoch: 163, Loss: 0.2166, Train: 99.96%, Valid: 67.84%, Test In: 68.93% Test OOD1: 60.78% Test OOD2: 51.10% Test OOD3: 58.91% 
+Epoch: 164, Loss: 0.2112, Train: 99.95%, Valid: 67.93%, Test In: 68.97% Test OOD1: 60.78% Test OOD2: 51.11% Test OOD3: 58.94% 
+Epoch: 165, Loss: 0.2181, Train: 99.93%, Valid: 67.93%, Test In: 68.93% Test OOD1: 61.06% Test OOD2: 51.16% Test OOD3: 59.08% 
+Epoch: 166, Loss: 0.2139, Train: 99.94%, Valid: 67.99%, Test In: 68.93% Test OOD1: 61.14% Test OOD2: 51.28% Test OOD3: 59.12% 
+Epoch: 167, Loss: 0.2153, Train: 99.96%, Valid: 67.98%, Test In: 68.91% Test OOD1: 61.15% Test OOD2: 51.36% Test OOD3: 59.13% 
+Epoch: 168, Loss: 0.2133, Train: 99.95%, Valid: 68.00%, Test In: 69.00% Test OOD1: 61.23% Test OOD2: 51.30% Test OOD3: 59.22% 
+Epoch: 169, Loss: 0.2100, Train: 99.95%, Valid: 67.95%, Test In: 69.00% Test OOD1: 61.10% Test OOD2: 51.22% Test OOD3: 59.21% 
+Epoch: 170, Loss: 0.2112, Train: 99.97%, Valid: 67.93%, Test In: 68.96% Test OOD1: 60.78% Test OOD2: 51.30% Test OOD3: 59.13% 
+Epoch: 171, Loss: 0.2052, Train: 99.97%, Valid: 67.86%, Test In: 69.01% Test OOD1: 60.92% Test OOD2: 51.25% Test OOD3: 59.24% 
+Epoch: 172, Loss: 0.2197, Train: 99.96%, Valid: 67.90%, Test In: 69.15% Test OOD1: 61.03% Test OOD2: 51.25% Test OOD3: 59.33% 
+Epoch: 173, Loss: 0.2125, Train: 99.97%, Valid: 67.78%, Test In: 69.10% Test OOD1: 61.15% Test OOD2: 51.30% Test OOD3: 59.35% 
+Epoch: 174, Loss: 0.2179, Train: 99.97%, Valid: 67.66%, Test In: 68.97% Test OOD1: 61.39% Test OOD2: 51.28% Test OOD3: 59.35% 
+Epoch: 175, Loss: 0.2076, Train: 99.96%, Valid: 67.81%, Test In: 69.05% Test OOD1: 61.50% Test OOD2: 51.23% Test OOD3: 59.37% 
+Epoch: 176, Loss: 0.2094, Train: 99.95%, Valid: 67.93%, Test In: 69.14% Test OOD1: 61.55% Test OOD2: 51.19% Test OOD3: 59.42% 
+Epoch: 177, Loss: 0.2082, Train: 99.96%, Valid: 67.89%, Test In: 69.14% Test OOD1: 61.55% Test OOD2: 51.23% Test OOD3: 59.48% 
+Epoch: 178, Loss: 0.2087, Train: 99.97%, Valid: 67.83%, Test In: 69.12% Test OOD1: 61.54% Test OOD2: 51.26% Test OOD3: 59.56% 
+Epoch: 179, Loss: 0.2132, Train: 99.97%, Valid: 68.00%, Test In: 69.26% Test OOD1: 61.50% Test OOD2: 51.21% Test OOD3: 59.65% 
+Epoch: 180, Loss: 0.2037, Train: 99.97%, Valid: 68.07%, Test In: 69.31% Test OOD1: 61.61% Test OOD2: 51.18% Test OOD3: 59.69% 
+Epoch: 181, Loss: 0.2106, Train: 99.98%, Valid: 67.95%, Test In: 69.19% Test OOD1: 61.66% Test OOD2: 51.24% Test OOD3: 59.64% 
+Epoch: 182, Loss: 0.1999, Train: 99.98%, Valid: 67.79%, Test In: 69.05% Test OOD1: 61.84% Test OOD2: 51.27% Test OOD3: 59.62% 
+Epoch: 183, Loss: 0.2020, Train: 99.97%, Valid: 67.83%, Test In: 69.08% Test OOD1: 62.02% Test OOD2: 51.24% Test OOD3: 59.68% 
+Epoch: 184, Loss: 0.2087, Train: 99.98%, Valid: 67.91%, Test In: 69.15% Test OOD1: 61.66% Test OOD2: 51.32% Test OOD3: 59.59% 
+Epoch: 185, Loss: 0.2046, Train: 99.98%, Valid: 67.79%, Test In: 69.09% Test OOD1: 61.65% Test OOD2: 51.24% Test OOD3: 59.56% 
+Epoch: 186, Loss: 0.2008, Train: 99.98%, Valid: 67.73%, Test In: 69.11% Test OOD1: 61.74% Test OOD2: 51.15% Test OOD3: 59.58% 
+Epoch: 187, Loss: 0.2019, Train: 99.98%, Valid: 67.77%, Test In: 69.16% Test OOD1: 61.44% Test OOD2: 51.18% Test OOD3: 59.52% 
+Epoch: 188, Loss: 0.1978, Train: 99.99%, Valid: 67.76%, Test In: 69.13% Test OOD1: 61.22% Test OOD2: 51.22% Test OOD3: 59.41% 
+Epoch: 189, Loss: 0.2152, Train: 99.99%, Valid: 67.71%, Test In: 69.09% Test OOD1: 61.52% Test OOD2: 51.13% Test OOD3: 59.40% 
+Epoch: 190, Loss: 0.2006, Train: 99.99%, Valid: 67.74%, Test In: 69.10% Test OOD1: 61.59% Test OOD2: 51.07% Test OOD3: 59.40% 
+Epoch: 191, Loss: 0.2053, Train: 99.99%, Valid: 67.84%, Test In: 69.13% Test OOD1: 61.48% Test OOD2: 51.11% Test OOD3: 59.30% 
+Epoch: 192, Loss: 0.1906, Train: 99.99%, Valid: 67.87%, Test In: 69.09% Test OOD1: 61.29% Test OOD2: 51.17% Test OOD3: 59.15% 
+Epoch: 193, Loss: 0.2008, Train: 99.99%, Valid: 67.88%, Test In: 69.03% Test OOD1: 61.34% Test OOD2: 51.22% Test OOD3: 59.11% 
+Epoch: 194, Loss: 0.1998, Train: 99.99%, Valid: 67.92%, Test In: 69.11% Test OOD1: 61.49% Test OOD2: 51.24% Test OOD3: 59.21% 
+Epoch: 195, Loss: 0.1984, Train: 99.99%, Valid: 67.92%, Test In: 69.19% Test OOD1: 61.60% Test OOD2: 51.32% Test OOD3: 59.34% 
+Epoch: 196, Loss: 0.1913, Train: 99.99%, Valid: 67.94%, Test In: 69.21% Test OOD1: 61.59% Test OOD2: 51.44% Test OOD3: 59.43% 
+Epoch: 197, Loss: 0.1940, Train: 99.99%, Valid: 68.09%, Test In: 69.34% Test OOD1: 61.64% Test OOD2: 51.40% Test OOD3: 59.54% 
+Epoch: 198, Loss: 0.1894, Train: 99.99%, Valid: 68.21%, Test In: 69.41% Test OOD1: 61.60% Test OOD2: 51.36% Test OOD3: 59.55% 
+Epoch: 199, Loss: 0.1968, Train: 99.99%, Valid: 68.15%, Test In: 69.32% Test OOD1: 61.44% Test OOD2: 51.39% Test OOD3: 59.36% 
+Run 02:
+Highest Train: 99.99
+Highest Valid: 70.75
+Highest In Test: 71.63
+Highest OOD Test: 65.93
+Highest OOD Test: 52.56
+Highest OOD Test: 63.38
+Chosen epoch: 24
+Final Train: 78.02
+Final In Test: 71.63
+Final OOD Test: 65.17
+Final OOD Test: 52.43
+Final OOD Test: 63.32
+Epoch: 00, Loss: 1.0379, Train: 67.50%, Valid: 62.09%, Test In: 63.88% Test OOD1: 57.76% Test OOD2: 52.31% Test OOD3: 57.81% 
+Epoch: 01, Loss: 1.0332, Train: 63.68%, Valid: 58.74%, Test In: 60.32% Test OOD1: 51.87% Test OOD2: 52.40% Test OOD3: 54.77% 
+Epoch: 02, Loss: 1.0273, Train: 57.66%, Valid: 54.16%, Test In: 55.49% Test OOD1: 47.00% Test OOD2: 51.67% Test OOD3: 51.06% 
+Epoch: 03, Loss: 1.0193, Train: 53.28%, Valid: 50.89%, Test In: 52.07% Test OOD1: 44.65% Test OOD2: 51.10% Test OOD3: 48.97% 
+Epoch: 04, Loss: 1.0086, Train: 53.44%, Valid: 51.07%, Test In: 52.20% Test OOD1: 44.51% Test OOD2: 51.04% Test OOD3: 48.81% 
+Epoch: 05, Loss: 1.0002, Train: 58.16%, Valid: 54.88%, Test In: 55.98% Test OOD1: 46.39% Test OOD2: 51.37% Test OOD3: 50.31% 
+Epoch: 06, Loss: 0.9920, Train: 69.28%, Valid: 64.19%, Test In: 65.11% Test OOD1: 53.60% Test OOD2: 52.15% Test OOD3: 55.58% 
+Epoch: 07, Loss: 0.9877, Train: 74.82%, Valid: 69.10%, Test In: 70.44% Test OOD1: 64.12% Test OOD2: 51.89% Test OOD3: 62.00% 
+Epoch: 08, Loss: 0.9789, Train: 72.87%, Valid: 68.00%, Test In: 68.70% Test OOD1: 65.24% Test OOD2: 51.32% Test OOD3: 62.15% 
+Epoch: 09, Loss: 0.9695, Train: 71.18%, Valid: 67.03%, Test In: 67.29% Test OOD1: 64.63% Test OOD2: 51.14% Test OOD3: 61.62% 
+Epoch: 10, Loss: 0.9575, Train: 71.00%, Valid: 66.96%, Test In: 67.18% Test OOD1: 64.66% Test OOD2: 51.16% Test OOD3: 61.59% 
+Epoch: 11, Loss: 0.9462, Train: 71.66%, Valid: 67.42%, Test In: 67.78% Test OOD1: 65.03% Test OOD2: 51.30% Test OOD3: 61.90% 
+Epoch: 12, Loss: 0.9351, Train: 72.13%, Valid: 67.78%, Test In: 68.21% Test OOD1: 65.35% Test OOD2: 51.37% Test OOD3: 62.09% 
+Epoch: 13, Loss: 0.9254, Train: 73.17%, Valid: 68.49%, Test In: 69.06% Test OOD1: 65.84% Test OOD2: 51.53% Test OOD3: 62.52% 
+Epoch: 14, Loss: 0.9144, Train: 73.95%, Valid: 69.04%, Test In: 69.67% Test OOD1: 66.13% Test OOD2: 51.63% Test OOD3: 62.84% 
+Epoch: 15, Loss: 0.9053, Train: 74.75%, Valid: 69.57%, Test In: 70.25% Test OOD1: 66.27% Test OOD2: 51.75% Test OOD3: 63.16% 
+Epoch: 16, Loss: 0.8968, Train: 75.68%, Valid: 70.12%, Test In: 70.83% Test OOD1: 66.09% Test OOD2: 51.97% Test OOD3: 63.45% 
+Epoch: 17, Loss: 0.8890, Train: 75.69%, Valid: 70.09%, Test In: 70.79% Test OOD1: 66.39% Test OOD2: 51.85% Test OOD3: 63.41% 
+Epoch: 18, Loss: 0.8886, Train: 76.86%, Valid: 70.46%, Test In: 71.26% Test OOD1: 65.62% Test OOD2: 52.24% Test OOD3: 63.56% 
+Epoch: 19, Loss: 0.8826, Train: 77.02%, Valid: 70.47%, Test In: 71.26% Test OOD1: 65.82% Test OOD2: 52.21% Test OOD3: 63.52% 
+Epoch: 20, Loss: 0.8719, Train: 77.21%, Valid: 70.45%, Test In: 71.26% Test OOD1: 65.95% Test OOD2: 52.16% Test OOD3: 63.48% 
+Epoch: 21, Loss: 0.8647, Train: 77.92%, Valid: 70.61%, Test In: 71.47% Test OOD1: 65.53% Test OOD2: 52.33% Test OOD3: 63.42% 
+Epoch: 22, Loss: 0.8582, Train: 78.44%, Valid: 70.50%, Test In: 71.36% Test OOD1: 65.01% Test OOD2: 52.45% Test OOD3: 63.24% 
+Epoch: 23, Loss: 0.8510, Train: 78.68%, Valid: 70.46%, Test In: 71.31% Test OOD1: 65.18% Test OOD2: 52.41% Test OOD3: 63.19% 
+Epoch: 24, Loss: 0.8453, Train: 78.94%, Valid: 70.49%, Test In: 71.35% Test OOD1: 65.44% Test OOD2: 52.32% Test OOD3: 63.19% 
+Epoch: 25, Loss: 0.8376, Train: 79.41%, Valid: 70.42%, Test In: 71.26% Test OOD1: 65.15% Test OOD2: 52.33% Test OOD3: 63.03% 
+Epoch: 26, Loss: 0.8320, Train: 79.86%, Valid: 70.22%, Test In: 71.09% Test OOD1: 64.66% Test OOD2: 52.36% Test OOD3: 62.78% 
+Epoch: 27, Loss: 0.8257, Train: 80.24%, Valid: 70.22%, Test In: 71.06% Test OOD1: 64.57% Test OOD2: 52.32% Test OOD3: 62.64% 
+Epoch: 28, Loss: 0.8210, Train: 80.55%, Valid: 70.30%, Test In: 71.14% Test OOD1: 64.75% Test OOD2: 52.24% Test OOD3: 62.60% 
+Epoch: 29, Loss: 0.8121, Train: 81.12%, Valid: 70.45%, Test In: 71.28% Test OOD1: 64.75% Test OOD2: 52.23% Test OOD3: 62.56% 
+Epoch: 30, Loss: 0.8062, Train: 81.57%, Valid: 70.29%, Test In: 71.10% Test OOD1: 64.31% Test OOD2: 52.21% Test OOD3: 62.25% 
+Epoch: 31, Loss: 0.8012, Train: 81.81%, Valid: 70.09%, Test In: 70.90% Test OOD1: 63.96% Test OOD2: 52.14% Test OOD3: 61.97% 
+Epoch: 32, Loss: 0.7977, Train: 82.23%, Valid: 70.20%, Test In: 71.05% Test OOD1: 64.01% Test OOD2: 52.15% Test OOD3: 61.99% 
+Epoch: 33, Loss: 0.7913, Train: 82.65%, Valid: 70.18%, Test In: 71.00% Test OOD1: 63.77% Test OOD2: 52.15% Test OOD3: 61.84% 
+Epoch: 34, Loss: 0.7770, Train: 82.92%, Valid: 69.92%, Test In: 70.73% Test OOD1: 63.21% Test OOD2: 52.05% Test OOD3: 61.48% 
+Epoch: 35, Loss: 0.7750, Train: 83.40%, Valid: 70.04%, Test In: 70.89% Test OOD1: 63.27% Test OOD2: 52.07% Test OOD3: 61.50% 
+Epoch: 36, Loss: 0.7736, Train: 83.77%, Valid: 70.18%, Test In: 70.90% Test OOD1: 63.32% Test OOD2: 52.06% Test OOD3: 61.53% 
+Epoch: 37, Loss: 0.7663, Train: 83.91%, Valid: 69.93%, Test In: 70.72% Test OOD1: 62.99% Test OOD2: 51.95% Test OOD3: 61.30% 
+Epoch: 38, Loss: 0.7549, Train: 83.90%, Valid: 69.77%, Test In: 70.53% Test OOD1: 62.69% Test OOD2: 51.80% Test OOD3: 61.10% 
+Epoch: 39, Loss: 0.7602, Train: 84.47%, Valid: 69.97%, Test In: 70.81% Test OOD1: 63.03% Test OOD2: 51.80% Test OOD3: 61.25% 
+Epoch: 40, Loss: 0.7468, Train: 84.97%, Valid: 69.95%, Test In: 70.76% Test OOD1: 62.86% Test OOD2: 51.83% Test OOD3: 61.16% 
+Epoch: 41, Loss: 0.7421, Train: 84.87%, Valid: 69.89%, Test In: 70.76% Test OOD1: 62.94% Test OOD2: 51.69% Test OOD3: 61.14% 
+Epoch: 42, Loss: 0.7307, Train: 85.07%, Valid: 69.70%, Test In: 70.62% Test OOD1: 62.60% Test OOD2: 51.59% Test OOD3: 60.87% 
+Epoch: 43, Loss: 0.7328, Train: 85.32%, Valid: 69.71%, Test In: 70.69% Test OOD1: 62.68% Test OOD2: 51.52% Test OOD3: 60.85% 
+Epoch: 44, Loss: 0.7149, Train: 85.76%, Valid: 69.65%, Test In: 70.67% Test OOD1: 62.43% Test OOD2: 51.54% Test OOD3: 60.71% 
+Epoch: 45, Loss: 0.7209, Train: 86.06%, Valid: 69.66%, Test In: 70.78% Test OOD1: 62.72% Test OOD2: 51.41% Test OOD3: 60.73% 
+Epoch: 46, Loss: 0.7121, Train: 86.47%, Valid: 69.49%, Test In: 70.60% Test OOD1: 62.40% Test OOD2: 51.41% Test OOD3: 60.47% 
+Epoch: 47, Loss: 0.7062, Train: 86.33%, Valid: 69.34%, Test In: 70.45% Test OOD1: 62.11% Test OOD2: 51.35% Test OOD3: 60.33% 
+Epoch: 48, Loss: 0.7020, Train: 86.54%, Valid: 69.41%, Test In: 70.65% Test OOD1: 62.62% Test OOD2: 51.22% Test OOD3: 60.53% 
+Epoch: 49, Loss: 0.6917, Train: 87.56%, Valid: 69.26%, Test In: 70.57% Test OOD1: 62.47% Test OOD2: 51.29% Test OOD3: 60.33% 
+Epoch: 50, Loss: 0.6880, Train: 87.04%, Valid: 69.33%, Test In: 70.63% Test OOD1: 62.63% Test OOD2: 51.17% Test OOD3: 60.48% 
+Epoch: 51, Loss: 0.6765, Train: 87.27%, Valid: 69.24%, Test In: 70.53% Test OOD1: 62.32% Test OOD2: 51.18% Test OOD3: 60.33% 
+Epoch: 52, Loss: 0.6771, Train: 87.90%, Valid: 69.33%, Test In: 70.72% Test OOD1: 62.62% Test OOD2: 51.14% Test OOD3: 60.46% 
+Epoch: 53, Loss: 0.6666, Train: 88.15%, Valid: 69.37%, Test In: 70.78% Test OOD1: 62.59% Test OOD2: 51.14% Test OOD3: 60.48% 
+Epoch: 54, Loss: 0.6619, Train: 88.18%, Valid: 69.31%, Test In: 70.64% Test OOD1: 61.92% Test OOD2: 51.20% Test OOD3: 60.18% 
+Epoch: 55, Loss: 0.6577, Train: 88.56%, Valid: 69.38%, Test In: 70.75% Test OOD1: 62.22% Test OOD2: 51.15% Test OOD3: 60.38% 
+Epoch: 56, Loss: 0.6387, Train: 89.34%, Valid: 69.29%, Test In: 70.70% Test OOD1: 62.19% Test OOD2: 51.23% Test OOD3: 60.30% 
+Epoch: 57, Loss: 0.6459, Train: 89.33%, Valid: 69.28%, Test In: 70.65% Test OOD1: 62.14% Test OOD2: 51.21% Test OOD3: 60.23% 
+Epoch: 58, Loss: 0.6285, Train: 89.21%, Valid: 69.30%, Test In: 70.59% Test OOD1: 62.15% Test OOD2: 51.15% Test OOD3: 60.25% 
+Epoch: 59, Loss: 0.6193, Train: 90.25%, Valid: 69.13%, Test In: 70.41% Test OOD1: 62.02% Test OOD2: 51.21% Test OOD3: 60.10% 
+Epoch: 60, Loss: 0.6198, Train: 89.67%, Valid: 69.29%, Test In: 70.52% Test OOD1: 62.41% Test OOD2: 51.06% Test OOD3: 60.32% 
+Epoch: 61, Loss: 0.6224, Train: 90.73%, Valid: 69.19%, Test In: 70.36% Test OOD1: 61.78% Test OOD2: 51.12% Test OOD3: 59.87% 
+Epoch: 62, Loss: 0.6029, Train: 90.75%, Valid: 69.34%, Test In: 70.49% Test OOD1: 62.01% Test OOD2: 51.05% Test OOD3: 60.00% 
+Epoch: 63, Loss: 0.5901, Train: 90.94%, Valid: 69.36%, Test In: 70.48% Test OOD1: 62.02% Test OOD2: 51.01% Test OOD3: 60.01% 
+Epoch: 64, Loss: 0.5824, Train: 91.44%, Valid: 69.27%, Test In: 70.34% Test OOD1: 61.83% Test OOD2: 51.02% Test OOD3: 59.86% 
+Epoch: 65, Loss: 0.5747, Train: 91.52%, Valid: 69.26%, Test In: 70.34% Test OOD1: 62.03% Test OOD2: 50.99% Test OOD3: 59.96% 
+Epoch: 66, Loss: 0.5665, Train: 91.69%, Valid: 69.21%, Test In: 70.30% Test OOD1: 62.05% Test OOD2: 50.94% Test OOD3: 59.99% 
+Epoch: 67, Loss: 0.5620, Train: 92.25%, Valid: 69.14%, Test In: 70.20% Test OOD1: 61.75% Test OOD2: 50.93% Test OOD3: 59.79% 
+Epoch: 68, Loss: 0.5466, Train: 92.26%, Valid: 69.20%, Test In: 70.25% Test OOD1: 61.81% Test OOD2: 50.86% Test OOD3: 59.69% 
+Epoch: 69, Loss: 0.5470, Train: 92.81%, Valid: 69.16%, Test In: 70.25% Test OOD1: 61.95% Test OOD2: 50.83% Test OOD3: 59.75% 
+Epoch: 70, Loss: 0.5328, Train: 93.26%, Valid: 69.12%, Test In: 70.16% Test OOD1: 61.43% Test OOD2: 50.84% Test OOD3: 59.46% 
+Epoch: 71, Loss: 0.5388, Train: 92.61%, Valid: 69.17%, Test In: 70.27% Test OOD1: 61.84% Test OOD2: 50.68% Test OOD3: 59.63% 
+Epoch: 72, Loss: 0.5262, Train: 93.92%, Valid: 69.01%, Test In: 70.12% Test OOD1: 61.78% Test OOD2: 50.79% Test OOD3: 59.55% 
+Epoch: 73, Loss: 0.5136, Train: 93.97%, Valid: 69.04%, Test In: 70.13% Test OOD1: 61.59% Test OOD2: 50.76% Test OOD3: 59.55% 
+Epoch: 74, Loss: 0.5083, Train: 93.69%, Valid: 69.16%, Test In: 70.23% Test OOD1: 61.77% Test OOD2: 50.67% Test OOD3: 59.59% 
+Epoch: 75, Loss: 0.4927, Train: 94.61%, Valid: 69.04%, Test In: 70.10% Test OOD1: 61.92% Test OOD2: 50.83% Test OOD3: 59.61% 
+Epoch: 76, Loss: 0.4925, Train: 94.43%, Valid: 69.12%, Test In: 70.15% Test OOD1: 61.87% Test OOD2: 50.75% Test OOD3: 59.62% 
+Epoch: 77, Loss: 0.4723, Train: 94.55%, Valid: 69.18%, Test In: 70.15% Test OOD1: 61.52% Test OOD2: 50.78% Test OOD3: 59.47% 
+Epoch: 78, Loss: 0.4793, Train: 95.33%, Valid: 69.04%, Test In: 70.03% Test OOD1: 61.61% Test OOD2: 50.88% Test OOD3: 59.46% 
+Epoch: 79, Loss: 0.4709, Train: 94.89%, Valid: 69.08%, Test In: 70.11% Test OOD1: 61.67% Test OOD2: 50.77% Test OOD3: 59.46% 
+Epoch: 80, Loss: 0.4592, Train: 95.53%, Valid: 69.14%, Test In: 70.16% Test OOD1: 61.14% Test OOD2: 50.84% Test OOD3: 59.23% 
+Epoch: 81, Loss: 0.4413, Train: 96.14%, Valid: 69.06%, Test In: 70.11% Test OOD1: 61.29% Test OOD2: 50.98% Test OOD3: 59.38% 
+Epoch: 82, Loss: 0.4453, Train: 95.78%, Valid: 68.97%, Test In: 70.17% Test OOD1: 61.94% Test OOD2: 50.96% Test OOD3: 59.67% 
+Epoch: 83, Loss: 0.4315, Train: 96.23%, Valid: 68.95%, Test In: 70.15% Test OOD1: 61.63% Test OOD2: 51.02% Test OOD3: 59.50% 
+Epoch: 84, Loss: 0.4235, Train: 96.60%, Valid: 68.78%, Test In: 69.99% Test OOD1: 61.90% Test OOD2: 51.09% Test OOD3: 59.59% 
+Epoch: 85, Loss: 0.4225, Train: 96.62%, Valid: 68.77%, Test In: 69.94% Test OOD1: 61.68% Test OOD2: 51.09% Test OOD3: 59.42% 
+Epoch: 86, Loss: 0.4150, Train: 97.12%, Valid: 68.68%, Test In: 69.85% Test OOD1: 61.26% Test OOD2: 51.11% Test OOD3: 59.15% 
+Epoch: 87, Loss: 0.4013, Train: 96.85%, Valid: 68.55%, Test In: 69.79% Test OOD1: 61.72% Test OOD2: 51.04% Test OOD3: 59.27% 
+Epoch: 88, Loss: 0.4064, Train: 97.48%, Valid: 68.53%, Test In: 69.73% Test OOD1: 61.36% Test OOD2: 51.11% Test OOD3: 59.14% 
+Epoch: 89, Loss: 0.3813, Train: 97.49%, Valid: 68.67%, Test In: 69.79% Test OOD1: 60.94% Test OOD2: 51.04% Test OOD3: 59.01% 
+Epoch: 90, Loss: 0.3857, Train: 97.65%, Valid: 68.60%, Test In: 69.74% Test OOD1: 61.24% Test OOD2: 51.04% Test OOD3: 59.19% 
+Epoch: 91, Loss: 0.3799, Train: 97.95%, Valid: 68.51%, Test In: 69.66% Test OOD1: 61.36% Test OOD2: 51.08% Test OOD3: 59.22% 
+Epoch: 92, Loss: 0.3660, Train: 97.92%, Valid: 68.68%, Test In: 69.71% Test OOD1: 61.11% Test OOD2: 51.02% Test OOD3: 59.09% 
+Epoch: 93, Loss: 0.3678, Train: 98.04%, Valid: 68.64%, Test In: 69.70% Test OOD1: 61.27% Test OOD2: 51.06% Test OOD3: 59.17% 
+Epoch: 94, Loss: 0.3599, Train: 98.54%, Valid: 68.57%, Test In: 69.67% Test OOD1: 60.90% Test OOD2: 51.16% Test OOD3: 59.05% 
+Epoch: 95, Loss: 0.3748, Train: 97.75%, Valid: 68.68%, Test In: 69.82% Test OOD1: 61.28% Test OOD2: 50.99% Test OOD3: 59.12% 
+Epoch: 96, Loss: 0.3661, Train: 98.48%, Valid: 68.69%, Test In: 69.82% Test OOD1: 60.98% Test OOD2: 51.10% Test OOD3: 59.03% 
+Epoch: 97, Loss: 0.3382, Train: 98.77%, Valid: 68.58%, Test In: 69.69% Test OOD1: 61.09% Test OOD2: 51.17% Test OOD3: 59.12% 
+Epoch: 98, Loss: 0.3591, Train: 98.08%, Valid: 68.62%, Test In: 69.68% Test OOD1: 61.40% Test OOD2: 51.02% Test OOD3: 59.17% 
+Epoch: 99, Loss: 0.3674, Train: 98.38%, Valid: 68.57%, Test In: 69.63% Test OOD1: 61.25% Test OOD2: 51.00% Test OOD3: 59.05% 
+Epoch: 100, Loss: 0.3354, Train: 98.86%, Valid: 68.40%, Test In: 69.38% Test OOD1: 61.32% Test OOD2: 51.05% Test OOD3: 59.03% 
+Epoch: 101, Loss: 0.3538, Train: 98.74%, Valid: 68.45%, Test In: 69.37% Test OOD1: 61.48% Test OOD2: 50.96% Test OOD3: 59.08% 
+Epoch: 102, Loss: 0.3214, Train: 98.49%, Valid: 68.51%, Test In: 69.38% Test OOD1: 61.40% Test OOD2: 50.99% Test OOD3: 59.08% 
+Epoch: 103, Loss: 0.3467, Train: 98.95%, Valid: 68.36%, Test In: 69.40% Test OOD1: 61.25% Test OOD2: 51.05% Test OOD3: 58.94% 
+Epoch: 104, Loss: 0.3137, Train: 99.24%, Valid: 68.12%, Test In: 69.27% Test OOD1: 61.18% Test OOD2: 51.12% Test OOD3: 58.90% 
+Epoch: 105, Loss: 0.3264, Train: 99.19%, Valid: 68.31%, Test In: 69.38% Test OOD1: 60.90% Test OOD2: 51.07% Test OOD3: 58.88% 
+Epoch: 106, Loss: 0.3093, Train: 99.05%, Valid: 68.37%, Test In: 69.45% Test OOD1: 60.93% Test OOD2: 51.00% Test OOD3: 58.93% 
+Epoch: 107, Loss: 0.3111, Train: 99.21%, Valid: 68.23%, Test In: 69.38% Test OOD1: 61.24% Test OOD2: 51.00% Test OOD3: 59.03% 
+Epoch: 108, Loss: 0.3005, Train: 99.38%, Valid: 68.12%, Test In: 69.28% Test OOD1: 61.38% Test OOD2: 51.06% Test OOD3: 59.10% 
+Epoch: 109, Loss: 0.3029, Train: 99.37%, Valid: 68.25%, Test In: 69.33% Test OOD1: 61.44% Test OOD2: 51.08% Test OOD3: 59.17% 
+Epoch: 110, Loss: 0.2887, Train: 99.32%, Valid: 68.38%, Test In: 69.39% Test OOD1: 61.32% Test OOD2: 51.10% Test OOD3: 59.11% 
+Epoch: 111, Loss: 0.2912, Train: 99.49%, Valid: 68.32%, Test In: 69.34% Test OOD1: 61.19% Test OOD2: 51.15% Test OOD3: 59.03% 
+Epoch: 112, Loss: 0.2719, Train: 99.61%, Valid: 68.23%, Test In: 69.26% Test OOD1: 60.98% Test OOD2: 51.24% Test OOD3: 58.97% 
+Epoch: 113, Loss: 0.2818, Train: 99.58%, Valid: 68.31%, Test In: 69.33% Test OOD1: 60.91% Test OOD2: 51.22% Test OOD3: 59.02% 
+Epoch: 114, Loss: 0.2790, Train: 99.49%, Valid: 68.35%, Test In: 69.36% Test OOD1: 61.08% Test OOD2: 51.23% Test OOD3: 59.10% 
+Epoch: 115, Loss: 0.2888, Train: 99.63%, Valid: 68.32%, Test In: 69.36% Test OOD1: 61.06% Test OOD2: 51.32% Test OOD3: 59.07% 
+Epoch: 116, Loss: 0.2670, Train: 99.71%, Valid: 68.27%, Test In: 69.34% Test OOD1: 61.09% Test OOD2: 51.45% Test OOD3: 59.04% 
+Epoch: 117, Loss: 0.2763, Train: 99.65%, Valid: 68.36%, Test In: 69.43% Test OOD1: 61.39% Test OOD2: 51.48% Test OOD3: 59.14% 
+Epoch: 118, Loss: 0.2585, Train: 99.56%, Valid: 68.36%, Test In: 69.43% Test OOD1: 61.53% Test OOD2: 51.44% Test OOD3: 59.13% 
+Epoch: 119, Loss: 0.2748, Train: 99.73%, Valid: 68.18%, Test In: 69.32% Test OOD1: 61.36% Test OOD2: 51.46% Test OOD3: 59.00% 
+Epoch: 120, Loss: 0.2678, Train: 99.80%, Valid: 68.15%, Test In: 69.30% Test OOD1: 61.06% Test OOD2: 51.45% Test OOD3: 58.84% 
+Epoch: 121, Loss: 0.2648, Train: 99.77%, Valid: 68.28%, Test In: 69.40% Test OOD1: 60.92% Test OOD2: 51.34% Test OOD3: 58.73% 
+Epoch: 122, Loss: 0.2481, Train: 99.76%, Valid: 68.24%, Test In: 69.36% Test OOD1: 61.02% Test OOD2: 51.31% Test OOD3: 58.62% 
+Epoch: 123, Loss: 0.2593, Train: 99.82%, Valid: 68.19%, Test In: 69.34% Test OOD1: 61.03% Test OOD2: 51.39% Test OOD3: 58.57% 
+Epoch: 124, Loss: 0.2430, Train: 99.83%, Valid: 68.23%, Test In: 69.36% Test OOD1: 61.15% Test OOD2: 51.42% Test OOD3: 58.60% 
+Epoch: 125, Loss: 0.2548, Train: 99.77%, Valid: 68.28%, Test In: 69.37% Test OOD1: 61.40% Test OOD2: 51.39% Test OOD3: 58.67% 
+Epoch: 126, Loss: 0.2610, Train: 99.82%, Valid: 68.30%, Test In: 69.38% Test OOD1: 61.46% Test OOD2: 51.43% Test OOD3: 58.66% 
+Epoch: 127, Loss: 0.2412, Train: 99.87%, Valid: 68.29%, Test In: 69.42% Test OOD1: 61.36% Test OOD2: 51.49% Test OOD3: 58.60% 
+Epoch: 128, Loss: 0.2382, Train: 99.88%, Valid: 68.31%, Test In: 69.47% Test OOD1: 61.38% Test OOD2: 51.41% Test OOD3: 58.59% 
+Epoch: 129, Loss: 0.2401, Train: 99.83%, Valid: 68.20%, Test In: 69.43% Test OOD1: 61.58% Test OOD2: 51.28% Test OOD3: 58.57% 
+Epoch: 130, Loss: 0.2409, Train: 99.88%, Valid: 68.03%, Test In: 69.35% Test OOD1: 61.52% Test OOD2: 51.31% Test OOD3: 58.51% 
+Epoch: 131, Loss: 0.2367, Train: 99.92%, Valid: 67.99%, Test In: 69.31% Test OOD1: 61.24% Test OOD2: 51.33% Test OOD3: 58.42% 
+Epoch: 132, Loss: 0.2335, Train: 99.92%, Valid: 67.98%, Test In: 69.30% Test OOD1: 61.28% Test OOD2: 51.26% Test OOD3: 58.42% 
+Epoch: 133, Loss: 0.2295, Train: 99.89%, Valid: 67.96%, Test In: 69.32% Test OOD1: 61.42% Test OOD2: 51.27% Test OOD3: 58.45% 
+Epoch: 134, Loss: 0.2331, Train: 99.91%, Valid: 68.04%, Test In: 69.41% Test OOD1: 61.31% Test OOD2: 51.38% Test OOD3: 58.45% 
+Epoch: 135, Loss: 0.2301, Train: 99.94%, Valid: 68.20%, Test In: 69.46% Test OOD1: 60.97% Test OOD2: 51.50% Test OOD3: 58.42% 
+Epoch: 136, Loss: 0.2285, Train: 99.94%, Valid: 68.19%, Test In: 69.44% Test OOD1: 61.15% Test OOD2: 51.51% Test OOD3: 58.51% 
+Epoch: 137, Loss: 0.2233, Train: 99.89%, Valid: 67.97%, Test In: 69.28% Test OOD1: 61.64% Test OOD2: 51.38% Test OOD3: 58.61% 
+Epoch: 138, Loss: 0.2323, Train: 99.94%, Valid: 68.01%, Test In: 69.27% Test OOD1: 61.54% Test OOD2: 51.42% Test OOD3: 58.62% 
+Epoch: 139, Loss: 0.2229, Train: 99.96%, Valid: 68.09%, Test In: 69.24% Test OOD1: 61.17% Test OOD2: 51.59% Test OOD3: 58.63% 
+Epoch: 140, Loss: 0.2353, Train: 99.95%, Valid: 68.16%, Test In: 69.31% Test OOD1: 61.20% Test OOD2: 51.59% Test OOD3: 58.70% 
+Epoch: 141, Loss: 0.2270, Train: 99.95%, Valid: 67.97%, Test In: 69.25% Test OOD1: 61.51% Test OOD2: 51.46% Test OOD3: 58.75% 
+Epoch: 142, Loss: 0.2303, Train: 99.97%, Valid: 67.71%, Test In: 69.17% Test OOD1: 61.56% Test OOD2: 51.50% Test OOD3: 58.78% 
+Epoch: 143, Loss: 0.2142, Train: 99.97%, Valid: 67.66%, Test In: 69.20% Test OOD1: 61.42% Test OOD2: 51.54% Test OOD3: 58.76% 
+Epoch: 144, Loss: 0.2126, Train: 99.96%, Valid: 67.85%, Test In: 69.38% Test OOD1: 61.32% Test OOD2: 51.58% Test OOD3: 58.83% 
+Epoch: 145, Loss: 0.2243, Train: 99.95%, Valid: 67.94%, Test In: 69.47% Test OOD1: 61.49% Test OOD2: 51.51% Test OOD3: 58.84% 
+Epoch: 146, Loss: 0.2229, Train: 99.97%, Valid: 67.92%, Test In: 69.44% Test OOD1: 61.58% Test OOD2: 51.49% Test OOD3: 58.88% 
+Epoch: 147, Loss: 0.2036, Train: 99.97%, Valid: 67.95%, Test In: 69.41% Test OOD1: 61.63% Test OOD2: 51.47% Test OOD3: 58.94% 
+Epoch: 148, Loss: 0.2140, Train: 99.96%, Valid: 68.18%, Test In: 69.49% Test OOD1: 61.49% Test OOD2: 51.48% Test OOD3: 58.96% 
+Epoch: 149, Loss: 0.2049, Train: 99.96%, Valid: 68.21%, Test In: 69.40% Test OOD1: 61.46% Test OOD2: 51.48% Test OOD3: 58.92% 
+Epoch: 150, Loss: 0.2081, Train: 99.98%, Valid: 68.00%, Test In: 69.22% Test OOD1: 61.33% Test OOD2: 51.53% Test OOD3: 58.83% 
+Epoch: 151, Loss: 0.2104, Train: 99.98%, Valid: 67.88%, Test In: 69.12% Test OOD1: 61.25% Test OOD2: 51.57% Test OOD3: 58.81% 
+Epoch: 152, Loss: 0.2071, Train: 99.97%, Valid: 68.00%, Test In: 69.21% Test OOD1: 61.19% Test OOD2: 51.57% Test OOD3: 58.80% 
+Epoch: 153, Loss: 0.2088, Train: 99.98%, Valid: 67.96%, Test In: 69.26% Test OOD1: 61.15% Test OOD2: 51.64% Test OOD3: 58.82% 
+Epoch: 154, Loss: 0.2100, Train: 99.99%, Valid: 67.77%, Test In: 69.31% Test OOD1: 61.02% Test OOD2: 51.69% Test OOD3: 58.78% 
+Epoch: 155, Loss: 0.1967, Train: 99.98%, Valid: 67.75%, Test In: 69.42% Test OOD1: 61.20% Test OOD2: 51.65% Test OOD3: 58.83% 
+Epoch: 156, Loss: 0.2063, Train: 99.98%, Valid: 67.87%, Test In: 69.54% Test OOD1: 61.29% Test OOD2: 51.59% Test OOD3: 58.86% 
+Epoch: 157, Loss: 0.1971, Train: 99.98%, Valid: 67.89%, Test In: 69.54% Test OOD1: 61.23% Test OOD2: 51.59% Test OOD3: 58.80% 
+Epoch: 158, Loss: 0.1981, Train: 99.99%, Valid: 67.82%, Test In: 69.47% Test OOD1: 61.18% Test OOD2: 51.60% Test OOD3: 58.71% 
+Epoch: 159, Loss: 0.1983, Train: 99.99%, Valid: 67.83%, Test In: 69.49% Test OOD1: 61.30% Test OOD2: 51.58% Test OOD3: 58.67% 
+Epoch: 160, Loss: 0.1993, Train: 99.99%, Valid: 67.90%, Test In: 69.54% Test OOD1: 61.33% Test OOD2: 51.58% Test OOD3: 58.64% 
+Epoch: 161, Loss: 0.2003, Train: 99.99%, Valid: 67.76%, Test In: 69.49% Test OOD1: 61.32% Test OOD2: 51.60% Test OOD3: 58.66% 
+Epoch: 162, Loss: 0.2008, Train: 99.99%, Valid: 67.68%, Test In: 69.46% Test OOD1: 61.34% Test OOD2: 51.60% Test OOD3: 58.69% 
+Epoch: 163, Loss: 0.1943, Train: 99.99%, Valid: 67.78%, Test In: 69.54% Test OOD1: 61.41% Test OOD2: 51.59% Test OOD3: 58.76% 
+Epoch: 164, Loss: 0.1984, Train: 99.99%, Valid: 67.80%, Test In: 69.53% Test OOD1: 61.55% Test OOD2: 51.54% Test OOD3: 58.86% 
+Epoch: 165, Loss: 0.1883, Train: 99.99%, Valid: 67.83%, Test In: 69.51% Test OOD1: 61.56% Test OOD2: 51.47% Test OOD3: 58.87% 
+Epoch: 166, Loss: 0.1935, Train: 99.99%, Valid: 67.81%, Test In: 69.50% Test OOD1: 61.52% Test OOD2: 51.40% Test OOD3: 58.82% 
+Epoch: 167, Loss: 0.1942, Train: 99.99%, Valid: 67.77%, Test In: 69.54% Test OOD1: 61.50% Test OOD2: 51.35% Test OOD3: 58.74% 
+Epoch: 168, Loss: 0.1966, Train: 99.99%, Valid: 67.72%, Test In: 69.57% Test OOD1: 61.53% Test OOD2: 51.29% Test OOD3: 58.67% 
+Epoch: 169, Loss: 0.1820, Train: 99.99%, Valid: 67.71%, Test In: 69.56% Test OOD1: 61.45% Test OOD2: 51.28% Test OOD3: 58.62% 
+Epoch: 170, Loss: 0.1895, Train: 99.99%, Valid: 67.69%, Test In: 69.57% Test OOD1: 61.44% Test OOD2: 51.30% Test OOD3: 58.64% 
+Epoch: 171, Loss: 0.1899, Train: 99.99%, Valid: 67.68%, Test In: 69.55% Test OOD1: 61.54% Test OOD2: 51.33% Test OOD3: 58.71% 
+Epoch: 172, Loss: 0.1859, Train: 99.99%, Valid: 67.78%, Test In: 69.62% Test OOD1: 61.46% Test OOD2: 51.39% Test OOD3: 58.71% 
+Epoch: 173, Loss: 0.1900, Train: 100.00%, Valid: 67.83%, Test In: 69.69% Test OOD1: 61.43% Test OOD2: 51.45% Test OOD3: 58.75% 
+Epoch: 174, Loss: 0.1883, Train: 100.00%, Valid: 67.80%, Test In: 69.67% Test OOD1: 61.46% Test OOD2: 51.50% Test OOD3: 58.76% 
+Epoch: 175, Loss: 0.1861, Train: 99.99%, Valid: 67.76%, Test In: 69.63% Test OOD1: 61.61% Test OOD2: 51.47% Test OOD3: 58.80% 
+Epoch: 176, Loss: 0.1949, Train: 100.00%, Valid: 67.88%, Test In: 69.65% Test OOD1: 61.45% Test OOD2: 51.48% Test OOD3: 58.70% 
+Epoch: 177, Loss: 0.1824, Train: 100.00%, Valid: 67.91%, Test In: 69.62% Test OOD1: 61.24% Test OOD2: 51.46% Test OOD3: 58.53% 
+Epoch: 178, Loss: 0.1858, Train: 100.00%, Valid: 67.81%, Test In: 69.59% Test OOD1: 61.57% Test OOD2: 51.36% Test OOD3: 58.57% 
+Epoch: 179, Loss: 0.1877, Train: 100.00%, Valid: 67.88%, Test In: 69.64% Test OOD1: 61.63% Test OOD2: 51.29% Test OOD3: 58.57% 
+Epoch: 180, Loss: 0.1922, Train: 100.00%, Valid: 68.00%, Test In: 69.68% Test OOD1: 61.50% Test OOD2: 51.28% Test OOD3: 58.47% 
+Epoch: 181, Loss: 0.1819, Train: 100.00%, Valid: 68.00%, Test In: 69.73% Test OOD1: 61.71% Test OOD2: 51.22% Test OOD3: 58.52% 
+Epoch: 182, Loss: 0.1789, Train: 100.00%, Valid: 68.04%, Test In: 69.76% Test OOD1: 61.88% Test OOD2: 51.18% Test OOD3: 58.59% 
+Epoch: 183, Loss: 0.1922, Train: 100.00%, Valid: 67.98%, Test In: 69.66% Test OOD1: 61.81% Test OOD2: 51.16% Test OOD3: 58.48% 
+Epoch: 184, Loss: 0.1793, Train: 100.00%, Valid: 67.90%, Test In: 69.56% Test OOD1: 61.77% Test OOD2: 51.12% Test OOD3: 58.41% 
+Epoch: 185, Loss: 0.1828, Train: 100.00%, Valid: 67.82%, Test In: 69.45% Test OOD1: 61.78% Test OOD2: 51.08% Test OOD3: 58.41% 
+Epoch: 186, Loss: 0.1922, Train: 100.00%, Valid: 67.86%, Test In: 69.37% Test OOD1: 61.39% Test OOD2: 51.15% Test OOD3: 58.24% 
+Epoch: 187, Loss: 0.1781, Train: 100.00%, Valid: 67.75%, Test In: 69.15% Test OOD1: 61.28% Test OOD2: 51.15% Test OOD3: 58.16% 
+Epoch: 188, Loss: 0.1806, Train: 100.00%, Valid: 67.71%, Test In: 69.10% Test OOD1: 61.71% Test OOD2: 51.08% Test OOD3: 58.46% 
+Epoch: 189, Loss: 0.1843, Train: 100.00%, Valid: 67.83%, Test In: 69.15% Test OOD1: 61.83% Test OOD2: 51.11% Test OOD3: 58.62% 
+Epoch: 190, Loss: 0.1822, Train: 100.00%, Valid: 67.97%, Test In: 69.20% Test OOD1: 61.56% Test OOD2: 51.24% Test OOD3: 58.56% 
+Epoch: 191, Loss: 0.1910, Train: 100.00%, Valid: 67.95%, Test In: 69.23% Test OOD1: 61.63% Test OOD2: 51.26% Test OOD3: 58.61% 
+Epoch: 192, Loss: 0.1747, Train: 100.00%, Valid: 68.01%, Test In: 69.34% Test OOD1: 61.86% Test OOD2: 51.24% Test OOD3: 58.75% 
+Epoch: 193, Loss: 0.1810, Train: 100.00%, Valid: 68.08%, Test In: 69.41% Test OOD1: 61.73% Test OOD2: 51.26% Test OOD3: 58.74% 
+Epoch: 194, Loss: 0.1730, Train: 100.00%, Valid: 68.01%, Test In: 69.38% Test OOD1: 61.71% Test OOD2: 51.27% Test OOD3: 58.76% 
+Epoch: 195, Loss: 0.1924, Train: 100.00%, Valid: 67.94%, Test In: 69.43% Test OOD1: 61.79% Test OOD2: 51.24% Test OOD3: 58.81% 
+Epoch: 196, Loss: 0.1737, Train: 100.00%, Valid: 67.93%, Test In: 69.47% Test OOD1: 61.51% Test OOD2: 51.30% Test OOD3: 58.71% 
+Epoch: 197, Loss: 0.1775, Train: 100.00%, Valid: 67.93%, Test In: 69.47% Test OOD1: 61.26% Test OOD2: 51.33% Test OOD3: 58.60% 
+Epoch: 198, Loss: 0.1755, Train: 100.00%, Valid: 68.04%, Test In: 69.55% Test OOD1: 61.33% Test OOD2: 51.35% Test OOD3: 58.60% 
+Epoch: 199, Loss: 0.1762, Train: 100.00%, Valid: 68.05%, Test In: 69.55% Test OOD1: 61.53% Test OOD2: 51.42% Test OOD3: 58.70% 
+Run 03:
+Highest Train: 100.00
+Highest Valid: 70.61
+Highest In Test: 71.47
+Highest OOD Test: 66.39
+Highest OOD Test: 52.45
+Highest OOD Test: 63.56
+Chosen epoch: 22
+Final Train: 77.92
+Final In Test: 71.47
+Final OOD Test: 65.53
+Final OOD Test: 52.33
+Final OOD Test: 63.42
+All runs:
+Highest Train: 100.00 ± 0.00
+Highest Valid: 70.63 ± 0.12
+Highest In Test: 71.49 ± 0.13
+Highest OOD Test: 66.23 ± 0.26
+Highest OOD Test: 52.47 ± 0.09
+Highest OOD Test: 63.52 ± 0.12
+  Final Train: 78.97 ± 1.72
+   Final In  Test: 71.47 ± 0.16
+   Final OOD Test: 65.19 ± 0.33
+   Final OOD Test: 52.37 ± 0.06
+   Final OOD Test: 63.18 ± 0.34
+[INFO] TensorBoard writer closed.
+
+Command: python main.py --dataset twitch --backbone_type gcn --env_type graph --combine_result --store_result --epochs 200 --runs 3 --num_layers 2 --expert_agg mean --tau 3 --lr 0.01 --weight_decay 5e-5 --dropout 0.0 --K 3 --hidden_channels 64 --seed 123 --device 0 --lr 0.005 --weight_decay 5e-05 --dropout 0.2 --lamda 0.5 --K 3 --hidden_channels 64 --other_env_reduce env --result_name twitch_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda0.5_K3_hidden_channels64_other_env_reduceenv
+Return code: 0
+Elapsed: 209.62s

@@ -1,0 +1,28 @@
+Namespace(K=3, backbone_type='gcn', combine_result=False, cpu=False, data_dir='./data/', dataset='arxiv', device=0, display_step=1, dropout=0.1, env_type='node', epochs=500, expert_agg='mean', gate_hidden=64, hidden_channels=32, infer_env=False, infer_env_components=64, infer_env_iters=30, infer_env_num=3, lamda=1.0, lr=0.01, num_layers=2, other_env_reduce='sample', pos_weight=5.0, result_name='arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.1_lamda1.0_K3_hidden_channels32_other_env_reducesample', runs=3, seed=2024, store_result=True, tau=1.0, use_bn=False, variant=True, weight_decay=0.0005)
+dataset arxiv: all nodes 169343 | edges 1166243 | classes 40 | feats 128
+train nodes 15985 | valid nodes 7993 | test in nodes 7993
+test ood1 nodes 21189 test ood2 nodes 37781 test ood3 nodes 78402 
+[INFO] env numbers: 7 train env numbers: 3
+Traceback (most recent call last):
+  File "main.py", line 91, in <module>
+    model = CaNet(d, c, args, device).to(device)
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 899, in to
+    return self._apply(convert)
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 570, in _apply
+    module._apply(fn)
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 570, in _apply
+    module._apply(fn)
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 570, in _apply
+    module._apply(fn)
+  [Previous line repeated 1 more time]
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 593, in _apply
+    param_applied = fn(param)
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 897, in convert
+    return t.to(device, dtype if t.is_floating_point() or t.is_complex() else None, non_blocking)
+RuntimeError: CUDA error: out of memory
+CUDA kernel errors might be asynchronously reported at some other API call,so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1.
+
+Command: python main.py --dataset arxiv --backbone_type gcn --env_type node --variant --store_result --epochs 500 --runs 3 --num_layers 2 --expert_agg mean --tau 1 --device 0 --lr 0.01 --weight_decay 0.0005 --dropout 0.1 --lamda 1.0 --K 3 --hidden_channels 32 --other_env_reduce sample --result_name arxiv_stage1_lr0.01_weight_decay0.0005_dropout0.1_lamda1.0_K3_hidden_channels32_other_env_reducesample
+Return code: 1
+Elapsed: 50.52s

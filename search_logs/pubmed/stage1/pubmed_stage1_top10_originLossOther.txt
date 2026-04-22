@@ -1,0 +1,173 @@
+Top 10 experiments on pubmed (stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs/pubmed/stage1/094_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels64.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels64
+rank_metric (last_final_ood_test): 91.39
+highest_valid: 97.29 ± 0.07
+highest_in_test: 97.41 ± 0.05
+final_in_test: 97.35 ± 0.08
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 91.39
+
+Rank 2
+log_file: search_logs/pubmed/stage1/078_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64
+rank_metric (last_final_ood_test): 91.1
+highest_valid: 98.03 ± 0.02
+highest_in_test: 98.11 ± 0.05
+final_in_test: 98.06 ± 0.1
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 91.1
+
+Rank 3
+log_file: search_logs/pubmed/stage1/096_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda2.0_K4_hidden_channels64.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda2.0_K4_hidden_channels64
+rank_metric (last_final_ood_test): 91.09
+highest_valid: 97.32 ± 0.12
+highest_in_test: 97.39 ± 0.05
+final_in_test: 97.36 ± 0.04
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 2.0
+  K: 4
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 91.09
+
+Rank 4
+log_file: search_logs/pubmed/stage1/190_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels64.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda2.0_K3_hidden_channels64
+rank_metric (last_final_ood_test): 91.02
+highest_valid: 97.27 ± 0.1
+highest_in_test: 97.43 ± 0.1
+final_in_test: 97.4 ± 0.13
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 91.02
+
+Rank 5
+log_file: search_logs/pubmed/stage1/090_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels64.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels64
+rank_metric (last_final_ood_test): 90.99
+highest_valid: 97.0 ± 0.06
+highest_in_test: 97.19 ± 0.11
+final_in_test: 97.13 ± 0.07
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 90.99
+
+Rank 6
+log_file: search_logs/pubmed/stage1/186_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels64.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda1.0_K3_hidden_channels64
+rank_metric (last_final_ood_test): 90.93
+highest_valid: 97.06 ± 0.04
+highest_in_test: 97.29 ± 0.05
+final_in_test: 97.21 ± 0.1
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 1.0
+  K: 3
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 90.93
+
+Rank 7
+log_file: search_logs/pubmed/stage1/174_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64
+rank_metric (last_final_ood_test): 90.91
+highest_valid: 98.1 ± 0.04
+highest_in_test: 98.14 ± 0.02
+final_in_test: 98.09 ± 0.03
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  lamda: 2.0
+  K: 3
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 90.91
+
+Rank 8
+log_file: search_logs/pubmed/stage1/192_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda2.0_K4_hidden_channels64.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda2.0_K4_hidden_channels64
+rank_metric (last_final_ood_test): 90.59
+highest_valid: 97.28 ± 0.09
+highest_in_test: 97.42 ± 0.08
+final_in_test: 97.32 ± 0.06
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 2.0
+  K: 4
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 90.59
+
+Rank 9
+log_file: search_logs/pubmed/stage1/092_pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda1.0_K4_hidden_channels64.log
+result_name: pubmed_stage1_lr0.01_weight_decay5e-05_dropout0.3_lamda1.0_K4_hidden_channels64
+rank_metric (last_final_ood_test): 90.46
+highest_valid: 97.0 ± 0.01
+highest_in_test: 97.14 ± 0.03
+final_in_test: 97.14 ± 0.02
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 1.0
+  K: 4
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 90.46
+
+Rank 10
+log_file: search_logs/pubmed/stage1/188_pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda1.0_K4_hidden_channels64.log
+result_name: pubmed_stage1_lr0.005_weight_decay5e-05_dropout0.3_lamda1.0_K4_hidden_channels64
+rank_metric (last_final_ood_test): 90.37
+highest_valid: 97.08 ± 0.06
+highest_in_test: 97.16 ± 0.03
+final_in_test: 97.09 ± 0.04
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.3
+  lamda: 1.0
+  K: 4
+  hidden_channels: 64
+final_ood_metrics:
+  final_ood_test_1: 90.37
+

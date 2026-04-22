@@ -1,0 +1,80 @@
+Namespace(K=3, backbone_type='gat', combine_result=False, cpu=False, data_dir='./data/', dataset='arxiv', device=0, display_step=1, dropout=0.2, env_type='graph', epochs=500, expert_agg='mean', gate_hidden=64, hidden_channels=64, infer_env=False, infer_env_components=64, infer_env_iters=30, infer_env_num=3, lamda=2.0, lr=0.01, num_layers=2, other_env_reduce='sample', pos_weight=5.0, result_name='arxiv_stage1_gat_reduced_lr0.01_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64_other_env_reducesample', runs=3, seed=2024, store_result=True, tau=2.0, use_bn=False, variant=False, weight_decay=5e-05)
+dataset arxiv: all nodes 169343 | edges 1166243 | classes 40 | feats 128
+train nodes 15985 | valid nodes 7993 | test in nodes 7993
+test ood1 nodes 21189 test ood2 nodes 37781 test ood3 nodes 78402 
+[INFO] env numbers: 7 train env numbers: 3
+MODEL: CaNet(
+  (experts): ModuleList(
+    (0): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+        (1): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=128, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=40, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+    (1): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+        (1): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=128, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=40, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+    (2): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+        (1): CaNetConv(
+          (leakyrelu): LeakyReLU(negative_slope=0.01)
+        )
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=128, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=40, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+  )
+  (gate): Sequential(
+    (0): Linear(in_features=128, out_features=64, bias=True)
+    (1): ReLU()
+    (2): Linear(in_features=64, out_features=3, bias=True)
+  )
+)
+[INFO] TensorBoard logging activated. Logs will be saved to: ./runs/arxiv/Apr17_11-03-24_lamda_2.0
+Traceback (most recent call last):
+  File "main.py", line 140, in <module>
+    loss = model.loss_compute(dataset, criterion, args)
+  File "/public/wc/CaNet-main/model.py", line 231, in loss_compute
+    logits_list = [expert(d.x, d.edge_index, training=True) for expert in self.experts]
+  File "/public/wc/CaNet-main/model.py", line 231, in <listcomp>
+    logits_list = [expert(d.x, d.edge_index, training=True) for expert in self.experts]
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/public/wc/CaNet-main/model.py", line 156, in forward
+    h = self.act_fn(con(h, adj, e_dummy))
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/public/wc/CaNet-main/model.py", line 95, in forward
+    edge_h = torch.cat((h[:, adj_loops[0, :], :], h[:, adj_loops[1, :], :]), dim=2)  # [K, E, 2*D]
+RuntimeError: CUDA out of memory. Tried to allocate 328.00 MiB (GPU 0; 79.14 GiB total capacity; 3.91 GiB already allocated; 264.94 MiB free; 4.25 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+
+Command: python main.py --dataset arxiv --backbone_type gat --env_type graph --store_result --epochs 500 --runs 3 --num_layers 2 --expert_agg mean --tau 2 --device 0 --lr 0.01 --weight_decay 5e-05 --dropout 0.2 --lamda 2.0 --K 3 --hidden_channels 64 --other_env_reduce sample --result_name arxiv_stage1_gat_reduced_lr0.01_weight_decay5e-05_dropout0.2_lamda2.0_K3_hidden_channels64_other_env_reducesample
+Return code: 1
+Elapsed: 32.77s

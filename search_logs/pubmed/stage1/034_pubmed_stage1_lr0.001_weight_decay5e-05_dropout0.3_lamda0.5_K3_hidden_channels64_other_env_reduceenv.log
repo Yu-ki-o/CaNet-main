@@ -1,0 +1,73 @@
+Namespace(K=3, backbone_type='gcn', causal_align_weight=0.1, causal_hidden_channels=0, causal_loss_weight=1.0, combine_result=True, cpu=False, data_dir='./data/', dataset='pubmed', device=1, display_step=1, dropout=0.3, env_type='graph', epochs=500, expert_agg='mean', gate_hidden=64, hidden_channels=64, infer_env=False, infer_env_components=64, infer_env_iters=30, infer_env_num=3, lamda=0.5, lr=0.001, num_layers=2, other_env_irm_lambda=1.0, other_env_loss_agg='mean', other_env_loss_temp=1.0, other_env_objective='irm', other_env_reduce='env', pos_weight=5.0, result_name='pubmed_stage1_lr0.001_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels64_other_env_reduceenv', runs=2, seed=2024, store_result=True, tau=2.0, use_bn=False, use_causal_head=False, variant=False, weight_decay=5e-05)
+using existing synthetic data...
+dataset pubmed: all nodes 118302 | edges 531888 | classes 3 | feats 510
+train nodes 29575 | valid nodes 14788 | test in nodes 14788
+test ood1 nodes 59151 
+[INFO] env numbers: 6 train env numbers: 3
+MODEL: CaNet(
+  (experts): ModuleList(
+    (0): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv()
+        (1): CaNetConv()
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=510, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=3, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+    (1): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv()
+        (1): CaNetConv()
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=510, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=3, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+    (2): ExpertNet(
+      (convs): ModuleList(
+        (0): CaNetConv()
+        (1): CaNetConv()
+      )
+      (fcs): ModuleList(
+        (0): Linear(in_features=510, out_features=64, bias=True)
+        (1): Linear(in_features=64, out_features=3, bias=True)
+      )
+      (act_fn): ReLU()
+    )
+  )
+  (gate): Sequential(
+    (0): Linear(in_features=510, out_features=64, bias=True)
+    (1): ReLU()
+    (2): Linear(in_features=64, out_features=3, bias=True)
+  )
+)
+[INFO] TensorBoard logging activated. Logs will be saved to: ./runs/pubmed/Apr19_19-46-35_lamda_0.5_otheragg_mean
+Traceback (most recent call last):
+  File "main.py", line 144, in <module>
+    loss = model.loss_compute(dataset, criterion, args)
+  File "/public/wc/CaNet-main/model.py", line 431, in loss_compute
+    logits_list, hidden_list = self.collect_expert_outputs(
+  File "/public/wc/CaNet-main/model.py", line 237, in collect_expert_outputs
+    expert_outputs = [
+  File "/public/wc/CaNet-main/model.py", line 238, in <listcomp>
+    expert(x, adj, training=training, return_hidden=return_hidden)
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/public/wc/CaNet-main/model.py", line 174, in forward
+    h = self.encode(x, adj, training=training)
+  File "/public/wc/CaNet-main/model.py", line 164, in encode
+    h = self.act_fn(con(h, adj, e_dummy))
+  File "/public/wc/.conda/envs/pygood/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/public/wc/CaNet-main/model.py", line 89, in forward
+    hi = hi.unsqueeze(0).repeat(self.K, 1, 1)  # [K, N, D*2]
+RuntimeError: CUDA out of memory. Tried to allocate 58.00 MiB (GPU 1; 79.14 GiB total capacity; 1.83 GiB already allocated; 35.38 MiB free; 1.87 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+
+Command: python main.py --dataset pubmed --backbone_type gcn --env_type graph --combine_result --store_result --epochs 500 --runs 2 --num_layers 2 --expert_agg mean --tau 2 --device 1 --other_env_objective irm --lr 0.001 --weight_decay 5e-05 --dropout 0.3 --lamda 0.5 --K 3 --hidden_channels 64 --other_env_reduce env --result_name pubmed_stage1_lr0.001_weight_decay5e-05_dropout0.3_lamda0.5_K3_hidden_channels64_other_env_reduceenv
+Return code: 1
+Elapsed: 78.79s
