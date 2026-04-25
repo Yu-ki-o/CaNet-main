@@ -1,0 +1,183 @@
+Top 10 front-door experiments on arxiv (gcn, stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/010_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.3_hidden_channels64_K3.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.3_hidden_channels64_K3
+rank_metric (last_final_ood_test): 59.38
+highest_valid: 60.26 ± 0.38
+highest_in_test: 60.79 ± 0.57
+final_in_test: 60.2 ± 0.77
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.3
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 59.54 ± 0.27
+  final_ood_test_2: 57.67 ± 0.8
+  final_ood_test_3: 59.38 ± 1.2
+
+Rank 2
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/009_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.3_hidden_channels64_K2.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.3_hidden_channels64_K2
+rank_metric (last_final_ood_test): 59.03
+highest_valid: 60.36 ± 0.52
+highest_in_test: 60.83 ± 0.01
+final_in_test: 60.55 ± 0.06
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.3
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 59.26 ± 0.6
+  final_ood_test_2: 57.54 ± 1.03
+  final_ood_test_3: 59.03 ± 0.94
+
+Rank 3
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/004_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.1_hidden_channels128_K3.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.1_hidden_channels128_K3
+rank_metric (last_final_ood_test): 58.59
+highest_valid: 62.53 ± 0.02
+highest_in_test: 62.85 ± 0.42
+final_in_test: 62.0 ± 0.27
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.1
+  hidden_channels: 128
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 60.83 ± 0.13
+  final_ood_test_2: 58.38 ± 0.01
+  final_ood_test_3: 58.59 ± 0.76
+
+Rank 4
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/005_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.2_hidden_channels64_K2.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.2_hidden_channels64_K2
+rank_metric (last_final_ood_test): 58.43
+highest_valid: 62.08 ± 0.39
+highest_in_test: 62.57 ± 0.05
+final_in_test: 62.27 ± 0.13
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 60.41 ± 0.17
+  final_ood_test_2: 57.29 ± 0.36
+  final_ood_test_3: 58.43 ± 1.29
+
+Rank 5
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/008_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.2_hidden_channels128_K3.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.2_hidden_channels128_K3
+rank_metric (last_final_ood_test): 57.51
+highest_valid: 63.51 ± 0.19
+highest_in_test: 63.47 ± 0.35
+final_in_test: 62.68 ± 0.09
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 128
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 61.04 ± 0.06
+  final_ood_test_2: 57.78 ± 1.04
+  final_ood_test_3: 57.51 ± 1.6
+
+Rank 6
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/001_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.1_hidden_channels64_K2.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.1_hidden_channels64_K2
+rank_metric (last_final_ood_test): 57.26
+highest_valid: 62.4 ± 0.18
+highest_in_test: 62.72 ± 0.23
+final_in_test: 62.06 ± 0.13
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.1
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 60.22 ± 0.34
+  final_ood_test_2: 56.98 ± 1.2
+  final_ood_test_3: 57.26 ± 1.54
+
+Rank 7
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/007_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.2_hidden_channels128_K2.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.2_hidden_channels128_K2
+rank_metric (last_final_ood_test): 57.15
+highest_valid: 63.46 ± 0.03
+highest_in_test: 63.41 ± 0.15
+final_in_test: 62.93 ± 0.46
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 128
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 60.62 ± 0.35
+  final_ood_test_2: 57.09 ± 0.96
+  final_ood_test_3: 57.15 ± 1.95
+
+Rank 8
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/012_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.3_hidden_channels128_K3.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.3_hidden_channels128_K3
+rank_metric (last_final_ood_test): 56.96
+highest_valid: 62.59 ± 0.06
+highest_in_test: 62.89 ± 0.16
+final_in_test: 62.46 ± 0.24
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.3
+  hidden_channels: 128
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 61.21 ± 0.07
+  final_ood_test_2: 58.63 ± 1.02
+  final_ood_test_3: 56.96 ± 0.24
+
+Rank 9
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/013_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.1_hidden_channels64_K2.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.1_hidden_channels64_K2
+rank_metric (last_final_ood_test): 56.86
+highest_valid: 62.39 ± 0.28
+highest_in_test: 62.55 ± 0.07
+final_in_test: 62.14 ± 0.4
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0001
+  dropout: 0.1
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 60.49 ± 0.06
+  final_ood_test_2: 57.03 ± 0.44
+  final_ood_test_3: 56.86 ± 0.26
+
+Rank 10
+log_file: search_logs_frontdoor/arxiv/gcn/stage1/006_arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.2_hidden_channels64_K3.log
+result_name: arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.2_hidden_channels64_K3
+rank_metric (last_final_ood_test): 56.86
+highest_valid: 62.03 ± 0.23
+highest_in_test: 62.49 ± 0.05
+final_in_test: 61.99 ± 0.5
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 60.67 ± 0.18
+  final_ood_test_2: 57.07 ± 1.66
+  final_ood_test_3: 56.86 ± 2.51
+

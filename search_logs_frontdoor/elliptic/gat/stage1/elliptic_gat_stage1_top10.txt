@@ -1,0 +1,233 @@
+Top 10 front-door experiments on elliptic (gat, stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs_frontdoor/elliptic/gat/stage1/001_elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.1_hidden_channels32_K3.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.1_hidden_channels32_K3
+rank_metric (last_final_ood_test): 60.73
+highest_valid: 83.17 ± 0.9
+highest_in_test: 81.35 ± 0.95
+final_in_test: 75.36 ± 2.96
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.1
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 74.26 ± 5.69
+  final_ood_test_2: 69.98 ± 4.83
+  final_ood_test_3: 60.14 ± 4.49
+  final_ood_test_4: 57.91 ± 6.34
+  final_ood_test_5: 56.62 ± 6.3
+  final_ood_test_6: 56.59 ± 8.61
+  final_ood_test_7: 65.21 ± 11.57
+  final_ood_test_8: 60.73 ± 7.02
+
+Rank 2
+log_file: search_logs_frontdoor/elliptic/gat/stage1/006_elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.2_hidden_channels32_K5.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.2_hidden_channels32_K5
+rank_metric (last_final_ood_test): 59.42
+highest_valid: 81.01 ± 0.56
+highest_in_test: 81.94 ± 1.42
+final_in_test: 74.27 ± 0.43
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 32
+  K: 5
+final_ood_metrics:
+  final_ood_test_1: 70.1 ± 2.3
+  final_ood_test_2: 66.65 ± 5.05
+  final_ood_test_3: 57.67 ± 4.49
+  final_ood_test_4: 54.57 ± 3.01
+  final_ood_test_5: 53.74 ± 2.54
+  final_ood_test_6: 57.11 ± 8.66
+  final_ood_test_7: 63.95 ± 0.21
+  final_ood_test_8: 59.42 ± 1.83
+
+Rank 3
+log_file: search_logs_frontdoor/elliptic/gat/stage1/008_elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.2_hidden_channels64_K5.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.2_hidden_channels64_K5
+rank_metric (last_final_ood_test): 58.59
+highest_valid: 83.46 ± 1.03
+highest_in_test: 85.15 ± 0.53
+final_in_test: 82.28 ± 0.88
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 64
+  K: 5
+final_ood_metrics:
+  final_ood_test_1: 68.64 ± 4.1
+  final_ood_test_2: 69.71 ± 2.76
+  final_ood_test_3: 60.6 ± 5.55
+  final_ood_test_4: 58.58 ± 6.35
+  final_ood_test_5: 58.29 ± 7.63
+  final_ood_test_6: 54.19 ± 7.46
+  final_ood_test_7: 62.68 ± 10.97
+  final_ood_test_8: 58.59 ± 8.92
+
+Rank 4
+log_file: search_logs_frontdoor/elliptic/gat/stage1/004_elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.1_hidden_channels64_K5.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.1_hidden_channels64_K5
+rank_metric (last_final_ood_test): 58.56
+highest_valid: 80.36 ± 1.97
+highest_in_test: 83.76 ± 0.51
+final_in_test: 77.97 ± 1.41
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.1
+  hidden_channels: 64
+  K: 5
+final_ood_metrics:
+  final_ood_test_1: 74.52 ± 2.16
+  final_ood_test_2: 65.22 ± 4.97
+  final_ood_test_3: 56.15 ± 4.94
+  final_ood_test_4: 56.18 ± 5.28
+  final_ood_test_5: 54.84 ± 4.82
+  final_ood_test_6: 58.02 ± 1.04
+  final_ood_test_7: 63.7 ± 3.73
+  final_ood_test_8: 58.56 ± 5.77
+
+Rank 5
+log_file: search_logs_frontdoor/elliptic/gat/stage1/003_elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.1_hidden_channels64_K3.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.1_hidden_channels64_K3
+rank_metric (last_final_ood_test): 57.21
+highest_valid: 81.37 ± 0.85
+highest_in_test: 82.53 ± 1.92
+final_in_test: 78.34 ± 2.65
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.1
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 73.19 ± 5.85
+  final_ood_test_2: 68.65 ± 5.33
+  final_ood_test_3: 52.96 ± 3.89
+  final_ood_test_4: 51.43 ± 2.14
+  final_ood_test_5: 49.93 ± 2.18
+  final_ood_test_6: 52.03 ± 5.51
+  final_ood_test_7: 59.56 ± 4.15
+  final_ood_test_8: 57.21 ± 2.38
+
+Rank 6
+log_file: search_logs_frontdoor/elliptic/gat/stage1/007_elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.2_hidden_channels64_K3.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.2_hidden_channels64_K3
+rank_metric (last_final_ood_test): 57.06
+highest_valid: 81.31 ± 0.08
+highest_in_test: 83.16 ± 0.9
+final_in_test: 75.99 ± 3.81
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 66.22 ± 6.88
+  final_ood_test_2: 60.97 ± 3.02
+  final_ood_test_3: 48.81 ± 2.06
+  final_ood_test_4: 48.9 ± 1.11
+  final_ood_test_5: 46.97 ± 3.66
+  final_ood_test_6: 49.57 ± 0.81
+  final_ood_test_7: 61.7 ± 3.78
+  final_ood_test_8: 57.06 ± 4.61
+
+Rank 7
+log_file: search_logs_frontdoor/elliptic/gat/stage1/011_elliptic_gat_frontdoor_stage1_lr0.001_weight_decay0.0005_dropout0.1_hidden_channels64_K3.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.001_weight_decay0.0005_dropout0.1_hidden_channels64_K3
+rank_metric (last_final_ood_test): 56.77
+highest_valid: 81.36 ± 1.58
+highest_in_test: 81.07 ± 1.04
+final_in_test: 77.59 ± 3.25
+hyperparameters:
+  lr: 0.001
+  weight_decay: 0.0005
+  dropout: 0.1
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 69.49 ± 2.26
+  final_ood_test_2: 69.08 ± 2.62
+  final_ood_test_3: 61.01 ± 6.18
+  final_ood_test_4: 57.49 ± 3.86
+  final_ood_test_5: 57.28 ± 3.26
+  final_ood_test_6: 54.04 ± 0.84
+  final_ood_test_7: 61.94 ± 7.4
+  final_ood_test_8: 56.77 ± 9.37
+
+Rank 8
+log_file: search_logs_frontdoor/elliptic/gat/stage1/002_elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.1_hidden_channels32_K5.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.1_hidden_channels32_K5
+rank_metric (last_final_ood_test): 56.4
+highest_valid: 80.69 ± 1.52
+highest_in_test: 81.57 ± 2.9
+final_in_test: 76.39 ± 3.62
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.1
+  hidden_channels: 32
+  K: 5
+final_ood_metrics:
+  final_ood_test_1: 73.55 ± 2.61
+  final_ood_test_2: 69.01 ± 1.14
+  final_ood_test_3: 60.0 ± 0.62
+  final_ood_test_4: 57.49 ± 0.86
+  final_ood_test_5: 56.76 ± 4.16
+  final_ood_test_6: 57.72 ± 8.44
+  final_ood_test_7: 62.99 ± 1.88
+  final_ood_test_8: 56.4 ± 0.88
+
+Rank 9
+log_file: search_logs_frontdoor/elliptic/gat/stage1/005_elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.2_hidden_channels32_K3.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.005_weight_decay0.0005_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 54.46
+highest_valid: 82.27 ± 0.0
+highest_in_test: 81.06 ± 0.59
+final_in_test: 78.19 ± 2.33
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 66.47 ± 1.4
+  final_ood_test_2: 70.11 ± 6.5
+  final_ood_test_3: 63.9 ± 9.47
+  final_ood_test_4: 60.6 ± 8.11
+  final_ood_test_5: 60.78 ± 5.03
+  final_ood_test_6: 56.39 ± 5.51
+  final_ood_test_7: 62.2 ± 6.39
+  final_ood_test_8: 54.46 ± 5.25
+
+Rank 10
+log_file: search_logs_frontdoor/elliptic/gat/stage1/016_elliptic_gat_frontdoor_stage1_lr0.001_weight_decay0.0005_dropout0.2_hidden_channels64_K5.log
+result_name: elliptic_gat_frontdoor_stage1_lr0.001_weight_decay0.0005_dropout0.2_hidden_channels64_K5
+rank_metric (last_final_ood_test): 54.41
+highest_valid: 81.07 ± 1.39
+highest_in_test: 81.07 ± 1.39
+final_in_test: 77.79 ± 1.65
+hyperparameters:
+  lr: 0.001
+  weight_decay: 0.0005
+  dropout: 0.2
+  hidden_channels: 64
+  K: 5
+final_ood_metrics:
+  final_ood_test_1: 65.31 ± 1.25
+  final_ood_test_2: 65.78 ± 3.74
+  final_ood_test_3: 55.43 ± 6.39
+  final_ood_test_4: 53.28 ± 7.21
+  final_ood_test_5: 51.93 ± 8.26
+  final_ood_test_6: 49.7 ± 3.62
+  final_ood_test_7: 57.21 ± 7.88
+  final_ood_test_8: 54.41 ± 5.97
+

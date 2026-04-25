@@ -41,6 +41,26 @@ def add_ciw_args(parser):
                         help='weight of the CIW contrastive loss')
     parser.add_argument('--lambda_dag', type=float, default=0.1,
                         help='weight of the CIW DAG reconstruction loss')
+    parser.add_argument('--lambda_med', type=float, default=0.5,
+                        help='weight of the mediator-only supervision loss')
+    parser.add_argument('--lambda_spu', type=float, default=0.1,
+                        help='weight of the spurious-branch uniformity loss')
+    parser.add_argument('--lambda_fd', type=float, default=0.5,
+                        help='weight of the front-door aggregation loss')
+    parser.add_argument('--lambda_var', type=float, default=0.05,
+                        help='weight of the cross-environment front-door variance penalty')
+    parser.add_argument('--mediator_temp', type=float, default=8.0,
+                        help='temperature of the DAG-based soft mediator selector')
+    parser.add_argument('--low_temp', type=float, default=8.0,
+                        help='temperature used to detect low-label-effect features')
+    parser.add_argument('--low_threshold', type=float, default=0.35,
+                        help='threshold for identifying low-label-effect features')
+    parser.add_argument('--mediator_threshold', type=float, default=0.5,
+                        help='threshold for activating mediator dimensions from the DAG effect scores')
+    parser.add_argument('--pollution_coeff', type=float, default=1.0,
+                        help='penalty coefficient for feature pollution from low-effect nodes')
+    parser.add_argument('--fd_blend', type=float, default=0.5,
+                        help='blend ratio between mediator logits and front-door aggregated logits')
 
 
 def sanitize_name(name):
@@ -139,7 +159,7 @@ run_name = sanitize_name(args.result_name)
 if not run_name:
     run_name = (
         f"{current_time}_ciw_ind_{args.lambda_ind}_dag_{args.lambda_dag}"
-        f"_cl_{args.lambda_cl}"
+        f"_cl_{args.lambda_cl}_fd_{args.lambda_fd}"
     )
 log_dir = os.path.join('.', 'runs', args.dataset, 'ciw', run_name)
 os.makedirs(log_dir, exist_ok=True)
@@ -175,6 +195,10 @@ for run in range(args.runs):
             main_losses['loss_cls']
             + model.lambda_ind * main_losses['loss_ind']
             + model.lambda_cl * main_losses['loss_cl']
+            + model.lambda_med * main_losses['loss_med']
+            + model.lambda_spu * main_losses['loss_spu']
+            + model.lambda_fd * main_losses['loss_fd']
+            + model.lambda_var * main_losses['loss_var']
         )
         main_objective.backward()
         optimizer_main.step()
@@ -194,6 +218,10 @@ for run in range(args.runs):
             + model.lambda_ind * dag_losses['loss_ind']
             + model.lambda_dag * dag_losses['loss_dag']
             + model.lambda_cl * dag_losses['loss_cl']
+            + model.lambda_med * dag_losses['loss_med']
+            + model.lambda_spu * dag_losses['loss_spu']
+            + model.lambda_fd * dag_losses['loss_fd']
+            + model.lambda_var * dag_losses['loss_var']
         )
         dag_objective.backward()
         optimizer_dag.step()
@@ -210,6 +238,13 @@ for run in range(args.runs):
         writer.add_scalar('Loss/Ind', (model.lambda_ind * dag_losses['loss_ind']).item(), global_step)
         writer.add_scalar('Loss/DAG', (model.lambda_dag * dag_losses['loss_dag']).item(), global_step)
         writer.add_scalar('Loss/CL', (model.lambda_cl * dag_losses['loss_cl']).item(), global_step)
+        writer.add_scalar('Loss/Med', (model.lambda_med * dag_losses['loss_med']).item(), global_step)
+        writer.add_scalar('Loss/Spu', (model.lambda_spu * dag_losses['loss_spu']).item(), global_step)
+        writer.add_scalar('Loss/FD', (model.lambda_fd * dag_losses['loss_fd']).item(), global_step)
+        writer.add_scalar('Loss/Var', (model.lambda_var * dag_losses['loss_var']).item(), global_step)
+        writer.add_scalar('Graph/MediatorGate', dag_losses['mediator_gate_mean'].item(), global_step)
+        writer.add_scalar('Graph/CausalScore', dag_losses['causal_score_mean'].item(), global_step)
+        writer.add_scalar('Graph/PollutionScore', dag_losses['pollution_score_mean'].item(), global_step)
         writer.add_scalar('Metrics/1_Train', result[0] * 100, global_step)
         writer.add_scalar('Metrics/2_Valid', result[1] * 100, global_step)
         writer.add_scalar('Metrics/3_Test_In', result[2] * 100, global_step)
@@ -223,6 +258,10 @@ for run in range(args.runs):
                 f"Ind: {(model.lambda_ind * dag_losses['loss_ind']).item():.4f}, "
                 f"DAG: {(model.lambda_dag * dag_losses['loss_dag']).item():.4f}, "
                 f"CL: {(model.lambda_cl * dag_losses['loss_cl']).item():.4f}, "
+                f"Med: {(model.lambda_med * dag_losses['loss_med']).item():.4f}, "
+                f"Spu: {(model.lambda_spu * dag_losses['loss_spu']).item():.4f}, "
+                f"FD: {(model.lambda_fd * dag_losses['loss_fd']).item():.4f}, "
+                f"Var: {(model.lambda_var * dag_losses['loss_var']).item():.4f}, "
                 f"Train: {100 * result[0]:.2f}%, Valid: {100 * result[1]:.2f}%, "
                 f"Test In: {100 * result[2]:.2f}% "
             )

@@ -1,0 +1,163 @@
+Top 10 front-door experiments on cora (gat, stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs_frontdoor/cora/gat/stage1/030_cora_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K3.log
+result_name: cora_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 98.63
+highest_valid: 97.61 ± 0.17
+highest_in_test: 98.1 ± 0.17
+final_in_test: 97.76 ± 0.17
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 98.63 ± 0.01
+
+Rank 2
+log_file: search_logs_frontdoor/cora/gat/stage1/022_cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels32_K3.log
+result_name: cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 98.48
+highest_valid: 97.66 ± 0.1
+highest_in_test: 98.15 ± 0.03
+final_in_test: 98.01 ± 0.17
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 98.48 ± 0.13
+
+Rank 3
+log_file: search_logs_frontdoor/cora/gat/stage1/006_cora_gat_frontdoor_stage1_lr0.01_weight_decay0.0_dropout0.2_hidden_channels32_K3.log
+result_name: cora_gat_frontdoor_stage1_lr0.01_weight_decay0.0_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 98.46
+highest_valid: 97.46 ± 0.17
+highest_in_test: 98.06 ± 0.03
+final_in_test: 97.88 ± 0.07
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 98.46 ± 0.1
+
+Rank 4
+log_file: search_logs_frontdoor/cora/gat/stage1/023_cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels64_K2.log
+result_name: cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels64_K2
+rank_metric (last_final_ood_test): 98.41
+highest_valid: 97.86 ± 0.03
+highest_in_test: 98.1 ± 0.03
+final_in_test: 97.81 ± 0.1
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 98.41 ± 0.17
+
+Rank 5
+log_file: search_logs_frontdoor/cora/gat/stage1/024_cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels64_K3.log
+result_name: cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels64_K3
+rank_metric (last_final_ood_test): 98.39
+highest_valid: 97.71 ± 0.03
+highest_in_test: 98.25 ± 0.1
+final_in_test: 97.71 ± 0.03
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 98.39 ± 0.08
+
+Rank 6
+log_file: search_logs_frontdoor/cora/gat/stage1/014_cora_gat_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels32_K3.log
+result_name: cora_gat_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 98.31
+highest_valid: 97.74 ± 0.14
+highest_in_test: 98.15 ± 0.03
+final_in_test: 97.83 ± 0.0
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 98.31 ± 0.27
+
+Rank 7
+log_file: search_logs_frontdoor/cora/gat/stage1/017_cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.1_hidden_channels32_K2.log
+result_name: cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.1_hidden_channels32_K2
+rank_metric (last_final_ood_test): 98.28
+highest_valid: 97.56 ± 0.24
+highest_in_test: 97.86 ± 0.1
+final_in_test: 97.69 ± 0.21
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0
+  dropout: 0.1
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 98.28 ± 0.1
+
+Rank 8
+log_file: search_logs_frontdoor/cora/gat/stage1/021_cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels32_K2.log
+result_name: cora_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels32_K2
+rank_metric (last_final_ood_test): 98.22
+highest_valid: 97.44 ± 0.0
+highest_in_test: 97.98 ± 0.07
+final_in_test: 97.86 ± 0.24
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 98.22 ± 0.38
+
+Rank 9
+log_file: search_logs_frontdoor/cora/gat/stage1/029_cora_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K2.log
+result_name: cora_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K2
+rank_metric (last_final_ood_test): 98.15
+highest_valid: 97.51 ± 0.03
+highest_in_test: 98.03 ± 0.0
+final_in_test: 97.61 ± 0.24
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 98.15 ± 0.27
+
+Rank 10
+log_file: search_logs_frontdoor/cora/gat/stage1/016_cora_gat_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels64_K3.log
+result_name: cora_gat_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels64_K3
+rank_metric (last_final_ood_test): 98.13
+highest_valid: 97.81 ± 0.03
+highest_in_test: 98.1 ± 0.03
+final_in_test: 97.69 ± 0.21
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 98.13 ± 0.44
+

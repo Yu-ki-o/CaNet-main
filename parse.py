@@ -6,7 +6,7 @@ def parser_add_main_args(parser):
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--cpu', action='store_true')
-    parser.add_argument('--seed', type=int, default=2024) #123#2024#1000#42#3407#777
+    parser.add_argument('--seed', type=int, default=123) #123#2024#1000#42#3407#777
     parser.add_argument('--runs', type=int, default=5,
                         help='number of distinct runs')
     parser.add_argument('--epochs', type=int, default=500)
@@ -17,7 +17,8 @@ def parser_add_main_args(parser):
                         help='number of layers for deep methods')
 
     # CaNet
-    parser.add_argument('--backbone_type', type=str, default='gcn', choices=['gcn', 'gat','transformer'])
+    parser.add_argument('--backbone_type', '--backbone', dest='backbone_type',
+                        type=str, default='gcn', choices=['gcn', 'gat','transformer'])
     parser.add_argument('--K', type=int, default=3,
                         help='num of domains, each for one graph convolution filter')
     parser.add_argument('--tau', type=float, default=1,
@@ -42,7 +43,7 @@ def parser_add_main_args(parser):
     # display and utility
     parser.add_argument('--display_step', type=int,
                         default=1, help='how often to print')
-    parser.add_argument('--store_result', action='store_true',
+    parser.add_argument('--store_result', '--store', dest='store_result', action='store_true',
                         help='whether to store results')
     parser.add_argument('--combine_result', action='store_true',
                         help='whether to combine all the ood environments')

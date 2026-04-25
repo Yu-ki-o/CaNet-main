@@ -1,0 +1,163 @@
+Top 10 front-door experiments on citeseer (gat, stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs_frontdoor/citeseer/gat/stage1/007_citeseer_gat_frontdoor_stage1_lr0.01_weight_decay0.0_dropout0.2_hidden_channels64_K2.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.01_weight_decay0.0_dropout0.2_hidden_channels64_K2
+rank_metric (last_final_ood_test): 97.35
+highest_valid: 95.35 ± 0.17
+highest_in_test: 94.85 ± 0.03
+final_in_test: 94.61 ± 0.08
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 97.35 ± 0.09
+
+Rank 2
+log_file: search_logs_frontdoor/citeseer/gat/stage1/023_citeseer_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels64_K2.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels64_K2
+rank_metric (last_final_ood_test): 97.3
+highest_valid: 95.63 ± 0.06
+highest_in_test: 94.77 ± 0.14
+final_in_test: 94.49 ± 0.14
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 97.3 ± 0.01
+
+Rank 3
+log_file: search_logs_frontdoor/citeseer/gat/stage1/030_citeseer_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K3.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 97.29
+highest_valid: 95.19 ± 0.45
+highest_in_test: 94.79 ± 0.06
+final_in_test: 94.37 ± 0.08
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 97.29 ± 0.18
+
+Rank 4
+log_file: search_logs_frontdoor/citeseer/gat/stage1/008_citeseer_gat_frontdoor_stage1_lr0.01_weight_decay0.0_dropout0.2_hidden_channels64_K3.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.01_weight_decay0.0_dropout0.2_hidden_channels64_K3
+rank_metric (last_final_ood_test): 97.26
+highest_valid: 95.21 ± 0.03
+highest_in_test: 94.67 ± 0.06
+final_in_test: 94.39 ± 0.06
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 97.26 ± 0.01
+
+Rank 5
+log_file: search_logs_frontdoor/citeseer/gat/stage1/032_citeseer_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K3.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K3
+rank_metric (last_final_ood_test): 97.25
+highest_valid: 95.35 ± 0.0
+highest_in_test: 94.65 ± 0.08
+final_in_test: 94.49 ± 0.08
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 97.25 ± 0.1
+
+Rank 6
+log_file: search_logs_frontdoor/citeseer/gat/stage1/021_citeseer_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels32_K2.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels32_K2
+rank_metric (last_final_ood_test): 97.25
+highest_valid: 95.05 ± 0.43
+highest_in_test: 94.61 ± 0.14
+final_in_test: 94.39 ± 0.11
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 97.25 ± 0.04
+
+Rank 7
+log_file: search_logs_frontdoor/citeseer/gat/stage1/022_citeseer_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels32_K3.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.005_weight_decay0.0_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 97.24
+highest_valid: 95.07 ± 0.4
+highest_in_test: 94.59 ± 0.11
+final_in_test: 94.39 ± 0.4
+hyperparameters:
+  lr: 0.005
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 97.24 ± 0.13
+
+Rank 8
+log_file: search_logs_frontdoor/citeseer/gat/stage1/006_citeseer_gat_frontdoor_stage1_lr0.01_weight_decay0.0_dropout0.2_hidden_channels32_K3.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.01_weight_decay0.0_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 97.22
+highest_valid: 95.23 ± 0.23
+highest_in_test: 94.75 ± 0.06
+final_in_test: 94.47 ± 0.28
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 97.22 ± 0.28
+
+Rank 9
+log_file: search_logs_frontdoor/citeseer/gat/stage1/029_citeseer_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K2.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K2
+rank_metric (last_final_ood_test): 97.19
+highest_valid: 95.11 ± 0.23
+highest_in_test: 94.59 ± 0.06
+final_in_test: 94.15 ± 0.11
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 97.19 ± 0.13
+
+Rank 10
+log_file: search_logs_frontdoor/citeseer/gat/stage1/031_citeseer_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K2.log
+result_name: citeseer_gat_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K2
+rank_metric (last_final_ood_test): 97.13
+highest_valid: 95.45 ± 0.14
+highest_in_test: 94.73 ± 0.2
+final_in_test: 94.23 ± 0.34
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 97.13 ± 0.29
+

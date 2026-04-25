@@ -1,0 +1,163 @@
+Top 10 front-door experiments on pubmed (gcn, stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/015_pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K2.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K2
+rank_metric (last_final_ood_test): 91.8
+highest_valid: 97.63 ± 0.05
+highest_in_test: 97.59 ± 0.01
+final_in_test: 97.54 ± 0.04
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 91.8 ± 1.12
+
+Rank 2
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/016_pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K3.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K3
+rank_metric (last_final_ood_test): 89.72
+highest_valid: 97.67 ± 0.0
+highest_in_test: 97.61 ± 0.03
+final_in_test: 97.59 ± 0.06
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 89.72 ± 2.32
+
+Rank 3
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/007_pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels64_K2.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels64_K2
+rank_metric (last_final_ood_test): 88.85
+highest_valid: 97.5 ± 0.2
+highest_in_test: 97.45 ± 0.12
+final_in_test: 97.33 ± 0.13
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 88.85 ± 1.5
+
+Rank 4
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/008_pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels64_K3.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels64_K3
+rank_metric (last_final_ood_test): 86.92
+highest_valid: 97.52 ± 0.02
+highest_in_test: 97.41 ± 0.05
+final_in_test: 97.22 ± 0.13
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 86.92 ± 0.05
+
+Rank 5
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/004_pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.1_hidden_channels64_K3.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.1_hidden_channels64_K3
+rank_metric (last_final_ood_test): 86.72
+highest_valid: 97.46 ± 0.24
+highest_in_test: 97.44 ± 0.23
+final_in_test: 97.34 ± 0.15
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.1
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 86.72 ± 2.78
+
+Rank 6
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/011_pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.1_hidden_channels64_K2.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.1_hidden_channels64_K2
+rank_metric (last_final_ood_test): 86.64
+highest_valid: 97.76 ± 0.02
+highest_in_test: 97.62 ± 0.08
+final_in_test: 97.57 ± 0.09
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.1
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 86.64 ± 1.27
+
+Rank 7
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/014_pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K3.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 86.58
+highest_valid: 97.21 ± 0.11
+highest_in_test: 96.96 ± 0.03
+final_in_test: 96.83 ± 0.08
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 86.58 ± 0.11
+
+Rank 8
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/003_pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.1_hidden_channels64_K2.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.1_hidden_channels64_K2
+rank_metric (last_final_ood_test): 86.25
+highest_valid: 97.59 ± 0.17
+highest_in_test: 97.54 ± 0.16
+final_in_test: 97.43 ± 0.11
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.1
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 86.25 ± 1.03
+
+Rank 9
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/006_pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels32_K3.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.2_hidden_channels32_K3
+rank_metric (last_final_ood_test): 86.21
+highest_valid: 97.16 ± 0.21
+highest_in_test: 96.95 ± 0.36
+final_in_test: 96.88 ± 0.27
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 86.21 ± 0.26
+
+Rank 10
+log_file: search_logs_frontdoor/pubmed/gcn/stage1/013_pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K2.log
+result_name: pubmed_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels32_K2
+rank_metric (last_final_ood_test): 86.2
+highest_valid: 97.03 ± 0.17
+highest_in_test: 96.87 ± 0.2
+final_in_test: 96.78 ± 0.17
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.2
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 86.2 ± 0.18
+

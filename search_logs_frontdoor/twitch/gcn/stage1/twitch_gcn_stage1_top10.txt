@@ -1,0 +1,183 @@
+Top 10 front-door experiments on twitch (gcn, stage1) ranked by last_final_ood_test
+========================================================================================================================
+
+Rank 1
+log_file: search_logs_frontdoor/twitch/gcn/stage1/001_twitch_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.0_hidden_channels32_K2.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.0_hidden_channels32_K2
+rank_metric (last_final_ood_test): 64.25
+highest_valid: 73.47 ± 0.16
+highest_in_test: 74.76 ± 0.06
+final_in_test: 74.7 ± 0.02
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.0
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 67.76 ± 0.53
+  final_ood_test_2: 54.5 ± 0.37
+  final_ood_test_3: 64.25 ± 0.1
+
+Rank 2
+log_file: search_logs_frontdoor/twitch/gcn/stage1/027_twitch_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.0_hidden_channels64_K2.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.0_hidden_channels64_K2
+rank_metric (last_final_ood_test): 64.08
+highest_valid: 73.51 ± 0.0
+highest_in_test: 74.77 ± 0.25
+final_in_test: 74.64 ± 0.43
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.0
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 67.18 ± 0.46
+  final_ood_test_2: 54.38 ± 0.07
+  final_ood_test_3: 64.08 ± 0.21
+
+Rank 3
+log_file: search_logs_frontdoor/twitch/gcn/stage1/014_twitch_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.0_hidden_channels32_K3.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.0_hidden_channels32_K3
+rank_metric (last_final_ood_test): 64.08
+highest_valid: 73.24 ± 0.16
+highest_in_test: 74.75 ± 0.06
+final_in_test: 74.62 ± 0.12
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0001
+  dropout: 0.0
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 68.02 ± 0.37
+  final_ood_test_2: 54.43 ± 0.3
+  final_ood_test_3: 64.08 ± 0.02
+
+Rank 4
+log_file: search_logs_frontdoor/twitch/gcn/stage1/025_twitch_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.0_hidden_channels32_K2.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.0_hidden_channels32_K2
+rank_metric (last_final_ood_test): 64.07
+highest_valid: 73.34 ± 0.05
+highest_in_test: 74.83 ± 0.03
+final_in_test: 74.8 ± 0.06
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.0
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 67.41 ± 0.56
+  final_ood_test_2: 54.33 ± 0.04
+  final_ood_test_3: 64.07 ± 0.03
+
+Rank 5
+log_file: search_logs_frontdoor/twitch/gcn/stage1/015_twitch_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.0_hidden_channels64_K2.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.0_hidden_channels64_K2
+rank_metric (last_final_ood_test): 64.03
+highest_valid: 73.58 ± 0.02
+highest_in_test: 75.11 ± 0.03
+final_in_test: 75.04 ± 0.04
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0001
+  dropout: 0.0
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 67.72 ± 0.35
+  final_ood_test_2: 54.27 ± 0.29
+  final_ood_test_3: 64.03 ± 0.01
+
+Rank 6
+log_file: search_logs_frontdoor/twitch/gcn/stage1/003_twitch_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.0_hidden_channels64_K2.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.01_weight_decay5e-05_dropout0.0_hidden_channels64_K2
+rank_metric (last_final_ood_test): 63.97
+highest_valid: 73.73 ± 0.03
+highest_in_test: 75.25 ± 0.03
+final_in_test: 74.96 ± 0.12
+hyperparameters:
+  lr: 0.01
+  weight_decay: 5e-05
+  dropout: 0.0
+  hidden_channels: 64
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 67.31 ± 0.4
+  final_ood_test_2: 53.77 ± 0.28
+  final_ood_test_3: 63.97 ± 0.21
+
+Rank 7
+log_file: search_logs_frontdoor/twitch/gcn/stage1/028_twitch_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.0_hidden_channels64_K3.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.0_hidden_channels64_K3
+rank_metric (last_final_ood_test): 63.97
+highest_valid: 73.61 ± 0.12
+highest_in_test: 74.92 ± 0.03
+final_in_test: 74.88 ± 0.01
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.0
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 67.25 ± 0.23
+  final_ood_test_2: 54.11 ± 0.09
+  final_ood_test_3: 63.97 ± 0.05
+
+Rank 8
+log_file: search_logs_frontdoor/twitch/gcn/stage1/013_twitch_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.0_hidden_channels32_K2.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.0_hidden_channels32_K2
+rank_metric (last_final_ood_test): 63.94
+highest_valid: 73.3 ± 0.08
+highest_in_test: 74.8 ± 0.03
+final_in_test: 74.68 ± 0.13
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0001
+  dropout: 0.0
+  hidden_channels: 32
+  K: 2
+final_ood_metrics:
+  final_ood_test_1: 67.61 ± 0.32
+  final_ood_test_2: 54.27 ± 0.24
+  final_ood_test_3: 63.94 ± 0.01
+
+Rank 9
+log_file: search_logs_frontdoor/twitch/gcn/stage1/026_twitch_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.0_hidden_channels32_K3.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.005_weight_decay5e-05_dropout0.0_hidden_channels32_K3
+rank_metric (last_final_ood_test): 63.9
+highest_valid: 73.4 ± 0.34
+highest_in_test: 74.92 ± 0.2
+final_in_test: 74.83 ± 0.06
+hyperparameters:
+  lr: 0.005
+  weight_decay: 5e-05
+  dropout: 0.0
+  hidden_channels: 32
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 67.34 ± 0.15
+  final_ood_test_2: 54.01 ± 0.48
+  final_ood_test_3: 63.9 ± 0.05
+
+Rank 10
+log_file: search_logs_frontdoor/twitch/gcn/stage1/016_twitch_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.0_hidden_channels64_K3.log
+result_name: twitch_gcn_frontdoor_stage1_lr0.01_weight_decay0.0001_dropout0.0_hidden_channels64_K3
+rank_metric (last_final_ood_test): 63.87
+highest_valid: 73.76 ± 0.33
+highest_in_test: 75.06 ± 0.19
+final_in_test: 75.0 ± 0.21
+hyperparameters:
+  lr: 0.01
+  weight_decay: 0.0001
+  dropout: 0.0
+  hidden_channels: 64
+  K: 3
+final_ood_metrics:
+  final_ood_test_1: 67.15 ± 0.66
+  final_ood_test_2: 53.77 ± 0.12
+  final_ood_test_3: 63.87 ± 0.4
+
