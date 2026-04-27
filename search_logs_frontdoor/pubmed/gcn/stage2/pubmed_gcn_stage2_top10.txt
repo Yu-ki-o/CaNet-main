@@ -200,24 +200,24 @@ final_ood_metrics:
   final_ood_test_1: 90.88 ± 1.15
 
 Rank 10
-log_file: search_logs_frontdoor/pubmed/gcn/stage2/031_pubmed_gcn_frontdoor_stage2_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K2_lambda_fd0.5_lambda_spu0.1_lambda_ind0.05_context_gate_temp1.0_fd_blend0.3_lambda_med0.25.log
-result_name: pubmed_gcn_frontdoor_stage2_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K2_lambda_fd0.5_lambda_spu0.1_lambda_ind0.05_context_gate_temp1.0_fd_blend0.3_lambda_med0.25
-rank_metric (last_final_ood_test): 90.84
-highest_valid: 97.66 ± 0.16
-highest_in_test: 97.55 ± 0.09
-final_in_test: 97.44 ± 0.15
+log_file: search_logs_frontdoor/pubmed/gcn/stage2/056_pubmed_gcn_frontdoor_stage2_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K2_lambda_fd1.0_lambda_spu0.05_lambda_ind0.05_context_gate_temp1.0_fd_blend0.3_lambda_med0.5.log
+result_name: pubmed_gcn_frontdoor_stage2_lr0.005_weight_decay5e-05_dropout0.2_hidden_channels64_K2_lambda_fd1.0_lambda_spu0.05_lambda_ind0.05_context_gate_temp1.0_fd_blend0.3_lambda_med0.5
+rank_metric (last_final_ood_test): 90.85
+highest_valid: 97.69 ± 0.25
+highest_in_test: 97.55 ± 0.11
+final_in_test: 97.47 ± 0.05
 hyperparameters:
   lr: 0.005
   weight_decay: 5e-05
   dropout: 0.2
   hidden_channels: 64
   K: 2
-  lambda_fd: 0.5
-  lambda_spu: 0.1
+  lambda_fd: 1.0
+  lambda_spu: 0.05
   lambda_ind: 0.05
   context_gate_temp: 1.0
   fd_blend: 0.3
-  lambda_med: 0.25
+  lambda_med: 0.5
 final_ood_metrics:
-  final_ood_test_1: 90.84 ± 0.63
+  final_ood_test_1: 90.85 ± 0.15
 
