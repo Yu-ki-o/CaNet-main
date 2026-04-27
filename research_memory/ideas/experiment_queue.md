@@ -59,3 +59,17 @@ Compare:
 - DAG-masked latent attention
 
 Run only after baseline front-door is stable.
+
+## E006 - DAG-ness-Aware Feature DAG
+
+Sources: `P007`, `P005`
+
+Compare:
+
+- current `GraphFrontDoorDAG`
+- dynamic DAG loss scaling only
+- lightweight CASPER-style hidden causal-space score
+
+Start with Cora/Citeseer/Pubmed and `lambda_casper=0` default. If stable, run stage2 search for `lambda_casper` and one temperature/clipping parameter.
+
+Measure: OOD accuracy, validation stability, `h(A_feat)`, mediator mask entropy, and whether causal branch accuracy drops.

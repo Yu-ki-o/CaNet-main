@@ -29,18 +29,64 @@ def add_frontdoor_args(parser):
                         help='EMA momentum for environment-specific spurious prototypes')
     parser.add_argument('--lambda_ind', type=float, default=0.1,
                         help='weight of mediator-spurious decorrelation')
+    parser.add_argument('--ind_loss_type', type=str, default='mi', choices=['cosine', 'corr', 'hsic', 'mi'],
+                        help='independence loss between causal and spurious representations')
+    parser.add_argument('--hsic_sigma', type=float, default=0.0,
+                        help='RBF kernel sigma for HSIC; <= 0 uses a median-distance heuristic')
+    parser.add_argument('--hsic_max_samples', type=int, default=256,
+                        help='maximum nodes used by the O(n^2) HSIC loss')
+    parser.add_argument('--lambda_env_causal', type=float, default=0.0,
+                        help='weight of environment-uniform loss on the causal branch')
+    parser.add_argument('--lambda_spu_env', type=float, default=0.0,
+                        help='weight of environment prediction loss on the spurious branch')
     parser.add_argument('--lambda_med', type=float, default=0.5,
                         help='weight of the causal-branch supervision loss')
     parser.add_argument('--lambda_spu', type=float, default=0.1,
                         help='weight of the spurious-branch uniformity loss')
     parser.add_argument('--lambda_fd', type=float, default=0.5,
                         help='weight of the intervention-branch supervision loss')
+    parser.add_argument('--lambda_fd_aug', type=float, default=0.5,
+                        help='weight of per-context label-preserving supervision for prototype augmentation')
     parser.add_argument('--lambda_var', type=float, default=0.05,
                         help='weight of the cross-context front-door variance penalty')
     parser.add_argument('--fd_blend', type=float, default=0.5,
                         help='blend ratio between causal logits and intervention logits')
     parser.add_argument('--context_gate_temp', type=float, default=1.0,
                         help='temperature of the adaptive context gating inside diversity augmentation')
+    parser.add_argument('--proto_aug_k', type=int, default=3,
+                        help='number of mixed environment prototypes added during training')
+    parser.add_argument('--proto_mix_alpha', type=float, default=1.0,
+                        help='Beta distribution alpha for environment prototype mixup')
+    parser.add_argument('--use_spu_gmm', action='store_true',
+                        help='use an EMA Gaussian per pseudo environment for extra spurious contexts')
+    parser.add_argument('--gmm_alpha', type=float, default=0.0,
+                        help='small blend weight for logits computed from GMM-sampled spurious contexts')
+    parser.add_argument('--gmm_sample_k', type=int, default=0,
+                        help='number of GMM-sampled spurious contexts; capped by K/fd_sample_k when positive')
+    parser.add_argument('--gmm_min_var', type=float, default=1e-4,
+                        help='minimum diagonal variance for each spurious-environment Gaussian')
+    parser.add_argument('--gmm_max_std', type=float, default=1.0,
+                        help='maximum diagonal std for GMM context sampling; <=0 disables clipping')
+    parser.add_argument('--lambda_bootstrap', type=float, default=0.0,
+                        help='weight of FLOOD-style bootstrap self-supervision during training')
+    parser.add_argument('--use_tta_rl', action='store_true',
+                        help='adapt the front-door context policy on each test split with an unlabeled bandit objective')
+    parser.add_argument('--tta_rl_steps', type=int, default=1,
+                        help='number of test-time RL adaptation steps per evaluation split')
+    parser.add_argument('--tta_rl_lr', type=float, default=1e-3,
+                        help='learning rate for the test-time context policy')
+    parser.add_argument('--ttt_feat_drop', type=float, default=0.1,
+                        help='feature dropout used to build test-time bootstrap views')
+    parser.add_argument('--ttt_edge_drop', type=float, default=0.1,
+                        help='edge dropout used to build test-time bootstrap views')
+    parser.add_argument('--ttt_ema', type=float, default=0.99,
+                        help='EMA momentum for the bootstrap target encoder')
+    parser.add_argument('--ttt_reward_conf', type=float, default=1.0,
+                        help='weight of prediction-confidence reward in test-time RL')
+    parser.add_argument('--ttt_reward_consistency', type=float, default=0.5,
+                        help='weight of augmentation-consistency reward in test-time RL')
+    parser.add_argument('--ttt_policy_entropy', type=float, default=0.01,
+                        help='entropy bonus for the test-time context policy')
 
 
 def sanitize_name(name):
@@ -92,7 +138,7 @@ if args.infer_env:
 if len(dataset.y.shape) == 1:
     dataset.y = dataset.y.unsqueeze(1)
 
-args.train_env_num = int(dataset.train_env_num)
+args.train_env_num = int(getattr(dataset, 'train_env_num', args.K))
 
 c = max(dataset.y.max().item() + 1, dataset.y.shape[1])
 d = dataset.x.shape[1]
@@ -109,7 +155,10 @@ m = ""
 for i in range(len(dataset.test_ood_idx)):
     m += f"test ood{i + 1} nodes {dataset.test_ood_idx[i].shape[0]} "
 print(m)
-print(f'[INFO] env numbers: {dataset.env_num} train env numbers: {dataset.train_env_num}')
+if hasattr(dataset, 'env_num') and hasattr(dataset, 'train_env_num'):
+    print(f'[INFO] env numbers: {dataset.env_num} train env numbers: {dataset.train_env_num}')
+else:
+    print(f'[INFO] no environment labels found; using {args.K} model-inferred pseudo environments')
 
 model = GraphFrontDoor(d, c, args, device).to(device)
 
@@ -141,7 +190,8 @@ print(f"[INFO] TensorBoard logging activated. Logs will be saved to: {log_dir}")
 dataset.x = dataset.x.to(device)
 dataset.y = dataset.y.to(device)
 dataset.edge_index = dataset.edge_index.to(device)
-dataset.env = dataset.env.to(device)
+if hasattr(dataset, 'env'):
+    dataset.env = dataset.env.to(device)
 
 for run in range(args.runs):
     model.reset_parameters()
@@ -153,8 +203,9 @@ for run in range(args.runs):
         losses = model.compute_losses(dataset, criterion, args, update_state=True)
         losses['total_loss'].backward()
         optimizer.step()
+        model.update_bootstrap_target()
         model.apply_state_update(losses.get('state_payload'))
-        result = evaluate_full(model, dataset, eval_func)
+        result = evaluate_full(model, dataset, eval_func, args if args.use_tta_rl else None)
         logger.add_result(run, result)
 
         global_step = run * args.epochs + epoch
@@ -164,10 +215,16 @@ for run in range(args.runs):
         writer.add_scalar('Loss/Med', (model.lambda_med * losses['loss_med']).item(), global_step)
         writer.add_scalar('Loss/Spu', (model.lambda_spu * losses['loss_spu']).item(), global_step)
         writer.add_scalar('Loss/FD', (model.lambda_fd * losses['loss_fd']).item(), global_step)
+        writer.add_scalar('Loss/FDAug', (model.lambda_fd_aug * losses['loss_fd_aug']).item(), global_step)
         writer.add_scalar('Loss/Var', (model.lambda_var * losses['loss_var']).item(), global_step)
+        writer.add_scalar('Loss/EnvCausal', (model.lambda_env_causal * losses['loss_env_causal']).item(), global_step)
+        writer.add_scalar('Loss/SpuEnv', (model.lambda_spu_env * losses['loss_spu_env']).item(), global_step)
+        writer.add_scalar('Loss/Bootstrap', (model.lambda_bootstrap * losses['loss_bootstrap']).item(), global_step)
         writer.add_scalar('Graph/CausalNorm', losses['causal_norm_mean'].item(), global_step)
         writer.add_scalar('Graph/SpuriousNorm', losses['spurious_norm_mean'].item(), global_step)
         writer.add_scalar('Graph/NumContexts', losses['num_contexts'].item(), global_step)
+        writer.add_scalar('Graph/NumMixedContexts', losses['num_mixed_contexts'].item(), global_step)
+        writer.add_scalar('Graph/NumGMMContexts', losses['num_gmm_contexts'].item(), global_step)
         writer.add_scalar('Metrics/1_Train', result[0] * 100, global_step)
         writer.add_scalar('Metrics/2_Valid', result[1] * 100, global_step)
         writer.add_scalar('Metrics/3_Test_In', result[2] * 100, global_step)
@@ -182,8 +239,14 @@ for run in range(args.runs):
                 f"Med: {(model.lambda_med * losses['loss_med']).item():.4f}, "
                 f"Spu: {(model.lambda_spu * losses['loss_spu']).item():.4f}, "
                 f"FD: {(model.lambda_fd * losses['loss_fd']).item():.4f}, "
+                f"FDAug: {(model.lambda_fd_aug * losses['loss_fd_aug']).item():.4f}, "
                 f"Var: {(model.lambda_var * losses['loss_var']).item():.4f}, "
+                f"EnvC: {(model.lambda_env_causal * losses['loss_env_causal']).item():.4f}, "
+                f"SpuE: {(model.lambda_spu_env * losses['loss_spu_env']).item():.4f}, "
+                f"Boot: {(model.lambda_bootstrap * losses['loss_bootstrap']).item():.4f}, "
                 f"Ctx: {int(losses['num_contexts'].item())}, "
+                f"MixCtx: {int(losses['num_mixed_contexts'].item())}, "
+                f"GMMCtx: {int(losses['num_gmm_contexts'].item())}, "
                 f"Train: {100 * result[0]:.2f}%, Valid: {100 * result[1]:.2f}%, "
                 f"Test In: {100 * result[2]:.2f}% "
             )

@@ -50,7 +50,24 @@ Use heavy causal/environment modules during training, but distill or cache into 
 
 Expected benefit: better deployment cost on Elliptic and Arxiv.
 
+## V006 - CASPER-FeatureDAG
+
+Sources: `P007`, `P005`, `P006`
+
+Add a DAG-ness-aware auxiliary score to `GraphFrontDoorDAG` so the feature DAG is not learned only from classification/front-door fitness plus an acyclicity penalty.
+
+Minimal version:
+
+```text
+h_A = h(A_feat)
+dag_score = causal_space_distance(T_phi(z), T_phi(z_hat), h_A)
+loss += lambda_casper * dag_score
+```
+
+Expected benefit: more stable feature DAG and mediator mask learning, especially when `A_feat` otherwise falls into a task-fitting but structurally weak solution.
+
 ## Deprecated / Caution
 
 - Do not combine V001 + V002 + V003 all at once. The loss surface and hyperparameter space will become hard to diagnose.
 - Do not implement full cross-domain DAG from `P006` before a lightweight causal-strength mask baseline.
+- Do not implement full bilevel `P007` CASPER before a lightweight DAG-ness-aware auxiliary score. The inner-loop scorer can destabilize current front-door training.

@@ -103,6 +103,100 @@ class FrontDoorBackboneLayer(nn.Module):
         return out
 
 
+class DAGAwareLatentMixer(nn.Module):
+    """
+    Small token-level DAG mixer for the front-door path.
+
+    Token order is [mediator, spurious, context, label_query]. The attention
+    mask allows spurious information to reach the label only through the
+    context token, matching the intended front-door path:
+
+        mediator -> label
+        spurious -> context -> label
+        spurious -/-> label
+    """
+
+    def __init__(self, hidden_dim, num_heads=1, num_layers=2, dropout=0.0):
+        super().__init__()
+        if hidden_dim % max(1, int(num_heads)) != 0:
+            num_heads = 1
+        self.hidden_dim = hidden_dim
+        self.num_heads = max(1, int(num_heads))
+        self.num_layers = max(1, int(num_layers))
+        self.label_query = Parameter(torch.zeros(1, 1, hidden_dim))
+
+        self.attn_layers = nn.ModuleList([
+            nn.MultiheadAttention(
+                hidden_dim,
+                self.num_heads,
+                dropout=dropout,
+                batch_first=True,
+            )
+            for _ in range(self.num_layers)
+        ])
+        self.attn_norms = nn.ModuleList([
+            nn.LayerNorm(hidden_dim)
+            for _ in range(self.num_layers)
+        ])
+        self.ffn_layers = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_dim, hidden_dim),
+            )
+            for _ in range(self.num_layers)
+        ])
+        self.ffn_norms = nn.ModuleList([
+            nn.LayerNorm(hidden_dim)
+            for _ in range(self.num_layers)
+        ])
+
+        allowed = torch.tensor(
+            [
+                [1, 0, 0, 0],  # mediator only preserves itself
+                [0, 1, 0, 0],  # spurious only preserves itself
+                [0, 1, 1, 0],  # context may absorb spurious information
+                [1, 0, 1, 1],  # label sees mediator and context, not spurious
+            ],
+            dtype=torch.bool,
+        )
+        self.register_buffer('blocked_attn_mask', ~allowed)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.normal_(self.label_query, std=0.02)
+        for module in self.modules():
+            if module is self:
+                continue
+            if isinstance(module, nn.MultiheadAttention):
+                module._reset_parameters()
+            elif hasattr(module, 'reset_parameters'):
+                module.reset_parameters()
+
+    def forward(self, z_mediator, z_spurious, context):
+        if z_spurious is None:
+            z_spurious = torch.zeros_like(z_mediator)
+        label_query = self.label_query.expand(z_mediator.size(0), -1, -1)
+        tokens = torch.stack([z_mediator, z_spurious, context], dim=1)
+        tokens = torch.cat([tokens, label_query], dim=1)
+        blocked = self.blocked_attn_mask.to(tokens.device)
+        attn_mask = tokens.new_zeros(blocked.shape)
+        attn_mask = attn_mask.masked_fill(blocked, -1e9)
+
+        for attn, attn_norm, ffn, ffn_norm in zip(
+            self.attn_layers,
+            self.attn_norms,
+            self.ffn_layers,
+            self.ffn_norms,
+        ):
+            attn_out, _ = attn(tokens, tokens, tokens, attn_mask=attn_mask, need_weights=False)
+            tokens = attn_norm(tokens + attn_out)
+            tokens = ffn_norm(tokens + ffn(tokens))
+
+        return tokens[:, 3, :]
+
+
 class GraphFrontDoorDAG(nn.Module):
     """
     Front-door graph model with a feature-only DAG.
@@ -160,18 +254,28 @@ class GraphFrontDoorDAG(nn.Module):
             nn.Linear(self.d, self.d),
         )
         self.fd_norm = nn.LayerNorm(self.d)
+        self.use_dag_mixer = getattr(args, 'use_dag_mixer', True)
+        self.dag_mixer = DAGAwareLatentMixer(
+            self.d,
+            num_heads=getattr(args, 'dag_mixer_heads', 1),
+            num_layers=getattr(args, 'dag_mixer_layers', 2),
+            dropout=getattr(args, 'dropout', 0.0),
+        )
 
         self.dropout = getattr(args, 'dropout', 0.0)
         self.gamma = getattr(args, 'gamma', 0.99)
         self.fd_blend = getattr(args, 'fd_blend', 0.5)
         self.fd_sample_k = max(0, int(getattr(args, 'K', 0)))
         self.context_sample_seed = int(getattr(args, 'seed', 0))
+        self.proto_aug_k = max(0, int(getattr(args, 'proto_aug_k', 0)))
+        self.proto_mix_alpha = max(1e-3, float(getattr(args, 'proto_mix_alpha', 1.0)))
 
         self.lambda_l1 = getattr(args, 'lambda_l1', 1e-5)
         self.lambda_dag = getattr(args, 'lambda_dag', 0.1)
         self.lambda_med = getattr(args, 'lambda_med', 0.5)
         self.lambda_spu = getattr(args, 'lambda_spu', 0.1)
         self.lambda_fd = getattr(args, 'lambda_fd', 0.5)
+        self.lambda_fd_aug = getattr(args, 'lambda_fd_aug', 0.5)
         self.lambda_var = getattr(args, 'lambda_var', 0.05)
         self.lambda_ind = getattr(args, 'lambda_ind', 0.1)
         self.lambda_env = getattr(args, 'lambda_env', 0.1)
@@ -201,6 +305,7 @@ class GraphFrontDoorDAG(nn.Module):
             if hasattr(module, 'reset_parameters'):
                 module.reset_parameters()
         self.fd_norm.reset_parameters()
+        self.dag_mixer.reset_parameters()
         nn.init.uniform_(self.A_feat, -0.01, 0.01)
         nn.init.zeros_(self.gate_base)
         self.proto_spu_env.zero_()
@@ -313,17 +418,57 @@ class GraphFrontDoorDAG(nn.Module):
             indices = indices.to(contexts.device)
         return contexts.index_select(0, indices)
 
-    def frontdoor_logits_from_contexts(self, z_mediator, contexts):
+    def augment_frontdoor_contexts(self, contexts, training=False):
+        if (
+            not training
+            or self.proto_aug_k <= 0
+            or contexts is None
+            or contexts.size(0) < 2
+        ):
+            return contexts, 0
+
+        contexts = contexts.detach()
+        num_contexts = contexts.size(0)
+        mix_count = self.proto_aug_k
+
+        idx_a = torch.randint(num_contexts, (mix_count,), device=contexts.device)
+        idx_b = torch.randint(num_contexts - 1, (mix_count,), device=contexts.device)
+        idx_b = idx_b + (idx_b >= idx_a).long()
+
+        beta_dist = torch.distributions.Beta(
+            contexts.new_tensor(self.proto_mix_alpha),
+            contexts.new_tensor(self.proto_mix_alpha),
+        )
+        mix_weight = beta_dist.sample((mix_count, 1)).to(contexts.device)
+        mixed_contexts = (
+            mix_weight * contexts.index_select(0, idx_a)
+            + (1.0 - mix_weight) * contexts.index_select(0, idx_b)
+        )
+        mixed_contexts = F.normalize(mixed_contexts, dim=1)
+        return torch.cat([contexts, mixed_contexts.detach()], dim=0), mix_count
+
+    def frontdoor_logits_from_contexts(self, z_mediator, z_spurious, contexts):
         base_logits = self.fd_classifier(z_mediator)
         if contexts is None or contexts.size(0) == 0:
             return base_logits, None
 
         num_contexts = contexts.size(0)
         mediator_expand = z_mediator.unsqueeze(1).expand(-1, num_contexts, -1)
+        spurious_expand = z_spurious.unsqueeze(1).expand(-1, num_contexts, -1)
         context_expand = contexts.unsqueeze(0).expand(z_mediator.size(0), -1, -1)
-        fused_input = torch.cat([mediator_expand, context_expand], dim=-1)
-        fused = self.fd_fuser(fused_input.reshape(-1, self.d * 2)).view(z_mediator.size(0), num_contexts, self.d)
-        fused = self.fd_norm(fused + mediator_expand)
+
+        if self.use_dag_mixer:
+            fused = self.dag_mixer(
+                mediator_expand.reshape(-1, self.d),
+                spurious_expand.reshape(-1, self.d),
+                context_expand.reshape(-1, self.d),
+            ).view(z_mediator.size(0), num_contexts, self.d)
+            fused = self.fd_norm(fused + mediator_expand)
+        else:
+            fused_input = torch.cat([mediator_expand, context_expand], dim=-1)
+            fused = self.fd_fuser(fused_input.reshape(-1, self.d * 2)).view(z_mediator.size(0), num_contexts, self.d)
+            fused = self.fd_norm(fused + mediator_expand)
+
         logits_stack = self.fd_classifier(fused.reshape(-1, self.d)).view(z_mediator.size(0), num_contexts, self.c)
         fd_logits = logits_stack.mean(dim=1)
         return fd_logits, logits_stack
@@ -349,7 +494,7 @@ class GraphFrontDoorDAG(nn.Module):
             self.get_frontdoor_contexts(),
             training=training,
         )
-        fd_logits, fd_stack = self.frontdoor_logits_from_contexts(z_mediator, contexts)
+        fd_logits, fd_stack = self.frontdoor_logits_from_contexts(z_mediator, z_spurious, contexts)
         logits = self.blend_logits(mediator_logits, fd_logits)
 
         if training:
@@ -407,6 +552,14 @@ class GraphFrontDoorDAG(nn.Module):
             return self.A_feat.new_zeros(())
         probs = torch.softmax(logits_stack, dim=-1)
         return probs.var(dim=1, unbiased=False).mean()
+
+    def compute_context_supervised_loss(self, logits_stack, y, criterion, args):
+        if logits_stack is None or logits_stack.size(1) == 0:
+            return self.A_feat.new_zeros(())
+        num_nodes, num_contexts, _ = logits_stack.shape
+        logits_flat = logits_stack.reshape(num_nodes * num_contexts, self.c)
+        y_flat = y.repeat_interleave(num_contexts, dim=0)
+        return self.compute_supervised_loss(logits_flat, y_flat, criterion, args).mean()
 
     def compute_env_invariance_loss(self, logits, envs):
         if envs is None or envs.numel() == 0 or self.num_envs <= 1:
@@ -493,12 +646,21 @@ class GraphFrontDoorDAG(nn.Module):
             self.get_frontdoor_contexts(spu_tr, env_tr),
             training=True,
         )
-        fd_logits_tr, fd_stack_tr = self.frontdoor_logits_from_contexts(med_tr, contexts)
+        num_base_contexts = 0 if contexts is None else int(contexts.size(0))
+        contexts, num_mixed_contexts = self.augment_frontdoor_contexts(
+            contexts,
+            training=True,
+        )
+        fd_logits_tr, fd_stack_tr = self.frontdoor_logits_from_contexts(med_tr, spu_tr, contexts)
         final_logits_tr = self.blend_logits(mediator_logits_tr, fd_logits_tr)
 
         loss_cls = self.compute_supervised_loss(final_logits_tr, y_tr, criterion, args).mean()
         loss_med = self.compute_supervised_loss(mediator_logits_tr, y_tr, criterion, args).mean()
         loss_fd = self.compute_supervised_loss(fd_logits_tr, y_tr, criterion, args).mean()
+        fd_aug_stack_tr = None
+        if fd_stack_tr is not None and num_mixed_contexts > 0:
+            fd_aug_stack_tr = fd_stack_tr[:, num_base_contexts:, :]
+        loss_fd_aug = self.compute_context_supervised_loss(fd_aug_stack_tr, y_tr, criterion, args)
         loss_var = self.compute_frontdoor_variance_loss(fd_stack_tr)
         loss_ind = self.compute_independence_loss(med_tr, spu_tr)
         loss_dag = self.dag_regularization_loss(mediator_gate, dag_total)
@@ -523,6 +685,7 @@ class GraphFrontDoorDAG(nn.Module):
             loss_cls
             + self.lambda_med * loss_med
             + self.lambda_fd * loss_fd
+            + self.lambda_fd_aug * loss_fd_aug
             + self.lambda_var * loss_var
             + self.lambda_ind * loss_ind
             + self.lambda_dag * loss_dag
@@ -544,6 +707,7 @@ class GraphFrontDoorDAG(nn.Module):
             'loss_cls': loss_cls,
             'loss_med': loss_med,
             'loss_fd': loss_fd,
+            'loss_fd_aug': loss_fd_aug,
             'loss_var': loss_var,
             'loss_ind': loss_ind,
             'loss_dag': loss_dag,
@@ -554,6 +718,7 @@ class GraphFrontDoorDAG(nn.Module):
             'causal_score_mean': causal_score.mean().detach(),
             'pollution_score_mean': pollution_score.mean().detach(),
             'num_contexts': torch.tensor(float(num_contexts), device=x.device),
+            'num_mixed_contexts': torch.tensor(float(num_mixed_contexts), device=x.device),
             'state_payload': state_payload,
         }
 

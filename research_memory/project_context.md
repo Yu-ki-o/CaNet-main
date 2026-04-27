@@ -17,7 +17,7 @@ The active research direction appears to be:
 CaNet environment inference + front-door causal decomposition + graph OOD node classification
 ```
 
-The strongest related papers among the current six are:
+The strongest related papers in the current memory are:
 
 - Foundation: `P001`
 - Environment upgrade: `P002`
@@ -25,6 +25,7 @@ The strongest related papers among the current six are:
 - Front-door design: `P004`
 - DAG structure control: `P005`
 - Better independence regularization: `P006`
+- DAG-ness-aware feature DAG learning: `P007`
 
 ## Current Implementation Bias
 
@@ -33,6 +34,8 @@ The current front-door model likely separates causal/spurious information mostly
 The current environment/context source is likely local or prototype-based. `P002` suggests adding global and multi-hop local contexts.
 
 The current independence penalty is likely uniform. `P006` suggests making it channel/feature-dependent based on causal strength.
+
+The current DAG-frontdoor model has a feature-only DAG. `P007` suggests the feature DAG should not be learned only through task/front-door fitness plus an acyclicity penalty; a DAG-ness-aware score or dynamic regularizer may make the learned structure more meaningful.
 
 ## Dataset Notes
 

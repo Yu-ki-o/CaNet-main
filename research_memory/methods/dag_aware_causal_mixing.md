@@ -3,6 +3,7 @@
 ## Source Papers
 
 - `P005` DAG-aware Transformer
+- `P007` CASPER for learning structurally meaningful DAG masks
 
 ## Core Idea
 
@@ -32,6 +33,8 @@ z_spurious -/-> label_query direct path blocked or penalized
 
 This belongs in `model_frontdoor_dag.py` more than base `model_frontdoor.py`.
 
+If the DAG mask is learned rather than hand-designed, use `P007` as a warning: the mask-learning score should be aware of DAG-ness, not only downstream label fitness plus an acyclicity penalty.
+
 ## Minimal Version
 
 Use a small multi-head attention block over 4-6 latent tokens per node, not full node-node transformer attention.
@@ -39,5 +42,6 @@ Use a small multi-head attention block over 4-6 latent tokens per node, not full
 ## Risks
 
 - Hand-designed DAG can be wrong.
+- Learned DAG masks can become task-fitting shortcuts if their score is DAG-ness independent.
 - A too-strict mask may reduce useful signal.
 - Needs ablation against simple concat/gate.

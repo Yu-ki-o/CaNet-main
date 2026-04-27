@@ -1,6 +1,6 @@
 # Research Memory Index
 
-This is the first project-level memory set for the current CaNet/front-door graph OOD work. It currently includes only the six user-selected papers most related to the current model.
+This is the project-level memory set for the current CaNet/front-door graph OOD work. It started from the six user-selected papers most related to the current model and now also includes a DAG structure learning paper for the `model_frontdoor_dag.py` direction.
 
 ## Paper Map
 
@@ -10,6 +10,7 @@ This is the first project-level memory set for the current CaNet/front-door grap
 - `P004` CIPT: front-door adjustment template with causal/spurious decomposition and diversity augmentation.
 - `P005` DAG-aware Transformer: injects causal DAG structure into attention and connects to ATE/CATE/IPTW/AIPW.
 - `P006` CIW: causal-effect-guided differential feature decorrelation and sample weighting.
+- `P007` CASPER: DAG-ness-aware score function for differentiable DAG structure learning in a dynamic causal space.
 
 ## Current Knowledge Map
 
@@ -39,6 +40,12 @@ Project synthesis: a stronger graph front-door model should probably separate bo
 
 Project synthesis: current `model_frontdoor_dag.py` can be evolved into a small latent-token DAG mixer.
 
+### DAG Structure Learning
+
+`P007` warns that differentiable DAG learners can learn suboptimal graphs if the score function measures only data/task fitness while acyclicity is handled as a separate penalty.
+
+Project synthesis: the current feature DAG `A_feat` in `model_frontdoor_dag.py` should eventually use a DAG-ness-aware score or dynamic regularizer, not only classification/front-door losses plus `h(A)` penalty.
+
 ### Decorrelation
 
 `P006` warns that uniform decorrelation can destroy useful causal feature correlations.
@@ -51,6 +58,7 @@ Project synthesis: the current `lambda_ind` loss should eventually become causal
 2. Edge-Causal FrontDoor: use `P003` causal edge discriminator to produce mediator graph and environmental context graph.
 3. DAG-Masked FrontDoor: use `P005` DAG-aware latent attention to control causal/spurious/context information flow.
 4. CIW-Independence: replace uniform independence with `P006` causal-strength-guided decorrelation.
+5. CASPER-FeatureDAG: use `P007` DAG-ness-aware scoring to make the learned feature DAG more structurally meaningful.
 
 ## How To Use This Memory
 

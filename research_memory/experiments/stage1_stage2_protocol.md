@@ -30,6 +30,7 @@ Examples:
 - Only changing `lambda_ind` to masked independence: stage2 may be enough after a small sanity check.
 - Adding edge discriminator changes graph encoder behavior: rerun stage1.
 - Adding DAG latent mixer after representations: likely stage2 first, then stage1 if unstable.
+- Adding a lightweight CASPER-style DAG score: stage2 first if it only adds a loss term; rerun stage1 if it changes the encoder, hidden reconstruction, or DAG mixer architecture.
 
 ## Updating Defaults
 

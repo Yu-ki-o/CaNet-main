@@ -4,7 +4,7 @@ from grid_search_frontdoor_configs import build_frontdoor_search
 
 DATASET = "twitch"
 BACKBONE = "gcn"
-SEARCH_STAGE = "stage1"  # choose from: stage1, stage2
+SEARCH_STAGE = "stage2"  # choose from: stage1, stage2
 
 BASE_CMD, STAGE_GRIDS = build_frontdoor_search(DATASET, BACKBONE)
 

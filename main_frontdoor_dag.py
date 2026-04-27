@@ -43,6 +43,8 @@ def add_frontdoor_dag_args(parser):
                         help='weight of spurious branch environment loss')
     parser.add_argument('--lambda_fd', type=float, default=0.5,
                         help='weight of front-door aggregation loss')
+    parser.add_argument('--lambda_fd_aug', type=float, default=0.5,
+                        help='weight of label-preserving supervision on mixed environment contexts')
     parser.add_argument('--lambda_var', type=float, default=0.05,
                         help='weight of cross-context front-door variance penalty')
     parser.add_argument('--lambda_env', type=float, default=0.1,
@@ -63,6 +65,17 @@ def add_frontdoor_dag_args(parser):
                         help='penalty coefficient for feature pollution from low-score nodes')
     parser.add_argument('--fd_blend', type=float, default=0.5,
                         help='blend ratio between mediator logits and front-door aggregated logits')
+    parser.add_argument('--proto_aug_k', type=int, default=1,
+                        help='number of mixed environment prototypes added during training')
+    parser.add_argument('--proto_mix_alpha', type=float, default=1.0,
+                        help='Beta distribution alpha for environment prototype mixup')
+    parser.add_argument('--disable_dag_mixer', action='store_false', dest='use_dag_mixer',
+                        help='disable DAG-masked latent mixing and use the old concat fuser')
+    parser.set_defaults(use_dag_mixer=True)
+    parser.add_argument('--dag_mixer_heads', type=int, default=1,
+                        help='attention heads in the DAG-masked latent mixer')
+    parser.add_argument('--dag_mixer_layers', type=int, default=2,
+                        help='number of masked latent attention layers')
     parser.add_argument('--disable_cipt_schedule', action='store_false', dest='use_cipt_schedule',
                         help='disable the CIPT-style curriculum that warms up decomposition before full intervention')
     parser.add_argument('--decomp_warmup_epochs', type=int, default=50,
@@ -97,6 +110,7 @@ def capture_lambda_state(model):
         'lambda_med',
         'lambda_spu',
         'lambda_fd',
+        'lambda_fd_aug',
         'lambda_var',
         'lambda_ind',
         'lambda_env',
@@ -141,7 +155,7 @@ def apply_cipt_schedule(model, base_lambdas, epoch, args):
     intervention_scale = min(max(intervention_scale, 0.0), 1.0)
     dag_scale = 0.5 + 0.5 * intervention_scale
 
-    for name in ('lambda_fd', 'lambda_var', 'lambda_env', 'lambda_inv'):
+    for name in ('lambda_fd', 'lambda_fd_aug', 'lambda_var', 'lambda_env', 'lambda_inv'):
         setattr(model, name, base_lambdas[name] * intervention_scale)
     setattr(model, 'lambda_dag', base_lambdas['lambda_dag'] * dag_scale)
 
@@ -243,7 +257,8 @@ print(f"[INFO] TensorBoard logging activated. Logs will be saved to: {log_dir}")
 print(
     f"[INFO] Training recipe | CIPT schedule: {args.use_cipt_schedule} | "
     f"cosine lr: {args.use_cosine_lr} | warmup: {args.decomp_warmup_epochs} | "
-    f"ramp: {args.intervention_ramp_epochs} | grad clip: {args.grad_clip}"
+    f"ramp: {args.intervention_ramp_epochs} | grad clip: {args.grad_clip} | "
+    f"DAG mixer: {args.use_dag_mixer}"
 )
 
 dataset.x = dataset.x.to(device)
@@ -291,6 +306,7 @@ for run in range(args.runs):
         writer.add_scalar('Loss/Cls', losses['loss_cls'].item(), global_step)
         writer.add_scalar('Loss/Med', losses['loss_med'].item(), global_step)
         writer.add_scalar('Loss/FD', losses['loss_fd'].item(), global_step)
+        writer.add_scalar('Loss/FDAug', (model.lambda_fd_aug * losses['loss_fd_aug']).item(), global_step)
         writer.add_scalar('Loss/Ind', (model.lambda_ind * losses['loss_ind']).item(), global_step)
         writer.add_scalar('Loss/DAG', (model.lambda_dag * losses['loss_dag']).item(), global_step)
         writer.add_scalar('Loss/Spu', (model.lambda_spu * losses['loss_spu']).item(), global_step)
@@ -301,6 +317,7 @@ for run in range(args.runs):
         writer.add_scalar('Graph/CausalScore', losses['causal_score_mean'].item(), global_step)
         writer.add_scalar('Graph/PollutionScore', losses['pollution_score_mean'].item(), global_step)
         writer.add_scalar('Graph/NumContexts', losses['num_contexts'].item(), global_step)
+        writer.add_scalar('Graph/NumMixedContexts', losses['num_mixed_contexts'].item(), global_step)
         writer.add_scalar('Schedule/LR', current_lr, global_step)
         writer.add_scalar('Schedule/InterventionScale', schedule_state['intervention_scale'], global_step)
         writer.add_scalar('Schedule/DAGScale', schedule_state['dag_scale'], global_step)
@@ -326,6 +343,7 @@ for run in range(args.runs):
                 f"Cls: {losses['loss_cls'].item():.4f}, "
                 f"Med: {(model.lambda_med * losses['loss_med']).item():.4f}, "
                 f"FD: {(model.lambda_fd * losses['loss_fd']).item():.4f}, "
+                f"FDAug: {(model.lambda_fd_aug * losses['loss_fd_aug']).item():.4f}, "
                 f"Ind: {(model.lambda_ind * losses['loss_ind']).item():.4f}, "
                 f"DAG: {(model.lambda_dag * losses['loss_dag']).item():.4f}, "
                 f"Spu: {(model.lambda_spu * losses['loss_spu']).item():.4f}, "
@@ -335,6 +353,7 @@ for run in range(args.runs):
                 f"LR: {current_lr:.6f}, "
                 f"IntScale: {schedule_state['intervention_scale']:.3f}, "
                 f"Ctx: {int(losses['num_contexts'].item())}, "
+                f"MixCtx: {int(losses['num_mixed_contexts'].item())}, "
                 f"Train: {100 * result[0]:.2f}%, Valid: {100 * result[1]:.2f}%, "
                 f"Test In: {100 * result[2]:.2f}% "
             )

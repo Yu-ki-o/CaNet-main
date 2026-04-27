@@ -115,9 +115,9 @@ CORE_DEFAULTS = {
     },
     ("twitch", "gcn"): {
         "lr": 0.01,
-        "weight_decay": 5e-5,
+        "weight_decay": 0.0001,
         "dropout": 0.0,
-        "hidden_channels": 64,
+        "hidden_channels": 32,
         "K": 3,
     },
     ("twitch", "gat"): {
