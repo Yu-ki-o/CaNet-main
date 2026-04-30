@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-from torch_geometric.utils import add_self_loops, degree, remove_self_loops
+from torch_geometric.utils import add_self_loops, degree, remove_self_loops, softmax
 from torch_sparse import SparseTensor, matmul
 
 
@@ -199,18 +199,20 @@ class DAGAwareLatentMixer(nn.Module):
 
 class GraphFrontDoorDAG(nn.Module):
     """
-    Front-door graph model with a feature-only DAG.
+    Front-door graph model with a DAG over node and edge-summary variables.
 
     Main idea:
-    1) Learn a DAG A over hidden feature dimensions only (not prototypes + labels).
-    2) Use DAG-derived structural scores to construct a soft mediator mask M.
-    3) Split node representations into mediator/spurious parts.
-    4) Keep the front-door aggregation path by averaging predictions over
+    1) Encode nodes with the GNN backbone.
+    2) Build a NodeIGM-style edge semantic summary from endpoint hidden states.
+    3) Learn a DAG A over [node hidden dims, edge-summary dims, label dims].
+    4) Use DAG-derived label effects and incoming pollution to construct M.
+    5) Split node representations into mediator/spurious parts.
+    6) Keep the front-door aggregation path by averaging predictions over
        environment-specific spurious contexts.
 
     Compared with the previous prototype-reconstruction DAG, this version:
-    - removes prototype/label reconstruction from DAG learning,
-    - uses the DAG directly as a structured prior for mediator discovery,
+    - avoids feeding raw node degree as a feature shortcut,
+    - lets edge/neighbor semantics guide mediator discovery through the DAG,
     - learns the DAG jointly with label sufficiency, environment invariance,
       spurious-environment predictability, and front-door consistency.
     """
@@ -242,10 +244,41 @@ class GraphFrontDoorDAG(nn.Module):
         self.fd_classifier = nn.Linear(self.d, c)
         self.env_classifier = nn.Linear(self.d, self.num_envs)
 
-        # Feature-only DAG.
-        self.A_feat = Parameter(torch.zeros(self.d, self.d))
+        self.edge_score_temp = max(1e-3, float(getattr(args, 'edge_score_temp', 1.0)))
+        self.edge_pair_encoder = nn.Sequential(
+            nn.Linear(self.d * 4, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.edge_score_head = nn.Linear(self.d, 1)
+        self.edge_message_head = nn.Linear(self.d, self.d)
+        self.edge_summary_norm = nn.LayerNorm(self.d)
+        self.node_edge_fuser = nn.Sequential(
+            nn.Linear(self.d * 3, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.node_edge_norm = nn.LayerNorm(self.d)
+
+        # DAG variable order: [node hidden dims, edge-summary dims, label dims].
+        self.node_var_dim = self.d
+        self.edge_var_dim = self.d
+        self.label_var_dim = self.c
+        self.dag_var_dim = self.node_var_dim + self.edge_var_dim + self.label_var_dim
+        self.node_var_slice = slice(0, self.node_var_dim)
+        self.edge_var_slice = slice(self.node_var_dim, self.node_var_dim + self.edge_var_dim)
+        self.label_var_slice = slice(self.node_var_dim + self.edge_var_dim, self.dag_var_dim)
+        self.non_label_var_dim = self.node_var_dim + self.edge_var_dim
+
+        self.A_feat = Parameter(torch.zeros(self.dag_var_dim, self.dag_var_dim))
         # Learnable base score per hidden dimension; DAG structure refines it.
         self.gate_base = Parameter(torch.zeros(self.d))
+        self.sem_reconstructor = nn.Sequential(
+            nn.Linear(self.non_label_var_dim, self.non_label_var_dim),
+            nn.ReLU(),
+            nn.Linear(self.non_label_var_dim, self.non_label_var_dim),
+        )
+        self.dag_label_bias = Parameter(torch.zeros(self.c))
 
         # Front-door fusion: mediator + context -> intervened representation.
         self.fd_fuser = nn.Sequential(
@@ -281,16 +314,21 @@ class GraphFrontDoorDAG(nn.Module):
         self.lambda_env = getattr(args, 'lambda_env', 0.1)
         self.lambda_inv = getattr(args, 'lambda_inv', 0.1)
         self.lambda_gate = getattr(args, 'lambda_gate', 0.0)
+        self.lambda_sem = getattr(args, 'lambda_sem', 0.05)
+        self.lambda_dag_degree = getattr(args, 'lambda_dag_degree', 0.0)
 
         self.mediator_temp = getattr(args, 'mediator_temp', 8.0)
         self.mediator_threshold = getattr(args, 'mediator_threshold', 0.5)
         self.low_temp = getattr(args, 'low_temp', 8.0)
         self.low_threshold = getattr(args, 'low_threshold', 0.35)
         self.pollution_coeff = getattr(args, 'pollution_coeff', 1.0)
+        self.edge_pollution_coeff = getattr(args, 'edge_pollution_coeff', 0.5)
 
         # Only keep env-level spurious prototypes for front-door contexts.
         self.register_buffer('proto_spu_env', torch.zeros(self.num_envs, self.d))
         self.register_buffer('proto_spu_env_valid', torch.zeros(self.num_envs, dtype=torch.bool))
+        self.register_buffer('dag_allowed_mask', self.build_dag_allowed_mask())
+        self._last_node_degree_signal = None
 
         self.reset_parameters()
 
@@ -301,6 +339,14 @@ class GraphFrontDoorDAG(nn.Module):
         self.classifier.reset_parameters()
         self.fd_classifier.reset_parameters()
         self.env_classifier.reset_parameters()
+        self._reset_module_parameters(self.edge_pair_encoder)
+        self.edge_score_head.reset_parameters()
+        self.edge_message_head.reset_parameters()
+        self.edge_summary_norm.reset_parameters()
+        self._reset_module_parameters(self.node_edge_fuser)
+        nn.init.zeros_(self.node_edge_fuser[-1].weight)
+        nn.init.zeros_(self.node_edge_fuser[-1].bias)
+        self.node_edge_norm.reset_parameters()
         for module in self.fd_fuser:
             if hasattr(module, 'reset_parameters'):
                 module.reset_parameters()
@@ -308,11 +354,31 @@ class GraphFrontDoorDAG(nn.Module):
         self.dag_mixer.reset_parameters()
         nn.init.uniform_(self.A_feat, -0.01, 0.01)
         nn.init.zeros_(self.gate_base)
+        self._reset_module_parameters(self.sem_reconstructor)
+        nn.init.zeros_(self.sem_reconstructor[-1].weight)
+        nn.init.zeros_(self.sem_reconstructor[-1].bias)
+        nn.init.zeros_(self.dag_label_bias)
         self.proto_spu_env.zero_()
         self.proto_spu_env_valid.zero_()
+        self._last_node_degree_signal = None
+
+    def _reset_module_parameters(self, module):
+        for sub_module in module.modules():
+            if sub_module is module:
+                continue
+            if hasattr(sub_module, 'reset_parameters'):
+                sub_module.reset_parameters()
+
+    def build_dag_allowed_mask(self):
+        allowed = torch.ones(self.dag_var_dim, self.dag_var_dim, dtype=torch.bool)
+        allowed.fill_diagonal_(False)
+        # Label dimensions are supervised sink nodes: features may point to labels,
+        # but labels must not become parents of hidden/edge variables.
+        allowed[self.label_var_slice, :] = False
+        return allowed
 
     def get_masked_A(self):
-        return self.A_feat - torch.diag(torch.diag(self.A_feat))
+        return self.A_feat * self.dag_allowed_mask.to(self.A_feat.device, dtype=self.A_feat.dtype)
 
     def _normalize_score(self, values, default_value=0.5):
         if values.numel() == 0:
@@ -325,47 +391,99 @@ class GraphFrontDoorDAG(nn.Module):
 
     def get_causal_effect_and_mask(self):
         """
-        Use only the feature DAG to produce mediator scores.
+        Use the node/edge/label DAG to produce mediator scores.
 
-        - reach_score: how strongly each hidden dimension participates in the
-          learned DAG's total structural flow.
-        - pollution_score: penalize dimensions strongly coupled with low-score
-          dimensions.
+        - label_effect: total effect from a hidden dimension to label sinks.
+        - pollution_score: incoming structural pressure from other variables,
+          especially edge-summary dimensions that may encode environmental
+          shortcuts.
         - gate_base: lets the task losses directly refine mediator selection,
           while the DAG acts as a structured prior.
         """
         A = self.get_masked_A()
         A_sq = A * A
         C_tot = torch.matrix_exp(A_sq)
+        eye = torch.eye(self.dag_var_dim, device=C_tot.device, dtype=C_tot.dtype)
+        C_flow = C_tot - eye
 
-        feature_flow = C_tot - torch.diag(torch.diag(C_tot))
-        reach_score = self._normalize_score(feature_flow.mean(dim=1), default_value=0.5)
+        node_to_label = C_flow[self.node_var_slice, self.label_var_slice]
+        label_effect = self._normalize_score(node_to_label.mean(dim=1), default_value=0.5)
 
-        symmetric_flow = 0.5 * (feature_flow + feature_flow.t())
-        low_weight = torch.sigmoid(self.low_temp * (self.low_threshold - reach_score))
+        non_label_flow = C_flow[:self.non_label_var_dim, :self.non_label_var_dim]
+        incoming_score = non_label_flow[:, self.node_var_slice].mean(dim=0)
+        edge_incoming = C_flow[self.edge_var_slice, self.node_var_slice].mean(dim=0)
+
+        low_weight = torch.sigmoid(self.low_temp * (self.low_threshold - label_effect))
         low_weight = low_weight / low_weight.sum().clamp_min(1e-8)
-        pollution_score = torch.matmul(symmetric_flow, low_weight)
+        node_symmetric_flow = 0.5 * (
+            C_flow[self.node_var_slice, self.node_var_slice]
+            + C_flow[self.node_var_slice, self.node_var_slice].t()
+        )
+        low_score_coupling = torch.matmul(node_symmetric_flow, low_weight)
+        pollution_score = incoming_score + self.edge_pollution_coeff * edge_incoming + low_score_coupling
         pollution_score = self._normalize_score(pollution_score, default_value=0.0)
 
         base_score = torch.sigmoid(self.gate_base)
-        causal_score = self._normalize_score(base_score + reach_score, default_value=0.5)
+        causal_score = self._normalize_score(base_score + label_effect, default_value=0.5)
         mediator_logit = causal_score - self.pollution_coeff * pollution_score - self.mediator_threshold
         mediator_gate = torch.sigmoid(self.mediator_temp * mediator_logit)
         return causal_score, pollution_score, mediator_gate, C_tot
 
+    def compute_edge_semantic_summary(self, h, edge_index, training=False):
+        if edge_index.numel() == 0:
+            self._last_node_degree_signal = h.new_zeros(h.size(0))
+            return h.new_zeros(h.size())
+
+        src, dst = edge_index
+        edge_feat = torch.cat(
+            [
+                h[src],
+                h[dst],
+                h[src] * h[dst],
+                torch.abs(h[src] - h[dst]),
+            ],
+            dim=-1,
+        )
+        edge_hidden = self.edge_pair_encoder(edge_feat)
+        edge_hidden = F.dropout(edge_hidden, self.dropout, training=training)
+        edge_logits = self.edge_score_head(edge_hidden).squeeze(-1) / self.edge_score_temp
+        edge_alpha = softmax(edge_logits, dst, num_nodes=h.size(0))
+        edge_msg = self.edge_message_head(edge_hidden)
+
+        edge_summary = h.new_zeros(h.size())
+        edge_summary.index_add_(0, dst, edge_alpha.unsqueeze(-1) * edge_msg)
+        edge_summary = self.edge_summary_norm(edge_summary)
+
+        deg = degree(dst, h.size(0)).to(device=h.device, dtype=h.dtype)
+        deg = torch.log1p(deg)
+        deg = deg / deg.max().clamp_min(1.0)
+        self._last_node_degree_signal = deg.detach()
+        return edge_summary
+
+    def fuse_node_edge_representation(self, h, edge_summary, training=False):
+        fuse_input = torch.cat([h, edge_summary, h * edge_summary], dim=-1)
+        edge_delta = self.node_edge_fuser(fuse_input)
+        edge_delta = F.dropout(edge_delta, self.dropout, training=training)
+        return self.node_edge_norm(h + edge_delta)
+
     def encode_representation(self, x, edge_index, training=False):
         x = F.dropout(x, self.dropout, training=training)
-        z = self.act_fn(self.input_proj(x))
+        h = self.act_fn(self.input_proj(x))
         for layer in self.backbone_layers:
-            z = F.dropout(z, self.dropout, training=training)
-            z = self.act_fn(layer(z, edge_index))
+            h = F.dropout(h, self.dropout, training=training)
+            h = self.act_fn(layer(h, edge_index))
 
+        edge_summary = self.compute_edge_semantic_summary(h, edge_index, training=training)
+        z = self.fuse_node_edge_representation(h, edge_summary, training=training)
+        dag_vars = torch.cat([z, edge_summary], dim=-1)
         causal_score, pollution_score, mediator_gate, dag_total = self.get_causal_effect_and_mask()
         z_mediator = F.dropout(z * mediator_gate.unsqueeze(0), self.dropout, training=training)
         z_spurious = F.dropout(z * (1.0 - mediator_gate).unsqueeze(0), self.dropout, training=training)
         mediator_logits = self.classifier(z_mediator)
         return (
             z,
+            edge_summary,
+            dag_vars,
             z_mediator,
             z_spurious,
             mediator_logits,
@@ -481,6 +599,8 @@ class GraphFrontDoorDAG(nn.Module):
     def forward(self, x, edge_index, training=False):
         (
             z,
+            edge_summary,
+            dag_vars,
             z_mediator,
             z_spurious,
             mediator_logits,
@@ -501,6 +621,8 @@ class GraphFrontDoorDAG(nn.Module):
             return (
                 logits,
                 z,
+                edge_summary,
+                dag_vars,
                 z_mediator,
                 z_spurious,
                 mediator_gate,
@@ -581,7 +703,7 @@ class GraphFrontDoorDAG(nn.Module):
     def dag_regularization_loss(self, mediator_gate, dag_total):
         A = self.get_masked_A()
         A_sq = A * A
-        h_A = torch.trace(torch.matrix_exp(A_sq)) - self.d
+        h_A = torch.trace(torch.matrix_exp(A_sq)) - self.dag_var_dim
         h_A_clipped = torch.clamp(h_A, min=-10.0, max=10.0)
         loss_dag = 0.5 * (h_A_clipped ** 2) + self.lambda_l1 * torch.norm(A, p=1)
 
@@ -589,10 +711,50 @@ class GraphFrontDoorDAG(nn.Module):
         if self.lambda_gate > 0.0:
             loss_dag = loss_dag + self.lambda_gate * mediator_gate.mean()
 
-        # Mild consistency term: high-flow nodes should align with selected mediators.
-        flow_score = self._normalize_score((dag_total - torch.diag(torch.diag(dag_total))).mean(dim=1), default_value=0.5)
+        # Mild consistency term: dimensions with strong total effect on labels
+        # should align with selected mediators.
+        label_flow = dag_total[self.node_var_slice, self.label_var_slice].mean(dim=1)
+        flow_score = self._normalize_score(label_flow, default_value=0.5)
         loss_dag = loss_dag + 0.1 * F.mse_loss(mediator_gate, flow_score.detach())
         return loss_dag
+
+    def dag_semantic_loss(self, dag_vars, labels, train_idx, criterion, args):
+        if dag_vars.numel() == 0 or train_idx.numel() == 0:
+            return self.A_feat.new_zeros(())
+
+        A = self.get_masked_A()
+        A_non_label = A[:self.non_label_var_dim, :self.non_label_var_dim]
+        parent_signal = torch.matmul(dag_vars, A_non_label)
+        recon = self.sem_reconstructor(parent_signal)
+        recon_loss = F.mse_loss(
+            F.normalize(recon[train_idx], dim=0),
+            F.normalize(dag_vars[train_idx].detach(), dim=0),
+        )
+
+        label_A = A[:self.non_label_var_dim, self.label_var_slice]
+        label_logits = torch.matmul(dag_vars, label_A) + self.dag_label_bias
+        label_loss = self.compute_supervised_loss(
+            label_logits[train_idx],
+            labels[train_idx],
+            criterion,
+            args,
+        ).mean()
+        return recon_loss + label_loss
+
+    def compute_dag_degree_loss(self, z_mediator, train_idx):
+        if (
+            self._last_node_degree_signal is None
+            or z_mediator.numel() == 0
+            or train_idx.numel() == 0
+        ):
+            return self.A_feat.new_zeros(())
+        med_strength = z_mediator.norm(dim=1)
+        degree_signal = self._last_node_degree_signal.to(device=z_mediator.device, dtype=z_mediator.dtype)
+        med_strength = med_strength[train_idx]
+        degree_signal = degree_signal[train_idx]
+        med_strength = (med_strength - med_strength.mean()) / med_strength.std(unbiased=False).clamp_min(1e-4)
+        degree_signal = (degree_signal - degree_signal.mean()) / degree_signal.std(unbiased=False).clamp_min(1e-4)
+        return (med_strength * degree_signal).mean().pow(2)
 
     def update_spurious_env_prototypes(self, z_spurious, envs):
         if envs is None or envs.numel() == 0:
@@ -625,6 +787,8 @@ class GraphFrontDoorDAG(nn.Module):
         (
             _,
             _,
+            _,
+            dag_vars_all,
             z_mediator_all,
             z_spurious_all,
             mediator_gate,
@@ -664,6 +828,8 @@ class GraphFrontDoorDAG(nn.Module):
         loss_var = self.compute_frontdoor_variance_loss(fd_stack_tr)
         loss_ind = self.compute_independence_loss(med_tr, spu_tr)
         loss_dag = self.dag_regularization_loss(mediator_gate, dag_total)
+        loss_sem = self.dag_semantic_loss(dag_vars_all, y, train_idx, criterion, args)
+        loss_degree = self.compute_dag_degree_loss(z_mediator_all, train_idx)
 
         # Environment-related losses: mediator should be invariant, spurious should capture env.
         if env_tr is not None and env_tr.numel() > 0 and self.num_envs > 1:
@@ -692,6 +858,8 @@ class GraphFrontDoorDAG(nn.Module):
             + self.lambda_spu * loss_spu
             + self.lambda_env * loss_env_med
             + self.lambda_inv * loss_inv
+            + self.lambda_sem * loss_sem
+            + self.lambda_dag_degree * loss_degree
         )
 
         state_payload = None
@@ -711,6 +879,8 @@ class GraphFrontDoorDAG(nn.Module):
             'loss_var': loss_var,
             'loss_ind': loss_ind,
             'loss_dag': loss_dag,
+            'loss_sem': loss_sem,
+            'loss_degree': loss_degree,
             'loss_spu': loss_spu,
             'loss_env_med': loss_env_med,
             'loss_inv': loss_inv,

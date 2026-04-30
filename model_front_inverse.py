@@ -8,72 +8,19 @@ from torch_geometric.utils import add_self_loops, degree, remove_self_loops
 from torch_sparse import SparseTensor, matmul
 
 
-def gcn_backbone_conv(x, edge_index, edge_weight=None):
+def gcn_backbone_conv(x, edge_index):
     """
-    NodeIGM-style GCN propagation used as the shared graph encoder backbone.
+    CaNet-style GCN propagation used as the shared graph encoder backbone.
     """
     num_nodes = x.size(0)
-    if edge_weight is None:
-        edge_index_loop, _ = add_self_loops(edge_index, num_nodes=num_nodes)
-        row, col = edge_index_loop
-        edge_weight = torch.ones_like(row, dtype=x.dtype)
-    else:
-        edge_weight = edge_weight.to(device=x.device, dtype=x.dtype)
-        edge_index_loop, edge_weight = add_self_loops(
-            edge_index,
-            edge_weight,
-            fill_value=1.0,
-            num_nodes=num_nodes,
-        )
-        row, col = edge_index_loop
-
-    deg = x.new_zeros(num_nodes)
-    deg.scatter_add_(0, col, edge_weight)
-    deg_inv_sqrt = deg.pow(-0.5)
-    deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0.0
-    value = edge_weight * deg_inv_sqrt[row] * deg_inv_sqrt[col]
+    row, col = edge_index
+    deg = degree(col, num_nodes).float()
+    deg_in = (1.0 / deg[col]).sqrt()
+    deg_out = (1.0 / deg[row]).sqrt()
+    value = torch.ones_like(row, dtype=x.dtype) * deg_in * deg_out
     value = torch.nan_to_num(value, nan=0.0, posinf=0.0, neginf=0.0)
-    adj = SparseTensor(row=row, col=col, value=value, sparse_sizes=(num_nodes, num_nodes))
+    adj = SparseTensor(row=col, col=row, value=value, sparse_sizes=(num_nodes, num_nodes))
     return matmul(adj, x)
-
-
-class FrontDoorEdgeGate(nn.Module):
-    """
-    Soft structural gate for the front-door causal/spurious split.
-
-    This is intentionally not a NodeIGM-style hard causal subgraph extractor:
-    it produces complementary soft message-passing weights and leaves causal
-    supervision to the existing front-door decomposition losses plus compact
-    anti-collapse regularizers.
-    """
-
-    def __init__(self, hidden_channels, gate_hidden=None, dropout=0.0, temperature=1.0):
-        super().__init__()
-        gate_hidden = hidden_channels if gate_hidden is None or gate_hidden <= 0 else gate_hidden
-        self.temperature = max(1e-3, float(temperature))
-        self.dropout = float(dropout)
-        self.scorer = nn.Sequential(
-            nn.Linear(hidden_channels * 4, gate_hidden),
-            nn.ReLU(),
-            nn.Dropout(self.dropout),
-            nn.Linear(gate_hidden, 1),
-        )
-
-    def reset_parameters(self):
-        for module in self.scorer.modules():
-            if hasattr(module, 'reset_parameters'):
-                module.reset_parameters()
-
-    def forward(self, h, edge_index):
-        src, dst = edge_index
-        h_src = h[src]
-        h_dst = h[dst]
-        edge_feat = torch.cat(
-            [h_src, h_dst, (h_src - h_dst).abs(), h_src * h_dst],
-            dim=-1,
-        )
-        logits = self.scorer(edge_feat).squeeze(-1) / self.temperature
-        return torch.sigmoid(logits)
 
 
 class FrontDoorBackboneLayer(nn.Module):
@@ -86,7 +33,6 @@ class FrontDoorBackboneLayer(nn.Module):
 
     def __init__(self, in_features, out_features, backbone_type='gcn', residual=True, variant=False):
         super().__init__()
-        self.in_features = in_features
         self.backbone_type = backbone_type
         self.out_features = out_features
         self.residual = residual
@@ -103,62 +49,41 @@ class FrontDoorBackboneLayer(nn.Module):
                 f"Front-door backbone_type='{backbone_type}' is not implemented. "
                 "Use 'gcn' or 'gat' to match the CaNet-style backbone."
             )
-        if self.residual and in_features != out_features:
-            self.weight_r = nn.Parameter(torch.FloatTensor(in_features, out_features))
 
         self.reset_parameters()
 
     def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.out_features)
+        self.weight.data.uniform_(-stdv, stdv)
         if self.backbone_type == 'gat':
-            nn.init.xavier_uniform_(self.weight.data, gain=1.414)
             nn.init.xavier_uniform_(self.att.data, gain=1.414)
-        else:
-            stdv = 1.0 / math.sqrt(self.out_features)
-            self.weight.data.uniform_(-stdv, stdv)
-        if hasattr(self, 'weight_r'):
-            stdv = 1.0 / math.sqrt(self.out_features)
-            self.weight_r.data.uniform_(-stdv, stdv)
 
     def specialspmm(self, edge_index, values, size, h):
         adj = SparseTensor(row=edge_index[0], col=edge_index[1], value=values, sparse_sizes=size)
         return matmul(adj, h)
 
-    def forward(self, x, edge_index, edge_weight=None):
+    def forward(self, x, edge_index):
         if self.backbone_type == 'gcn':
             if self.variant: #不做标准的gcn归一化，目的是让度数较大的节点的影响力更强
-                if edge_weight is None:
-                    edge_weight = torch.ones(edge_index.size(1), device=x.device, dtype=x.dtype)
-                else:
-                    edge_weight = edge_weight.to(device=x.device, dtype=x.dtype)
                 adj = torch.sparse_coo_tensor(
                     edge_index,
-                    edge_weight,
+                    torch.ones(edge_index.size(1), device=x.device, dtype=x.dtype),
                     size=(x.size(0), x.size(0)),
                 )
                 h_neigh = torch.sparse.mm(adj, x)
             else:
-                h_neigh = gcn_backbone_conv(x, edge_index, edge_weight=edge_weight) #标准的GCN归一化
+                h_neigh = gcn_backbone_conv(x, edge_index) #标准的GCN归一化
             h = torch.cat([h_neigh, x], dim=1)
             out = torch.matmul(h, self.weight)
         else:
             h = torch.matmul(x, self.weight)
             num_nodes = x.size(0)
-            if edge_weight is None:
-                att_edge_index, _ = remove_self_loops(edge_index)
-                att_edge_weight = torch.ones(att_edge_index.size(1), device=x.device, dtype=x.dtype)
-            else:
-                att_edge_index, att_edge_weight = remove_self_loops(edge_index, edge_weight)
-                att_edge_weight = att_edge_weight.to(device=x.device, dtype=x.dtype)
-            att_edge_index, att_edge_weight = add_self_loops(
-                att_edge_index,
-                att_edge_weight,
-                fill_value=1.0,
-                num_nodes=num_nodes,
-            )
+            att_edge_index, _ = remove_self_loops(edge_index)
+            att_edge_index, _ = add_self_loops(att_edge_index, num_nodes=num_nodes)
             edge_h = torch.cat([h[att_edge_index[0]], h[att_edge_index[1]]], dim=1)
             logits = self.leakyrelu(torch.matmul(edge_h, self.att)).squeeze(1)
             logits = logits - logits.max()
-            edge_e = torch.exp(logits) * att_edge_weight.clamp_min(0.0)
+            edge_e = torch.exp(logits)
 
             eps = 1e-8
             denom = self.specialspmm(
@@ -171,25 +96,94 @@ class FrontDoorBackboneLayer(nn.Module):
             out = out / denom
 
         if self.residual:
-            if self.in_features == self.out_features:
-                out = out + x
-            else:
-                out = out + torch.matmul(x, self.weight_r)
+            out = out + x
         return out
 
 
-class GraphFrontDoor(nn.Module):
+class InvertibleLinearDecomposer(nn.Module):
     """
-    Paper-style non-DAG front-door model for graph OOD.
+    Shared invertible linear adapter.
 
-    Mapping the CIPT framework to graphs:
+    It behaves like two linear adapters that share a single invertible matrix:
+
+        u = W h
+        z_c = P_c u
+        z_s = P_s u
+        h_aug = W^{-1} [z_c, context_s]
+
+    The matrix is parameterized as diagonal scale times a Cayley-orthogonal
+    matrix so it stays invertible during training.
+    """
+
+    def __init__(self, hidden_dim, causal_dim, scale_clamp=2.0, fast_inverse=False):
+        super().__init__()
+        if hidden_dim < 2:
+            raise ValueError('hidden_dim must be at least 2 for invertible causal/spurious split')
+        self.hidden_dim = hidden_dim
+        self.causal_dim = max(1, min(int(causal_dim), hidden_dim - 1))
+        self.spurious_dim = hidden_dim - self.causal_dim
+        self.scale_clamp = float(scale_clamp)
+        self.fast_inverse = bool(fast_inverse)
+        self.skew_raw = nn.Parameter(torch.zeros(hidden_dim, hidden_dim))
+        self.log_scale = nn.Parameter(torch.zeros(hidden_dim))
+
+    def reset_parameters(self):
+        nn.init.zeros_(self.skew_raw)
+        nn.init.zeros_(self.log_scale)
+
+    def weight(self):
+        eye = torch.eye(
+            self.hidden_dim,
+            device=self.skew_raw.device,
+            dtype=self.skew_raw.dtype,
+        )
+        skew = self.skew_raw - self.skew_raw.t()
+        orthogonal = torch.linalg.solve(eye + skew, eye - skew)
+        scale = torch.exp(torch.tanh(self.log_scale) * self.scale_clamp)
+        return scale.unsqueeze(1) * orthogonal
+
+    def forward(self, h):
+        return torch.matmul(h, self.weight().t())
+
+    def inverse(self, z):
+        original_shape = z.shape
+        z_flat = z.reshape(-1, self.hidden_dim)
+        if self.fast_inverse:
+            h_flat = torch.matmul(z_flat, self.weight())
+            return h_flat.reshape(original_shape)
+        h_flat = torch.linalg.solve(self.weight(), z_flat.t()).t()
+        return h_flat.reshape(original_shape)
+
+    def inverse_orthogonality_loss(self):
+        weight = self.weight()
+        eye = torch.eye(
+            self.hidden_dim,
+            device=weight.device,
+            dtype=weight.dtype,
+        )
+        return (torch.matmul(weight.t(), weight) - eye).pow(2).mean()
+
+    def split(self, z):
+        return z[..., :self.causal_dim], z[..., self.causal_dim:]
+
+    def merge(self, z_causal, z_spurious):
+        return torch.cat([z_causal, z_spurious], dim=-1)
+
+    def inverse_from_parts(self, z_causal, z_spurious):
+        return self.inverse(self.merge(z_causal, z_spurious))
+
+
+class GraphFrontInverse(nn.Module):
+    """
+    Invertible front-door model for graph OOD without explicit environment labels.
+
+    Mapping the front-door idea to graphs:
     1) a shared graph encoder extracts node representations;
-    2) two lightweight adapters decouple them into causal and spurious views;
+    2) a shared invertible linear adapter maps h <-> [z_causal, z_spurious];
     3) the causal branch predicts labels while the spurious branch is pushed
        toward a uniform label distribution;
-    4) diverse environment-specific spurious contexts are sampled and combined
-       with the causal feature through an adaptive augmentation module to
-       approximate the front-door intervention.
+    4) environment-specific spurious contexts are sampled in the raw invertible
+       latent space and combined with z_causal by the exact inverse matrix.
     """
 
     def __init__(self, d_in, c, args, device):
@@ -223,9 +217,13 @@ class GraphFrontDoor(nn.Module):
         self.lambda_ind = getattr(args, 'lambda_ind', 0.1)
         self.lambda_spu_env = getattr(args, 'lambda_spu_env', 0.05)
         self.lambda_env_causal = getattr(args, 'lambda_env_causal', 0.0)
-        self.lambda_split_gate = getattr(args, 'lambda_split_gate', 0.01)
-        self.gate_binary_weight = getattr(args, 'gate_binary_weight', 0.1)
-        self.lambda_context_recon = getattr(args, 'lambda_context_recon', 0.1)
+        self.lambda_inverse_recon = getattr(args, 'lambda_inverse_recon', 0.0)
+        self.lambda_inverse_orth = getattr(args, 'lambda_inverse_orth', 0.01)
+        self.lambda_pair_fd = getattr(args, 'lambda_pair_fd', 0.5)
+        self.lambda_context_compat = getattr(args, 'lambda_context_compat', 0.1)
+        self.compat_neg_k = max(1, int(getattr(args, 'compat_neg_k', 3)))
+        self.use_context_weighting = bool(getattr(args, 'use_context_weighting', True))
+        self.context_weight_temp = max(1e-3, float(getattr(args, 'context_weight_temp', 1.0)))
         self.ind_loss_type = getattr(args, 'ind_loss_type', 'mi')
         self.hsic_sigma = float(getattr(args, 'hsic_sigma', 0.0))
         self.hsic_max_samples = max(2, int(getattr(args, 'hsic_max_samples', 256)))
@@ -236,15 +234,13 @@ class GraphFrontDoor(nn.Module):
         self.ttt_reward_conf = float(getattr(args, 'ttt_reward_conf', 1.0))
         self.ttt_reward_consistency = float(getattr(args, 'ttt_reward_consistency', 0.5))
         self.ttt_policy_entropy = float(getattr(args, 'ttt_policy_entropy', 0.01))
-        self.use_edge_frontdoor = bool(getattr(args, 'use_edge_frontdoor', True))
-        self.edge_gate_temp = float(getattr(args, 'edge_gate_temp', 1.0))
-        self.edge_gate_dropout = float(getattr(args, 'edge_gate_dropout', 0.0))
-        self.edge_gate_hidden = int(getattr(args, 'edge_gate_hidden', self.d))
-        self.edge_min_weight = min(0.49, max(0.0, float(getattr(args, 'edge_min_weight', 0.05))))
-        self.edge_target_ratio = min(0.95, max(0.05, float(getattr(args, 'edge_target_ratio', 0.5))))
-        self.lambda_edge_sparse = float(getattr(args, 'lambda_edge_sparse', 0.0))
-        self.lambda_edge_balance = float(getattr(args, 'lambda_edge_balance', 0.0))
-        self.lambda_edge_degree = float(getattr(args, 'lambda_edge_degree', 0.0))
+        default_causal_dim = max(1, self.d // 2)
+        requested_causal_dim = int(getattr(args, 'inverse_causal_dim', default_causal_dim))
+        if requested_causal_dim <= 0:
+            requested_causal_dim = default_causal_dim
+        self.inverse_causal_dim = max(1, min(requested_causal_dim, self.d - 1))
+        self.inverse_scale_clamp = float(getattr(args, 'inverse_scale_clamp', 2.0))
+        self.fast_inverse = bool(getattr(args, 'fast_inverse', True))
 
         self.act_fn = nn.ReLU()
         self.input_proj = nn.Linear(d_in, self.d)
@@ -273,64 +269,42 @@ class GraphFrontDoor(nn.Module):
             nn.ReLU(),
             nn.Linear(self.d, 1),
         )
-        # Paper-style causal decomposition: two lightweight adapters.
-        self.causal_adapter = nn.Linear(self.d, self.d)
-        self.spurious_adapter = nn.Linear(self.d, self.d)
-        self.split_gate = nn.Sequential(
-            nn.Linear(self.d, self.d),
+        self.target_input_proj = copy.deepcopy(self.input_proj)
+        self.target_backbone_layers = copy.deepcopy(self.backbone_layers)
+        self.target_bootstrap_projector = copy.deepcopy(self.bootstrap_projector)
+        self._set_target_requires_grad(False)
+
+        self.invertible_decomposer = InvertibleLinearDecomposer(
+            self.d,
+            self.inverse_causal_dim,
+            scale_clamp=self.inverse_scale_clamp,
+            fast_inverse=self.fast_inverse,
+        )
+        self.causal_dim = self.invertible_decomposer.causal_dim
+        self.spurious_dim = self.invertible_decomposer.spurious_dim
+        self.causal_projector = nn.Sequential(
+            nn.Linear(self.causal_dim, self.d),
             nn.ReLU(),
             nn.Linear(self.d, self.d),
         )
-        self.causal_joint_gate = nn.Sequential(
-            nn.Linear(self.d * 3, self.d),
-            nn.ReLU(),
-            nn.Linear(self.d, self.d),
-        )
-        self.spurious_joint_gate = nn.Sequential(
-            nn.Linear(self.d * 3, self.d),
+        self.spurious_projector = nn.Sequential(
+            nn.Linear(self.spurious_dim, self.d),
             nn.ReLU(),
             nn.Linear(self.d, self.d),
         )
         self.causal_norm = nn.LayerNorm(self.d)
         self.spurious_norm = nn.LayerNorm(self.d)
-        self.edge_gate = FrontDoorEdgeGate(
-            self.d,
-            gate_hidden=self.edge_gate_hidden,
-            dropout=self.edge_gate_dropout,
-            temperature=self.edge_gate_temp,
-        )
 
         self.classifier = nn.Linear(self.d, c)
         self.spurious_classifier = nn.Linear(self.d, c)
         self.fd_classifier = nn.Linear(self.d, c)
         self.env_classifier = nn.Linear(self.d, self.num_envs)
 
-        # Learn the observed causal-context composition, then reuse it for
-        # front-door intervention with prototype/GMM contexts.
-        self.context_film = nn.Sequential(
-            nn.Linear(self.d, self.d),
-            nn.ReLU(),
-            nn.Linear(self.d, self.d * 2),
-        )
-        self.context_interaction = nn.Sequential(
-            nn.Linear(self.d * 3, self.d),
-            nn.ReLU(),
-            nn.Linear(self.d, self.d),
-        )
-        self.composer_norm = nn.LayerNorm(self.d)
-
-        self.target_input_proj = copy.deepcopy(self.input_proj)
-        self.target_backbone_layers = copy.deepcopy(self.backbone_layers)
-        self.target_bootstrap_projector = copy.deepcopy(self.bootstrap_projector)
-        self._set_target_requires_grad(False)
-
-        self.register_buffer('proto_spu_env', torch.zeros(self.num_envs, self.d))
+        self.register_buffer('proto_spu_env', torch.zeros(self.num_envs, self.spurious_dim))
         self.register_buffer('proto_spu_env_valid', torch.zeros(self.num_envs, dtype=torch.bool))
-        self.register_buffer('gmm_spu_mean', torch.zeros(self.num_envs, self.d))
-        self.register_buffer('gmm_spu_var', torch.ones(self.num_envs, self.d))
+        self.register_buffer('gmm_spu_mean', torch.zeros(self.num_envs, self.spurious_dim))
+        self.register_buffer('gmm_spu_var', torch.ones(self.num_envs, self.spurious_dim))
         self.register_buffer('gmm_spu_valid', torch.zeros(self.num_envs, dtype=torch.bool))
-        self._last_edge_scores = None
-        self._last_edge_degree_signal = None
 
         self.reset_parameters()
 
@@ -338,31 +312,15 @@ class GraphFrontDoor(nn.Module):
         self.input_proj.reset_parameters()
         for layer in self.backbone_layers:
             layer.reset_parameters()
-        self.causal_adapter.reset_parameters()
-        self.spurious_adapter.reset_parameters()
-        self._reset_module_parameters(self.split_gate)
-        nn.init.zeros_(self.split_gate[-1].weight)
-        nn.init.zeros_(self.split_gate[-1].bias)
-        self._reset_module_parameters(self.causal_joint_gate)
-        self._reset_module_parameters(self.spurious_joint_gate)
-        nn.init.zeros_(self.causal_joint_gate[-1].weight)
-        nn.init.zeros_(self.causal_joint_gate[-1].bias)
-        nn.init.zeros_(self.spurious_joint_gate[-1].weight)
-        nn.init.zeros_(self.spurious_joint_gate[-1].bias)
+        self.invertible_decomposer.reset_parameters()
+        self._reset_module_parameters(self.causal_projector)
+        self._reset_module_parameters(self.spurious_projector)
         self.causal_norm.reset_parameters()
         self.spurious_norm.reset_parameters()
-        self.edge_gate.reset_parameters()
         self.classifier.reset_parameters()
         self.spurious_classifier.reset_parameters()
         self.fd_classifier.reset_parameters()
         self.env_classifier.reset_parameters()
-        self._reset_module_parameters(self.context_film)
-        self._reset_module_parameters(self.context_interaction)
-        nn.init.zeros_(self.context_film[-1].weight)
-        nn.init.zeros_(self.context_film[-1].bias)
-        nn.init.zeros_(self.context_interaction[-1].weight)
-        nn.init.zeros_(self.context_interaction[-1].bias)
-        self.composer_norm.reset_parameters()
         self.proto_spu_env.zero_()
         self.proto_spu_env_valid.zero_()
         self.gmm_spu_mean.zero_()
@@ -407,113 +365,72 @@ class GraphFrontDoor(nn.Module):
             for online_param, target_param in zip(online_module.parameters(), target_module.parameters()):
                 target_param.data.mul_(momentum).add_(online_param.data, alpha=1.0 - momentum)
 
-    def encode_backbone(self, x, edge_index, training=False, edge_weight=None):
+    def encode_backbone(self, x, edge_index, training=False):
         return self.encode_backbone_with(
             self.input_proj,
             self.backbone_layers,
             x,
             edge_index,
             training=training,
-            edge_weight=edge_weight,
         )
 
-    def encode_target_backbone(self, x, edge_index, edge_weight=None):
+    def encode_target_backbone(self, x, edge_index):
         return self.encode_backbone_with(
             self.target_input_proj,
             self.target_backbone_layers,
             x,
             edge_index,
             training=False,
-            edge_weight=edge_weight,
         )
 
-    def encode_backbone_with(self, input_proj, backbone_layers, x, edge_index, training=False, edge_weight=None):
+    def encode_backbone_with(self, input_proj, backbone_layers, x, edge_index, training=False):
         x = F.dropout(x, self.dropout, training=training)
         h = self.act_fn(input_proj(x))
         for layer in backbone_layers:
             h = F.dropout(h, self.dropout, training=training)
-            h = self.act_fn(layer(h, edge_index, edge_weight=edge_weight))
+            h = self.act_fn(layer(h, edge_index))
         return h
 
     def decompose_representation(self, h, training=False):
-        split_gate = torch.sigmoid(self.split_gate(h))
-        causal_base = h + self.causal_adapter(h)
-        spurious_base = h + self.spurious_adapter(h)
-        z_causal = self.causal_norm(split_gate * causal_base)
-        z_spurious = self.spurious_norm((1.0 - split_gate) * spurious_base)
+        z_full = self.invertible_decomposer(h)
+        z_causal_raw, z_spurious_raw = self.invertible_decomposer.split(z_full)
+        z_causal = self.causal_norm(self.causal_projector(z_causal_raw))
+        z_spurious = self.spurious_norm(self.spurious_projector(z_spurious_raw))
         z_causal = F.dropout(z_causal, self.dropout, training=training)
         z_spurious = F.dropout(z_spurious, self.dropout, training=training)
         causal_logits = self.classifier(z_causal)
         spurious_logits = self.spurious_classifier(z_spurious)
-        return z_causal, z_spurious, causal_logits, spurious_logits, split_gate
-
-    def decompose_guided_representation(self, h_anchor, h_causal, h_spurious, training=False):
-        split_gate = torch.sigmoid(self.split_gate(h_anchor))
-        causal_node_base = h_anchor + self.causal_adapter(h_anchor)
-        causal_edge_base = h_causal + self.causal_adapter(h_causal)
-        spurious_node_base = h_anchor + self.spurious_adapter(h_anchor)
-        spurious_edge_base = h_spurious + self.spurious_adapter(h_spurious)
-
-        causal_fuse = torch.sigmoid(self.causal_joint_gate(torch.cat(
-            [causal_node_base, causal_edge_base, causal_node_base * causal_edge_base],
-            dim=-1,
-        )))
-        spurious_fuse = torch.sigmoid(self.spurious_joint_gate(torch.cat(
-            [spurious_node_base, spurious_edge_base, spurious_node_base * spurious_edge_base],
-            dim=-1,
-        )))
-        causal_base = causal_fuse * causal_edge_base + (1.0 - causal_fuse) * causal_node_base
-        spurious_base = spurious_fuse * spurious_edge_base + (1.0 - spurious_fuse) * spurious_node_base
-        z_causal = self.causal_norm(split_gate * causal_base)
-        z_spurious = self.spurious_norm((1.0 - split_gate) * spurious_base)
-        z_causal = F.dropout(z_causal, self.dropout, training=training)
-        z_spurious = F.dropout(z_spurious, self.dropout, training=training)
-        causal_logits = self.classifier(z_causal)
-        spurious_logits = self.spurious_classifier(z_spurious)
-        return z_causal, z_spurious, causal_logits, spurious_logits, split_gate
-
-    def compute_edge_gate_scores(self, h, edge_index):
-        scores = self.edge_gate(h, edge_index)
-        src, dst = edge_index
-        deg_src = degree(src, h.size(0)).to(device=h.device, dtype=h.dtype)
-        deg_dst = degree(dst, h.size(0)).to(device=h.device, dtype=h.dtype)
-        edge_degree = torch.maximum(deg_src[src], deg_dst[dst])
-        edge_degree = torch.log1p(edge_degree)
-        edge_degree = edge_degree / edge_degree.max().clamp_min(1.0)
-        self._last_edge_scores = scores
-        self._last_edge_degree_signal = edge_degree.detach()
-        return scores
-
-    def encode_edge_guided_representation(self, x, edge_index, training=False):
-        h_anchor = self.encode_backbone(x, edge_index, training=training)
-        edge_scores = self.compute_edge_gate_scores(h_anchor, edge_index)
-        causal_weight = self.edge_min_weight + (1.0 - self.edge_min_weight) * edge_scores
-        spurious_weight = self.edge_min_weight + (1.0 - self.edge_min_weight) * (1.0 - edge_scores)
-        h_causal = self.encode_backbone(x, edge_index, training=training, edge_weight=causal_weight)
-        h_spurious = self.encode_backbone(x, edge_index, training=training, edge_weight=spurious_weight)
-        z_causal, z_spurious, causal_logits, spurious_logits, split_gate = self.decompose_guided_representation(
-            h_anchor,
-            h_causal,
-            h_spurious,
-            training=training,
+        return (
+            z_causal,
+            z_spurious,
+            causal_logits,
+            spurious_logits,
+            z_causal_raw,
+            z_spurious_raw,
         )
-        return h_anchor, z_causal, z_spurious, causal_logits, spurious_logits, split_gate
 
     def encode_representation(self, x, edge_index, training=False):
-        self._last_edge_scores = None
-        self._last_edge_degree_signal = None
-        if self.use_edge_frontdoor:
-            return self.encode_edge_guided_representation(
-                x,
-                edge_index,
-                training=training,
-            )
         h = self.encode_backbone(x, edge_index, training=training)
-        z_causal, z_spurious, causal_logits, spurious_logits, split_gate = self.decompose_representation(
+        (
+            z_causal,
+            z_spurious,
+            causal_logits,
+            spurious_logits,
+            z_causal_raw,
+            z_spurious_raw,
+        ) = self.decompose_representation(
             h,
             training=training,
         )
-        return h, z_causal, z_spurious, causal_logits, spurious_logits, split_gate
+        return (
+            h,
+            z_causal,
+            z_spurious,
+            causal_logits,
+            spurious_logits,
+            z_causal_raw,
+            z_spurious_raw,
+        )
 
     def infer_pseudo_envs(self, z_spurious):
         if self.num_envs <= 1 or z_spurious.numel() == 0:
@@ -550,7 +467,7 @@ class GraphFrontDoor(nn.Module):
                 vec = (z_spurious * weights.unsqueeze(-1)).sum(dim=0).detach() / mass.clamp_min(1e-8)
                 if self.proto_spu_env_valid[env_idx]:
                     vec = self.gamma * self.proto_spu_env[env_idx] + (1.0 - self.gamma) * vec
-                self.proto_spu_env[env_idx] = F.normalize(vec, dim=0)
+                self.proto_spu_env[env_idx] = vec
                 self.proto_spu_env_valid[env_idx] = True
             return
 
@@ -564,7 +481,7 @@ class GraphFrontDoor(nn.Module):
             vec = z_spurious[mask_e].mean(dim=0).detach()
             if self.proto_spu_env_valid[env_idx]:
                 vec = self.gamma * self.proto_spu_env[env_idx] + (1.0 - self.gamma) * vec
-            self.proto_spu_env[env_idx] = F.normalize(vec, dim=0)
+            self.proto_spu_env[env_idx] = vec
             self.proto_spu_env_valid[env_idx] = True
 
     @torch.no_grad()
@@ -678,7 +595,7 @@ class GraphFrontDoor(nn.Module):
         return contexts.index_select(0, indices)
 
     def sample_gmm_contexts(self, training=False):
-        if not self.use_spu_gmm or self.gmm_sample_k <= 0:
+        if not self.use_spu_gmm or self.gmm_alpha <= 0.0 or self.gmm_sample_k <= 0:
             return None
         valid_envs = self.gmm_spu_valid.nonzero(as_tuple=False).squeeze(-1)
         if valid_envs.numel() == 0:
@@ -712,15 +629,7 @@ class GraphFrontDoor(nn.Module):
                 device=mean.device,
                 dtype=mean.dtype,
             )
-        contexts = mean + noise * std
-        return F.normalize(contexts, dim=1)
-
-    def merge_gmm_contexts(self, contexts, gmm_contexts):
-        if gmm_contexts is None or gmm_contexts.size(0) == 0:
-            return contexts
-        if contexts is None or contexts.size(0) == 0:
-            return gmm_contexts
-        return torch.cat([contexts, gmm_contexts], dim=0)
+        return mean + noise * std
 
     def augment_frontdoor_contexts(self, contexts, training=False):
         if (
@@ -748,55 +657,72 @@ class GraphFrontDoor(nn.Module):
             mix_weight * contexts.index_select(0, idx_a)
             + (1.0 - mix_weight) * contexts.index_select(0, idx_b)
         )
-        mixed_contexts = F.normalize(mixed_contexts, dim=1)
         return torch.cat([contexts, mixed_contexts.detach()], dim=0), mix_count
 
-    def score_frontdoor_contexts(self, z_causal, contexts):
+    def score_frontdoor_contexts(self, z_causal_raw, contexts):
         num_contexts = contexts.size(0)
+        z_causal = self.causal_norm(self.causal_projector(z_causal_raw))
+        context_repr = self.spurious_norm(self.spurious_projector(contexts))
         causal_expand = z_causal.unsqueeze(1).expand(-1, num_contexts, -1)
-        context_expand = contexts.unsqueeze(0).expand(z_causal.size(0), -1, -1)
+        context_expand = context_repr.unsqueeze(0).expand(z_causal.size(0), -1, -1)
         policy_input = torch.cat(
             [causal_expand, context_expand, causal_expand * context_expand],
             dim=-1,
         )
         return self.rl_context_policy(policy_input).squeeze(-1)
 
-    def compose_causal_context(self, z_causal, z_context):
-        film = self.context_film(z_context)
-        gamma, beta = film.chunk(2, dim=-1)
-        gamma = torch.tanh(gamma)
-        interaction = self.context_interaction(
-            torch.cat([z_causal, z_context, z_causal * z_context], dim=-1)
+    def score_raw_context_pairs(self, z_causal_raw, z_context_raw):
+        z_causal = self.causal_norm(self.causal_projector(z_causal_raw))
+        if z_context_raw.dim() == 2:
+            context_repr = self.spurious_norm(self.spurious_projector(z_context_raw))
+            policy_input = torch.cat(
+                [z_causal, context_repr, z_causal * context_repr],
+                dim=-1,
+            )
+            return self.rl_context_policy(policy_input).squeeze(-1)
+
+        num_contexts = z_context_raw.size(1)
+        flat_context = z_context_raw.reshape(-1, self.spurious_dim)
+        context_repr = self.spurious_norm(self.spurious_projector(flat_context))
+        context_repr = context_repr.view(z_context_raw.size(0), num_contexts, self.d)
+        causal_expand = z_causal.unsqueeze(1).expand(-1, num_contexts, -1)
+        policy_input = torch.cat(
+            [causal_expand, context_repr, causal_expand * context_repr],
+            dim=-1,
         )
-        composed = z_causal + gamma * z_causal + beta + interaction
-        return self.composer_norm(composed)
+        return self.rl_context_policy(policy_input).squeeze(-1)
+
+    def compose_causal_context(self, z_causal_raw, z_context_raw):
+        return self.invertible_decomposer.inverse_from_parts(z_causal_raw, z_context_raw)
 
     def interventional_logits_from_contexts(
         self,
-        z_causal,
+        z_causal_raw,
         contexts,
         training=False,
         use_context_policy=False,
         return_context_weights=False,
     ):
-        base_logits = self.fd_classifier(z_causal)
+        zero_context = z_causal_raw.new_zeros(z_causal_raw.size(0), self.spurious_dim)
+        base_h = self.compose_causal_context(z_causal_raw, zero_context)
+        base_logits = self.fd_classifier(base_h)
         if contexts is None or contexts.size(0) == 0:
             if return_context_weights:
                 return base_logits, None, None
             return base_logits, None
 
         num_contexts = contexts.size(0)
-        causal_expand = z_causal.unsqueeze(1).expand(-1, num_contexts, -1)
-        context_expand = contexts.unsqueeze(0).expand(z_causal.size(0), -1, -1)
+        causal_expand = z_causal_raw.unsqueeze(1).expand(-1, num_contexts, -1)
+        context_expand = contexts.unsqueeze(0).expand(z_causal_raw.size(0), -1, -1)
 
         aug = self.compose_causal_context(causal_expand, context_expand)
         aug = F.dropout(aug, self.dropout, training=training)
 
-        logits_stack = self.fd_classifier(aug.reshape(-1, self.d)).view(z_causal.size(0), num_contexts, self.c)
+        logits_stack = self.fd_classifier(aug.reshape(-1, self.d)).view(z_causal_raw.size(0), num_contexts, self.c)
         context_weights = None
-        if use_context_policy:
-            policy_scores = self.score_frontdoor_contexts(z_causal, contexts)
-            context_weights = F.softmax(policy_scores, dim=-1)
+        if self.use_context_weighting or use_context_policy:
+            policy_scores = self.score_frontdoor_contexts(z_causal_raw, contexts)
+            context_weights = F.softmax(policy_scores / self.context_weight_temp, dim=-1)
             fd_logits = (context_weights.unsqueeze(-1) * logits_stack).sum(dim=1)
         else:
             fd_logits = logits_stack.mean(dim=1)
@@ -816,7 +742,15 @@ class GraphFrontDoor(nn.Module):
         return (1.0 - alpha) * base_logits + alpha * gmm_logits
 
     def forward(self, x, edge_index, training=False, use_context_policy=False):
-        h, z_causal, z_spurious, causal_logits, spurious_logits, split_gate = self.encode_representation(
+        (
+            h,
+            z_causal,
+            z_spurious,
+            causal_logits,
+            spurious_logits,
+            z_causal_raw,
+            z_spurious_raw,
+        ) = self.encode_representation(
             x,
             edge_index,
             training=training,
@@ -826,15 +760,24 @@ class GraphFrontDoor(nn.Module):
             self.get_frontdoor_contexts(),
             training=training,
         )
-        gmm_contexts = self.sample_gmm_contexts(training=training)
-        contexts = self.merge_gmm_contexts(contexts, gmm_contexts)
         fd_logits, fd_stack = self.interventional_logits_from_contexts(
-            z_causal,
+            z_causal_raw,
             contexts,
             training=training,
             use_context_policy=use_context_policy,
         )
         logits = self.blend_logits(causal_logits, fd_logits)
+        gmm_contexts = self.sample_gmm_contexts(training=training)
+        gmm_fd_logits = None
+        if gmm_contexts is not None:
+            gmm_fd_logits, _ = self.interventional_logits_from_contexts(
+                z_causal_raw,
+                gmm_contexts,
+                training=training,
+                use_context_policy=use_context_policy,
+            )
+            gmm_logits = self.blend_logits(causal_logits, gmm_fd_logits)
+            logits = self.blend_gmm_logits(logits, gmm_logits)
 
         if training:
             return (
@@ -846,7 +789,8 @@ class GraphFrontDoor(nn.Module):
                 spurious_logits,
                 fd_logits,
                 fd_stack,
-                split_gate,
+                z_causal_raw,
+                z_spurious_raw,
             )
         return logits
 
@@ -958,43 +902,41 @@ class GraphFrontDoor(nn.Module):
         probs = torch.softmax(logits_stack, dim=-1)
         return probs.var(dim=1, unbiased=False).mean()
 
-    def compute_split_gate_loss(self, split_gate):
-        if split_gate is None or split_gate.numel() == 0:
-            return self.classifier.weight.new_zeros(())
-        channel_balance = (split_gate.mean(dim=0) - 0.5).pow(2).mean()
-        binary_pressure = (split_gate * (1.0 - split_gate)).mean()
-        return channel_balance + self.gate_binary_weight * binary_pressure
-
-    def compute_context_reconstruction_loss(self, h, z_causal, z_spurious):
+    def compute_inverse_reconstruction_loss(self, h, z_causal_raw, z_spurious_raw):
         if h.numel() == 0:
             return self.classifier.weight.new_zeros(())
-        h_hat = self.compose_causal_context(z_causal, z_spurious)
-        target = F.layer_norm(h.detach(), (h.size(-1),))
-        return F.mse_loss(h_hat, target)
+        h_hat = self.compose_causal_context(z_causal_raw, z_spurious_raw)
+        return F.mse_loss(h_hat, h.detach())
 
-    def compute_edge_sparse_loss(self):
-        if not self.use_edge_frontdoor or self._last_edge_scores is None:
+    def compute_observed_pair_fd_loss(self, z_causal_raw, z_spurious_raw, y, criterion, args):
+        if z_causal_raw.numel() == 0:
             return self.classifier.weight.new_zeros(())
-        return self._last_edge_scores.mean()
+        h_pair = self.compose_causal_context(z_causal_raw, z_spurious_raw)
+        logits_pair = self.fd_classifier(h_pair)
+        return self.compute_supervised_loss(logits_pair, y, criterion, args).mean()
 
-    def compute_edge_balance_loss(self):
-        if not self.use_edge_frontdoor or self._last_edge_scores is None:
+    def compute_context_compatibility_loss(self, z_causal_raw, z_spurious_raw):
+        num_nodes = z_causal_raw.size(0)
+        if num_nodes <= 1:
             return self.classifier.weight.new_zeros(())
-        return (self._last_edge_scores.mean() - self.edge_target_ratio).pow(2)
 
-    def compute_edge_degree_loss(self):
-        if (
-            not self.use_edge_frontdoor
-            or self._last_edge_scores is None
-            or self._last_edge_degree_signal is None
-            or self._last_edge_scores.numel() <= 1
-        ):
-            return self.classifier.weight.new_zeros(())
-        scores = self._last_edge_scores
-        degree_signal = self._last_edge_degree_signal.to(device=scores.device, dtype=scores.dtype)
-        scores = (scores - scores.mean()) / scores.std(unbiased=False).clamp_min(1e-4)
-        degree_signal = (degree_signal - degree_signal.mean()) / degree_signal.std(unbiased=False).clamp_min(1e-4)
-        return (scores * degree_signal).mean().pow(2)
+        neg_k = min(self.compat_neg_k, num_nodes - 1)
+        pos_scores = self.score_raw_context_pairs(z_causal_raw, z_spurious_raw).unsqueeze(1)
+
+        base_neg = torch.randint(
+            num_nodes - 1,
+            (num_nodes, neg_k),
+            device=z_causal_raw.device,
+        )
+        row_idx = torch.arange(num_nodes, device=z_causal_raw.device).unsqueeze(1)
+        neg_idx = base_neg + (base_neg >= row_idx).long()
+        neg_contexts = z_spurious_raw.index_select(0, neg_idx.reshape(-1))
+        neg_contexts = neg_contexts.view(num_nodes, neg_k, self.spurious_dim)
+        neg_scores = self.score_raw_context_pairs(z_causal_raw, neg_contexts)
+
+        logits = torch.cat([pos_scores, neg_scores], dim=1)
+        labels = torch.zeros(num_nodes, device=z_causal_raw.device, dtype=torch.long)
+        return F.cross_entropy(logits, labels)
 
     def compute_context_supervised_loss(self, logits_stack, y, criterion, args):
         if logits_stack is None or logits_stack.size(1) == 0:
@@ -1053,16 +995,16 @@ class GraphFrontDoor(nn.Module):
         if contexts is None or contexts.size(0) <= 1 or adapt_idx.numel() == 0:
             return self.classifier.weight.new_zeros(())
 
-        _, z_causal, _, causal_logits, _, _ = self.encode_representation(
+        _, _, _, causal_logits, _, z_causal_raw, _ = self.encode_representation(
             x,
             edge_index,
             training=False,
         )
-        z_causal = z_causal[adapt_idx].detach()
+        z_causal_raw = z_causal_raw[adapt_idx].detach()
         causal_logits = causal_logits[adapt_idx].detach()
 
         fd_logits, logits_stack, context_weights = self.interventional_logits_from_contexts(
-            z_causal,
+            z_causal_raw,
             contexts,
             training=False,
             use_context_policy=True,
@@ -1072,18 +1014,18 @@ class GraphFrontDoor(nn.Module):
 
         with torch.no_grad():
             conf_reward = self.prediction_confidence(logits_stack.reshape(-1, self.c)).view(
-                z_causal.size(0),
+                z_causal_raw.size(0),
                 contexts.size(0),
             )
 
             x_aug, edge_aug = self.augment_graph_view(x, edge_index)
-            _, z_aug, _, causal_aug, _, _ = self.encode_representation(
+            _, _, _, causal_aug, _, z_aug_raw, _ = self.encode_representation(
                 x_aug,
                 edge_aug,
                 training=False,
             )
             fd_aug, _ = self.interventional_logits_from_contexts(
-                z_aug[adapt_idx],
+                z_aug_raw[adapt_idx],
                 contexts,
                 training=False,
                 use_context_policy=False,
@@ -1145,20 +1087,22 @@ class GraphFrontDoor(nn.Module):
             spurious_logits_all,
             _,
             _,
-            split_gate_all,
+            z_causal_raw_all,
+            z_spurious_raw_all,
         ) = self.forward(x, edge_index, training=True)
 
         y_tr = y[train_idx]
         h_tr = h_all[train_idx]
         causal_tr = z_causal_all[train_idx]
         spurious_tr = z_spurious_all[train_idx]
-        split_gate_tr = split_gate_all[train_idx]
+        causal_raw_tr = z_causal_raw_all[train_idx]
+        spurious_raw_tr = z_spurious_raw_all[train_idx]
         causal_logits_tr = causal_logits_all[train_idx]
         spurious_logits_tr = spurious_logits_all[train_idx]
         pseudo_env_tr, env_logits_spurious, env_probs_spurious = self.infer_pseudo_envs(spurious_tr)
 
         contexts = self.sample_frontdoor_contexts(
-            self.get_frontdoor_contexts(spurious_tr, pseudo_env_tr, env_probs_spurious),
+            self.get_frontdoor_contexts(spurious_raw_tr, pseudo_env_tr, env_probs_spurious),
             training=True,
         )
         num_base_contexts = 0 if contexts is None else int(contexts.size(0))
@@ -1166,14 +1110,22 @@ class GraphFrontDoor(nn.Module):
             contexts,
             training=True,
         )
-        gmm_contexts = self.sample_gmm_contexts(training=True)
-        contexts = self.merge_gmm_contexts(contexts, gmm_contexts)
         fd_logits_tr, fd_stack_tr = self.interventional_logits_from_contexts(
-            causal_tr,
+            causal_raw_tr,
             contexts,
             training=True,
         )
         final_logits_tr = self.blend_logits(causal_logits_tr, fd_logits_tr)
+        gmm_contexts = self.sample_gmm_contexts(training=True)
+        gmm_fd_logits_tr = None
+        if gmm_contexts is not None:
+            gmm_fd_logits_tr, _ = self.interventional_logits_from_contexts(
+                causal_raw_tr,
+                gmm_contexts,
+                training=True,
+            )
+            gmm_logits_tr = self.blend_logits(causal_logits_tr, gmm_fd_logits_tr)
+            final_logits_tr = self.blend_gmm_logits(final_logits_tr, gmm_logits_tr)
 
         loss_cls = self.compute_supervised_loss(final_logits_tr, y_tr, criterion, args).mean()
         loss_med = self.compute_supervised_loss(causal_logits_tr, y_tr, criterion, args).mean()
@@ -1181,15 +1133,20 @@ class GraphFrontDoor(nn.Module):
         loss_fd = self.compute_supervised_loss(fd_logits_tr, y_tr, criterion, args).mean()
         fd_aug_stack_tr = None
         if fd_stack_tr is not None and num_mixed_contexts > 0:
-            fd_aug_stack_tr = fd_stack_tr[:, num_base_contexts:num_base_contexts + num_mixed_contexts, :]
+            fd_aug_stack_tr = fd_stack_tr[:, num_base_contexts:, :]
         loss_fd_aug = self.compute_context_supervised_loss(fd_aug_stack_tr, y_tr, criterion, args)
         loss_var = self.compute_frontdoor_variance_loss(fd_stack_tr)
         loss_ind = self.compute_independence_loss(causal_tr, spurious_tr)
-        loss_split_gate = self.compute_split_gate_loss(split_gate_tr)
-        loss_context_recon = self.compute_context_reconstruction_loss(h_tr, causal_tr, spurious_tr)
-        loss_edge_sparse = self.compute_edge_sparse_loss()
-        loss_edge_balance = self.compute_edge_balance_loss()
-        loss_edge_degree = self.compute_edge_degree_loss()
+        loss_inverse_recon = self.compute_inverse_reconstruction_loss(h_tr, causal_raw_tr, spurious_raw_tr)
+        loss_inverse_orth = self.invertible_decomposer.inverse_orthogonality_loss()
+        loss_pair_fd = self.compute_observed_pair_fd_loss(
+            causal_raw_tr,
+            spurious_raw_tr,
+            y_tr,
+            criterion,
+            args,
+        )
+        loss_context_compat = self.compute_context_compatibility_loss(causal_raw_tr, spurious_raw_tr)
         if self.lambda_bootstrap > 0.0:
             loss_bootstrap = self.compute_bootstrap_loss(x, edge_index, train_idx)
         else:
@@ -1216,29 +1173,23 @@ class GraphFrontDoor(nn.Module):
             + self.lambda_ind * loss_ind
             + self.lambda_env_causal * loss_env_causal
             + self.lambda_spu_env * loss_spu_env
-            + self.lambda_split_gate * loss_split_gate
-            + self.lambda_context_recon * loss_context_recon
-            + self.lambda_edge_sparse * loss_edge_sparse
-            + self.lambda_edge_balance * loss_edge_balance
-            + self.lambda_edge_degree * loss_edge_degree
+            + self.lambda_inverse_recon * loss_inverse_recon
+            + self.lambda_inverse_orth * loss_inverse_orth
+            + self.lambda_pair_fd * loss_pair_fd
+            + self.lambda_context_compat * loss_context_compat
             + self.lambda_bootstrap * loss_bootstrap
         )
 
         state_payload = None
         if update_state:
             state_payload = {
-                'spu_tr': spurious_tr.detach(),
+                'spu_tr': spurious_raw_tr.detach(),
                 'pseudo_env_tr': pseudo_env_tr.detach(),
                 'env_probs_tr': env_probs_spurious.detach(),
             }
 
         num_contexts = 0 if contexts is None else int(contexts.size(0))
         num_gmm_contexts = 0 if gmm_contexts is None else int(gmm_contexts.size(0))
-        edge_score_mean = self.classifier.weight.new_tensor(0.0)
-        edge_score_std = self.classifier.weight.new_tensor(0.0)
-        if self._last_edge_scores is not None and self._last_edge_scores.numel() > 0:
-            edge_score_mean = self._last_edge_scores.mean().detach()
-            edge_score_std = self._last_edge_scores.std(unbiased=False).detach()
         return {
             'total_loss': total_loss,
             'loss_cls': loss_cls,
@@ -1248,23 +1199,20 @@ class GraphFrontDoor(nn.Module):
             'loss_fd_aug': loss_fd_aug,
             'loss_var': loss_var,
             'loss_ind': loss_ind,
-            'loss_split_gate': loss_split_gate,
-            'loss_context_recon': loss_context_recon,
-            'loss_edge_sparse': loss_edge_sparse,
-            'loss_edge_balance': loss_edge_balance,
-            'loss_edge_degree': loss_edge_degree,
+            'loss_inverse_recon': loss_inverse_recon,
+            'loss_inverse_orth': loss_inverse_orth,
+            'loss_pair_fd': loss_pair_fd,
+            'loss_context_compat': loss_context_compat,
             'loss_env_causal': loss_env_causal,
             'loss_spu_env': loss_spu_env,
             'loss_bootstrap': loss_bootstrap,
             'causal_norm_mean': causal_tr.norm(dim=1).mean().detach(),
             'spurious_norm_mean': spurious_tr.norm(dim=1).mean().detach(),
-            'split_gate_mean': split_gate_tr.mean().detach(),
-            'split_gate_std': split_gate_tr.std(unbiased=False).detach(),
+            'causal_raw_norm_mean': causal_raw_tr.norm(dim=1).mean().detach(),
+            'spurious_raw_norm_mean': spurious_raw_tr.norm(dim=1).mean().detach(),
             'num_contexts': torch.tensor(float(num_contexts), device=x.device),
             'num_mixed_contexts': torch.tensor(float(num_mixed_contexts), device=x.device),
             'num_gmm_contexts': torch.tensor(float(num_gmm_contexts), device=x.device),
-            'edge_score_mean': edge_score_mean,
-            'edge_score_std': edge_score_std,
             'state_payload': state_payload,
         }
 

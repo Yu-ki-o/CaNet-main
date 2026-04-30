@@ -19,3 +19,4 @@ python main_MLEI.py --dataset pubmed --backbone_type gat --weight_decay 5e-5 --t
 python main_MLEI.py --dataset arxiv --backbone_type gat --weight_decay 5e-5 --tau 1 --dropout 0.2 --K 3 --num_layers 2 --hidden_channels 64 --lamda 1.0 --store_result
 python main_MLEI.py --dataset twitch --backbone_type gat --weight_decay 5e-5 --tau 1 --dropout 0.0 --K 3 --num_layers 2 --hidden_channels 64 --lamda 1.0 --store_result
 python main_MLEI.py --dataset elliptic --backbone_type gat --weight_decay 5e-4 --tau 1 --dropout 0.1 --K 3 --num_layers 3 --hidden_channels 32 --lamda 1.0 --store_result
+  

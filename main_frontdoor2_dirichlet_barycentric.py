@@ -12,7 +12,7 @@ from dataset import *
 from eval import eval_acc, eval_f1, eval_rocauc, evaluate_full
 from ica_utils import infer_pseudo_envs_with_ica
 from logger import Logger
-from model_frontdoor import GraphFrontDoor
+from model_frontdoor2_dirichlet_barycentric import GraphFrontDoor
 from parse import parser_add_main_args
 
 
@@ -45,26 +45,6 @@ def add_frontdoor_args(parser):
                         help='binary pressure inside the split-gate regularizer')
     parser.add_argument('--lambda_context_recon', type=float, default=0.1,
                         help='weight of observed-pair causal/context composer reconstruction')
-    parser.add_argument('--use_edge_frontdoor', dest='use_edge_frontdoor', action='store_true', default=True,
-                        help='enable joint node/edge causal-spurious encoding before the CIPT-style front-door flow')
-    parser.add_argument('--disable_edge_frontdoor', dest='use_edge_frontdoor', action='store_false',
-                        help='disable edge-guided encoding and use node-feature adapters only')
-    parser.add_argument('--edge_gate_hidden', type=int, default=0,
-                        help='hidden size of the edge gate MLP; <=0 uses hidden_channels')
-    parser.add_argument('--edge_gate_temp', type=float, default=1.0,
-                        help='temperature for soft edge causal scores')
-    parser.add_argument('--edge_gate_dropout', type=float, default=0.0,
-                        help='dropout inside the edge gate MLP')
-    parser.add_argument('--edge_min_weight', type=float, default=0.05,
-                        help='minimum residual edge weight for both causal and spurious branches')
-    parser.add_argument('--edge_target_ratio', type=float, default=0.5,
-                        help='target mean causal edge score used by the balance regularizer')
-    parser.add_argument('--lambda_edge_sparse', type=float, default=0.0,
-                        help='weight of the causal edge score sparsity regularizer')
-    parser.add_argument('--lambda_edge_balance', type=float, default=0.0,
-                        help='weight of the causal edge score ratio regularizer')
-    parser.add_argument('--lambda_edge_degree', type=float, default=0.0,
-                        help='weight of degree-score decorrelation for reducing hub shortcuts')
     parser.add_argument('--lambda_med', type=float, default=0.5,
                         help='weight of the causal-branch supervision loss')
     parser.add_argument('--lambda_spu', type=float, default=0.1,
@@ -84,15 +64,27 @@ def add_frontdoor_args(parser):
     parser.add_argument('--proto_mix_alpha', type=float, default=1.0,
                         help='Beta distribution alpha for environment prototype mixup')
     parser.add_argument('--use_spu_gmm', action='store_true',
-                        help='use an EMA Gaussian per pseudo environment for extra spurious contexts')
+                        help='use Dirichlet-Barycentric GMM virtual spurious contexts from EMA environment Gaussians')
     parser.add_argument('--gmm_alpha', type=float, default=0.0,
-                        help='deprecated compatibility option; GMM contexts are appended directly when --use_spu_gmm is enabled')
+                        help='small blend weight for logits computed from GMM-sampled spurious contexts')
     parser.add_argument('--gmm_sample_k', type=int, default=0,
-                        help='number of GMM-sampled spurious contexts; capped by K/fd_sample_k when positive')
+                        help='number of Dirichlet-Barycentric GMM virtual spurious contexts')
     parser.add_argument('--gmm_min_var', type=float, default=1e-4,
                         help='minimum diagonal variance for each spurious-environment Gaussian')
     parser.add_argument('--gmm_max_std', type=float, default=1.0,
                         help='maximum diagonal std for GMM context sampling; <=0 disables clipping')
+    parser.add_argument('--gmm_cap_by_fd_k', action='store_true',
+                        help='cap Dirichlet-Barycentric GMM contexts by K/fd_sample_k to reproduce the old budget')
+    parser.add_argument('--virtual_dir_alpha', type=float, default=0.5,
+                        help='Dirichlet concentration for virtual environment weights; <1 creates sparse realistic mixtures')
+    parser.add_argument('--virtual_between_scale', type=float, default=0.15,
+                        help='scale of between-environment variance added to each barycentric Gaussian')
+    parser.add_argument('--virtual_sample_temp', type=float, default=0.35,
+                        help='noise temperature for sampling around the barycentric virtual mean')
+    parser.add_argument('--virtual_maha_max', type=float, default=4.0,
+                        help='maximum averaged Mahalanobis distance to observed environment Gaussians; <=0 disables realism gate')
+    parser.add_argument('--virtual_eval_noise', action='store_true',
+                        help='add stochastic noise to Dirichlet-Barycentric GMM contexts during evaluation')
     parser.add_argument('--lambda_bootstrap', type=float, default=0.0,
                         help='weight of FLOOD-style bootstrap self-supervision during training')
     parser.add_argument('--use_tta_rl', action='store_true',
@@ -247,9 +239,6 @@ for run in range(args.runs):
         writer.add_scalar('Loss/SpuEnv', (model.lambda_spu_env * losses['loss_spu_env']).item(), global_step)
         writer.add_scalar('Loss/SplitGate', (model.lambda_split_gate * losses['loss_split_gate']).item(), global_step)
         writer.add_scalar('Loss/ContextRecon', (model.lambda_context_recon * losses['loss_context_recon']).item(), global_step)
-        writer.add_scalar('Loss/EdgeSparse', (model.lambda_edge_sparse * losses['loss_edge_sparse']).item(), global_step)
-        writer.add_scalar('Loss/EdgeBalance', (model.lambda_edge_balance * losses['loss_edge_balance']).item(), global_step)
-        writer.add_scalar('Loss/EdgeDegree', (model.lambda_edge_degree * losses['loss_edge_degree']).item(), global_step)
         writer.add_scalar('Loss/Bootstrap', (model.lambda_bootstrap * losses['loss_bootstrap']).item(), global_step)
         writer.add_scalar('Graph/CausalNorm', losses['causal_norm_mean'].item(), global_step)
         writer.add_scalar('Graph/SpuriousNorm', losses['spurious_norm_mean'].item(), global_step)
@@ -258,8 +247,6 @@ for run in range(args.runs):
         writer.add_scalar('Graph/NumContexts', losses['num_contexts'].item(), global_step)
         writer.add_scalar('Graph/NumMixedContexts', losses['num_mixed_contexts'].item(), global_step)
         writer.add_scalar('Graph/NumGMMContexts', losses['num_gmm_contexts'].item(), global_step)
-        writer.add_scalar('Graph/EdgeScoreMean', losses['edge_score_mean'].item(), global_step)
-        writer.add_scalar('Graph/EdgeScoreStd', losses['edge_score_std'].item(), global_step)
         writer.add_scalar('Metrics/1_Train', result[0] * 100, global_step)
         writer.add_scalar('Metrics/2_Valid', result[1] * 100, global_step)
         writer.add_scalar('Metrics/3_Test_In', result[2] * 100, global_step)
@@ -280,14 +267,9 @@ for run in range(args.runs):
                 f"SpuE: {(model.lambda_spu_env * losses['loss_spu_env']).item():.4f}, "
                 f"Gate: {(model.lambda_split_gate * losses['loss_split_gate']).item():.4f}, "
                 f"Recon: {(model.lambda_context_recon * losses['loss_context_recon']).item():.4f}, "
-                f"EdgeS: {(model.lambda_edge_sparse * losses['loss_edge_sparse']).item():.4f}, "
-                f"EdgeB: {(model.lambda_edge_balance * losses['loss_edge_balance']).item():.4f}, "
-                f"EdgeD: {(model.lambda_edge_degree * losses['loss_edge_degree']).item():.4f}, "
                 f"Boot: {(model.lambda_bootstrap * losses['loss_bootstrap']).item():.4f}, "
                 f"GateMean: {losses['split_gate_mean'].item():.3f}, "
                 f"GateStd: {losses['split_gate_std'].item():.3f}, "
-                f"EdgeMean: {losses['edge_score_mean'].item():.3f}, "
-                f"EdgeStd: {losses['edge_score_std'].item():.3f}, "
                 f"Ctx: {int(losses['num_contexts'].item())}, "
                 f"MixCtx: {int(losses['num_mixed_contexts'].item())}, "
                 f"GMMCtx: {int(losses['num_gmm_contexts'].item())}, "

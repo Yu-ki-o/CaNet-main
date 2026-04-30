@@ -24,7 +24,7 @@ MODEL: GraphFrontDoor(
 )
 [INFO] TensorBoard logging activated. Logs will be saved to: ./runs/arxiv/frontdoor/arxiv_gcn_frontdoor_stage1_lr0.01_weight_decay0.0005_dropout0.3_hidden_channels128_K3
 Epoch: 00, Loss: 7.5645, Cls: 3.7155, Ind: 0.0095, Med: 1.8900, Spu: 0.0234, FD: 1.9262, Var: 0.0000, Ctx: 3, Train: 22.35%, Valid: 22.95%, Test In: 22.41% Test OOD1: 18.71% Test OOD2: 13.56% Test OOD3: 6.53% 
-Epoch: 01, Loss: 6.4776, Cls: 3.1768, Ind: 0.0072, Med: 1.6394, Spu: 0.0279, FD: 1.6263, Var: 0.0000, Ctx: 3, Train: 8.81%, Valid: 9.26%, Test In: 8.46% Test OOD1: 3.67% Test OOD2: 4.18% Test OOD3: 3.43% 
+Epoch: 01, Loss: 6.4776, Cls: 3.1768, Ind: 0.0072, Med: 1.6394: 0.0279, FD: 1.6263, Var: 0.0000, Ctx: 3, Train: 8.81%, Valid: 9.26%, Test In: 8.46% Test OOD1: 3.67% Test OOD2: 4.18% Test OOD3: 3.43% 
 Epoch: 02, Loss: 6.3088, Cls: 3.1122, Ind: 0.0048, Med: 1.6009, Spu: 0.0135, FD: 1.5774, Var: 0.0000, Ctx: 3, Train: 22.35%, Valid: 22.95%, Test In: 22.41% Test OOD1: 18.71% Test OOD2: 13.56% Test OOD3: 6.53% 
 Epoch: 03, Loss: 6.2506, Cls: 3.0883, Ind: 0.0023, Med: 1.5941, Spu: 0.0132, FD: 1.5526, Var: 0.0000, Ctx: 3, Train: 22.35%, Valid: 22.95%, Test In: 22.41% Test OOD1: 18.71% Test OOD2: 13.56% Test OOD3: 6.53% 
 Epoch: 04, Loss: 6.1643, Cls: 3.0481, Ind: 0.0009, Med: 1.5561, Spu: 0.0114, FD: 1.5479, Var: 0.0000, Ctx: 3, Train: 22.35%, Valid: 22.95%, Test In: 22.41% Test OOD1: 18.71% Test OOD2: 13.56% Test OOD3: 6.53% 
