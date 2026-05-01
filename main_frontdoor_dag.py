@@ -53,6 +53,12 @@ def add_frontdoor_dag_args(parser):
                         help='weight of cross-environment prediction invariance loss')
     parser.add_argument('--lambda_gate', type=float, default=0.0,
                         help='optional mean-gate sparsity regularizer inside the DAG loss')
+    parser.add_argument('--lambda_sem', type=float, default=0.05,
+                        help='weight of bottleneck DAG semantic reconstruction/prediction loss')
+    parser.add_argument('--lambda_spu_y', type=float, default=0.1,
+                        help='weight of environment-conditioned spurious label supervision')
+    parser.add_argument('--dag_latent_dim', type=int, default=16,
+                        help='bottleneck dimension used for node/edge variables in the learned DAG')
     parser.add_argument('--mediator_temp', type=float, default=8.0,
                         help='temperature of the DAG-based soft mediator selector')
     parser.add_argument('--low_temp', type=float, default=8.0,
@@ -63,6 +69,14 @@ def add_frontdoor_dag_args(parser):
                         help='threshold for activating mediator dimensions')
     parser.add_argument('--pollution_coeff', type=float, default=1.0,
                         help='penalty coefficient for feature pollution from low-score nodes')
+    parser.add_argument('--edge_pollution_coeff', type=float, default=0.5,
+                        help='penalty coefficient for pseudo-env-sensitive edge influence')
+    parser.add_argument('--causal_support_coeff', type=float, default=0.5,
+                        help='bonus for support from high-label-effect bottleneck features')
+    parser.add_argument('--pseudo_env_balance', type=float, default=1.0,
+                        help='balance weight inside label-free pseudo-environment discovery')
+    parser.add_argument('--edge_env_momentum', type=float, default=0.9,
+                        help='EMA momentum for edge-dimension pseudo-env sensitivity')
     parser.add_argument('--fd_blend', type=float, default=0.5,
                         help='blend ratio between mediator logits and front-door aggregated logits')
     parser.add_argument('--proto_aug_k', type=int, default=1,
@@ -115,6 +129,7 @@ def capture_lambda_state(model):
         'lambda_ind',
         'lambda_env',
         'lambda_inv',
+        'lambda_spu_y',
     )
     return {name: float(getattr(model, name)) for name in lambda_names}
 
@@ -310,6 +325,7 @@ for run in range(args.runs):
         writer.add_scalar('Loss/Ind', (model.lambda_ind * losses['loss_ind']).item(), global_step)
         writer.add_scalar('Loss/DAG', (model.lambda_dag * losses['loss_dag']).item(), global_step)
         writer.add_scalar('Loss/Spu', (model.lambda_spu * losses['loss_spu']).item(), global_step)
+        writer.add_scalar('Loss/SpuY', (model.lambda_spu_y * losses['loss_spu_y']).item(), global_step)
         writer.add_scalar('Loss/EnvMed', (model.lambda_env * losses['loss_env_med']).item(), global_step)
         writer.add_scalar('Loss/Inv', (model.lambda_inv * losses['loss_inv']).item(), global_step)
         writer.add_scalar('Loss/Var', (model.lambda_var * losses['loss_var']).item(), global_step)
@@ -347,6 +363,7 @@ for run in range(args.runs):
                 f"Ind: {(model.lambda_ind * losses['loss_ind']).item():.4f}, "
                 f"DAG: {(model.lambda_dag * losses['loss_dag']).item():.4f}, "
                 f"Spu: {(model.lambda_spu * losses['loss_spu']).item():.4f}, "
+                f"SpuY: {(model.lambda_spu_y * losses['loss_spu_y']).item():.4f}, "
                 f"EnvMed: {(model.lambda_env * losses['loss_env_med']).item():.4f}, "
                 f"Inv: {(model.lambda_inv * losses['loss_inv']).item():.4f}, "
                 f"Var: {(model.lambda_var * losses['loss_var']).item():.4f}, "
