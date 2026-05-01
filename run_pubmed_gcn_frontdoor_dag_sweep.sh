@@ -13,6 +13,7 @@ ENV_TYPE="graph"
 EPOCHS=500
 RUNS=1
 DEVICE="${DEVICE:-0}"
+PYTHON="${PYTHON:-python}"
 DISPLAY_STEP="${DISPLAY_STEP:-10}"
 EARLY_STOP_PATIENCE="${EARLY_STOP_PATIENCE:-50}"
 EARLY_STOP_MIN_DELTA="${EARLY_STOP_MIN_DELTA:-0.0001}"
@@ -36,7 +37,7 @@ TOTAL_CONFIGS=$((
 ))
 
 echo "[INFO] PubMed GCN front-door DAG sweep"
-echo "[INFO] epochs=${EPOCHS}, runs=${RUNS}, total_configs=${TOTAL_CONFIGS}, device=${DEVICE}"
+echo "[INFO] epochs=${EPOCHS}, runs=${RUNS}, total_configs=${TOTAL_CONFIGS}, device=${DEVICE}, python=${PYTHON}"
 
 for lr in "${LRS[@]}"; do
   for weight_decay in "${WEIGHT_DECAYS[@]}"; do
@@ -48,7 +49,7 @@ for lr in "${LRS[@]}"; do
               result_name="pubmed_gcn_fd_dag_lr${lr}_wd${weight_decay}_dp${dropout}_tau${tau}_h${hidden_channels}_K${k}_dagdim${dag_latent_dim}"
               echo "[RUN] ${result_name}"
 
-              python main_frontdoor_dag.py \
+              "${PYTHON}" main_frontdoor_dag.py \
                 --dataset "${DATASET}" \
                 --backbone "${BACKBONE}" \
                 --lr "${lr}" \

@@ -1,5 +1,28 @@
 # Update Log
 
+## 2026-05-01
+
+Added `P008` from `/public/wc/lunwen/Supercharging_Graph_Trans.pdf`.
+
+Changed files:
+
+- Created `papers/P008_advdifformer.md`.
+- Created `methods/advective_diffusion_topology_shift.md`.
+- Updated `meta/paper_registry.csv`.
+- Updated `index.md`, `project_context.md`, `meta/taxonomy.md`.
+- Updated `ideas/model_variants.md` and `ideas/experiment_queue.md`.
+
+New insights:
+
+- AdvDIFFormer (`P008`) treats topology shift as environment-induced adjacency distribution change and warns that local adjacency diffusion can be highly sensitive under such shifts.
+- For the current front-door/DAG pipeline, this suggests an `Advective-FrontDoor Encoder`: stable non-local attention plus weighted observed-topology propagation before causal/spurious decomposition.
+- The topology reliance weight `beta` should be treated as an OOD hyperparameter, especially on Arxiv/Twitch/Elliptic.
+
+Unresolved uncertainties:
+
+- Dense all-pair attention may be too expensive for Arxiv; a top-k, low-rank, landmark, or chunked approximation is likely needed.
+- It is unclear whether the stable non-local channel should feed all branches equally or be emphasized in the causal branch while topology-heavy representations feed context/spurious branches.
+
 ## 2026-04-26
 
 Added `P007` from `/public/wc/lunwen/Discovering Dynamic Causal Space for DAG Structure Learning.pdf`.
@@ -38,4 +61,4 @@ Changed files:
 
 Scope note:
 
-- Other PDFs in `/public/wc/lunwen` were intentionally left out of this first memory pass. Add them later as `P008+` if they become relevant.
+- Other PDFs in `/public/wc/lunwen` were intentionally left out of this first memory pass. Add them later as `P009+` if they become relevant.

@@ -244,14 +244,14 @@ class GraphFrontDoorDAG(nn.Module):
         self.fd_classifier = nn.Linear(self.d, c)
         self.env_classifier = nn.Linear(self.d, self.num_envs)
 
-        self.edge_score_temp = max(1e-3, float(getattr(args, 'edge_score_temp', 1.0)))
+        self.edge_score_temp = max(1e-3, float(getattr(args, 'edge_score_temp', 2.0)))
+        self.edge_blend = max(0.0, float(getattr(args, 'edge_blend', 0.2)))
         self.edge_pair_encoder = nn.Sequential(
             nn.Linear(self.d * 4, self.d),
             nn.ReLU(),
             nn.Linear(self.d, self.d),
         )
         self.edge_score_head = nn.Linear(self.d, 1)
-        self.edge_message_head = nn.Linear(self.d, self.d)
         self.edge_summary_norm = nn.LayerNorm(self.d)
         self.node_edge_fuser = nn.Sequential(
             nn.Linear(self.d * 3, self.d),
@@ -322,8 +322,13 @@ class GraphFrontDoorDAG(nn.Module):
         self.fd_blend = getattr(args, 'fd_blend', 0.5)
         self.fd_sample_k = max(0, int(getattr(args, 'K', 0)))
         self.context_sample_seed = int(getattr(args, 'seed', 0))
-        self.proto_aug_k = max(0, int(getattr(args, 'proto_aug_k', 0)))
-        self.proto_mix_alpha = max(1e-3, float(getattr(args, 'proto_mix_alpha', 1.0)))
+        self.use_spu_gmm = bool(getattr(args, 'use_spu_gmm', True))
+        requested_gmm_sample_k = int(getattr(args, 'gmm_sample_k', 0))
+        if requested_gmm_sample_k <= 0:
+            requested_gmm_sample_k = self.fd_sample_k
+        self.gmm_sample_k = max(0, requested_gmm_sample_k)
+        self.gmm_min_var = max(1e-6, float(getattr(args, 'gmm_min_var', 1e-4)))
+        self.gmm_max_std = max(0.0, float(getattr(args, 'gmm_max_std', 1.0)))
 
         self.lambda_l1 = getattr(args, 'lambda_l1', 1e-5)
         self.lambda_dag = getattr(args, 'lambda_dag', 0.1)
@@ -350,9 +355,9 @@ class GraphFrontDoorDAG(nn.Module):
         self.edge_pollution_coeff = getattr(args, 'edge_pollution_coeff', 0.5)
         self.causal_support_coeff = getattr(args, 'causal_support_coeff', 0.5)
 
-        # Only keep env-level spurious prototypes for front-door contexts.
-        self.register_buffer('proto_spu_env', torch.zeros(self.num_envs, self.d))
-        self.register_buffer('proto_spu_env_valid', torch.zeros(self.num_envs, dtype=torch.bool))
+        self.register_buffer('gmm_spu_mean', torch.zeros(self.num_envs, self.d))
+        self.register_buffer('gmm_spu_var', torch.ones(self.num_envs, self.d))
+        self.register_buffer('gmm_spu_valid', torch.zeros(self.num_envs, dtype=torch.bool))
         self.register_buffer('dag_allowed_mask', self.build_dag_allowed_mask())
         self.register_buffer('edge_env_sensitivity', torch.zeros(self.dag_latent_dim))
         self._last_node_degree_signal = None
@@ -368,7 +373,6 @@ class GraphFrontDoorDAG(nn.Module):
         self.env_classifier.reset_parameters()
         self._reset_module_parameters(self.edge_pair_encoder)
         self.edge_score_head.reset_parameters()
-        self.edge_message_head.reset_parameters()
         self.edge_summary_norm.reset_parameters()
         self._reset_module_parameters(self.node_edge_fuser)
         nn.init.zeros_(self.node_edge_fuser[-1].weight)
@@ -392,8 +396,9 @@ class GraphFrontDoorDAG(nn.Module):
         nn.init.zeros_(self.dag_label_bias)
         nn.init.normal_(self.pseudo_env_emb, std=0.02)
         self._reset_module_parameters(self.spurious_label_head)
-        self.proto_spu_env.zero_()
-        self.proto_spu_env_valid.zero_()
+        self.gmm_spu_mean.zero_()
+        self.gmm_spu_var.fill_(1.0)
+        self.gmm_spu_valid.zero_()
         self.edge_env_sensitivity.zero_()
         self._last_node_degree_signal = None
 
@@ -482,7 +487,6 @@ class GraphFrontDoorDAG(nn.Module):
 
     def compute_edge_semantic_summary(self, h, edge_index, training=False):
         if edge_index.numel() == 0:
-            self._last_node_degree_signal = h.new_zeros(h.size(0))
             return h.new_zeros(h.size())
 
         src, dst = edge_index
@@ -498,24 +502,25 @@ class GraphFrontDoorDAG(nn.Module):
         edge_hidden = self.edge_pair_encoder(edge_feat)
         edge_hidden = F.dropout(edge_hidden, self.dropout, training=training)
         edge_logits = self.edge_score_head(edge_hidden).squeeze(-1) / self.edge_score_temp
-        edge_alpha = softmax(edge_logits, dst, num_nodes=h.size(0))
-        edge_msg = self.edge_message_head(edge_hidden)
+        edge_gate = torch.sigmoid(edge_logits)
 
+        deg = degree(dst, h.size(0)).to(device=h.device, dtype=h.dtype).clamp_min(1.0)
+        norm = deg[src].pow(-0.5) * deg[dst].pow(-0.5)
+        edge_weight = torch.nan_to_num(norm * edge_gate, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # NodeIGM-style edge-aware aggregation: the learned edge semantics act
+        # as a gate on top of GCN normalization, preserving the strong PubMed
+        # GCN prior while filtering unreliable neighbors.
         edge_summary = h.new_zeros(h.size())
-        edge_summary.index_add_(0, dst, edge_alpha.unsqueeze(-1) * edge_msg)
+        edge_summary.index_add_(0, dst, edge_weight.unsqueeze(-1) * h[src])
         edge_summary = self.edge_summary_norm(edge_summary)
-
-        deg = degree(dst, h.size(0)).to(device=h.device, dtype=h.dtype)
-        deg = torch.log1p(deg)
-        deg = deg / deg.max().clamp_min(1.0)
-        self._last_node_degree_signal = deg.detach()
         return edge_summary
 
     def fuse_node_edge_representation(self, h, edge_summary, training=False):
         fuse_input = torch.cat([h, edge_summary, h * edge_summary], dim=-1)
         edge_delta = self.node_edge_fuser(fuse_input)
         edge_delta = F.dropout(edge_delta, self.dropout, training=training)
-        return self.node_edge_norm(h + edge_delta)
+        return self.node_edge_norm(h + self.edge_blend * edge_delta)
 
     def encode_representation(self, x, edge_index, training=False):
         x = F.dropout(x, self.dropout, training=training)
@@ -553,11 +558,6 @@ class GraphFrontDoorDAG(nn.Module):
 
     def get_frontdoor_contexts(self, z_spurious=None, env_probs=None):
         context_map = {}
-        if self.proto_spu_env_valid.any():
-            valid_envs = self.proto_spu_env_valid.nonzero(as_tuple=False).squeeze(-1).tolist()
-            for env_idx in valid_envs:
-                context_map[int(env_idx)] = self.proto_spu_env[env_idx].detach()
-
         if z_spurious is not None and z_spurious.numel() > 0:
             if env_probs is None:
                 env_probs = self.compute_pseudo_env_probs(z_spurious).detach()
@@ -598,34 +598,70 @@ class GraphFrontDoorDAG(nn.Module):
             indices = indices.to(contexts.device)
         return contexts.index_select(0, indices)
 
-    def augment_frontdoor_contexts(self, contexts, training=False):
-        if (
-            not training
-            or self.proto_aug_k <= 0
-            or contexts is None
-            or contexts.size(0) < 2
-        ):
-            return contexts, 0
+    def _fit_spurious_gmm_stats(self, z_spurious, env_probs):
+        means = z_spurious.new_zeros(self.num_envs, self.d)
+        vars_ = z_spurious.new_ones(self.num_envs, self.d)
+        valid = torch.zeros(self.num_envs, device=z_spurious.device, dtype=torch.bool)
+        if z_spurious is None or z_spurious.numel() == 0:
+            return means, vars_, valid
+        if env_probs is None or env_probs.numel() == 0 or env_probs.size(-1) != self.num_envs:
+            env_probs = self.compute_pseudo_env_probs(z_spurious)
 
-        contexts = contexts.detach()
-        num_contexts = contexts.size(0)
-        mix_count = self.proto_aug_k
+        env_probs = env_probs.detach().clamp_min(0.0)
+        z_detached = z_spurious.detach()
+        for env_idx in range(self.num_envs):
+            weights = env_probs[:, env_idx]
+            mass = weights.sum()
+            if mass <= 1e-8:
+                continue
+            mean = (z_detached * weights.unsqueeze(-1)).sum(dim=0) / mass.clamp_min(1e-8)
+            centered = z_detached - mean
+            var = (centered.pow(2) * weights.unsqueeze(-1)).sum(dim=0) / mass.clamp_min(1e-8)
+            means[env_idx] = mean
+            vars_[env_idx] = var.clamp_min(self.gmm_min_var)
+            valid[env_idx] = True
+        return means, vars_, valid
 
-        idx_a = torch.randint(num_contexts, (mix_count,), device=contexts.device)
-        idx_b = torch.randint(num_contexts - 1, (mix_count,), device=contexts.device)
-        idx_b = idx_b + (idx_b >= idx_a).long()
+    def sample_gmm_contexts(self, z_spurious=None, env_probs=None, training=False):
+        if not self.use_spu_gmm or self.gmm_sample_k <= 0:
+            return None
 
-        beta_dist = torch.distributions.Beta(
-            contexts.new_tensor(self.proto_mix_alpha),
-            contexts.new_tensor(self.proto_mix_alpha),
-        )
-        mix_weight = beta_dist.sample((mix_count, 1)).to(contexts.device)
-        mixed_contexts = (
-            mix_weight * contexts.index_select(0, idx_a)
-            + (1.0 - mix_weight) * contexts.index_select(0, idx_b)
-        )
-        mixed_contexts = F.normalize(mixed_contexts, dim=1)
-        return torch.cat([contexts, mixed_contexts.detach()], dim=0), mix_count
+        if training and z_spurious is not None:
+            means, vars_, valid = self._fit_spurious_gmm_stats(z_spurious, env_probs)
+        else:
+            means, vars_, valid = self.gmm_spu_mean, self.gmm_spu_var, self.gmm_spu_valid
+
+        valid_envs = valid.nonzero(as_tuple=False).squeeze(-1)
+        if valid_envs.numel() == 0:
+            return None
+
+        sample_k = self.gmm_sample_k
+        if self.fd_sample_k > 0:
+            sample_k = min(sample_k, self.fd_sample_k)
+        if sample_k <= 0:
+            return None
+
+        if training:
+            env_indices = valid_envs[torch.randint(valid_envs.numel(), (sample_k,), device=valid_envs.device)]
+        else:
+            repeat = (sample_k + valid_envs.numel() - 1) // valid_envs.numel()
+            env_indices = valid_envs.repeat(repeat)[:sample_k]
+
+        mean = means.index_select(0, env_indices)
+        var = vars_.index_select(0, env_indices).clamp_min(self.gmm_min_var)
+        std = var.sqrt()
+        if self.gmm_max_std > 0.0:
+            std = std.clamp_max(self.gmm_max_std)
+
+        if training:
+            noise = torch.randn_like(mean)
+        else:
+            generator = torch.Generator(device=mean.device)
+            generator.manual_seed(self.context_sample_seed + sample_k + int(valid_envs.numel()))
+            noise = torch.randn(mean.shape, generator=generator, device=mean.device, dtype=mean.dtype)
+
+        contexts = mean + noise * std
+        return F.normalize(contexts, dim=1)
 
     def frontdoor_logits_from_contexts(self, z_mediator, z_spurious, contexts):
         base_logits = self.fd_classifier(z_mediator)
@@ -673,7 +709,7 @@ class GraphFrontDoorDAG(nn.Module):
         ) = self.encode_representation(x, edge_index, training=training)
 
         contexts = self.sample_frontdoor_contexts(
-            self.get_frontdoor_contexts(),
+            self.sample_gmm_contexts(training=training),
             training=training,
         )
         fd_logits, fd_stack = self.frontdoor_logits_from_contexts(z_mediator, z_spurious, contexts)
@@ -819,19 +855,7 @@ class GraphFrontDoorDAG(nn.Module):
         return recon_loss + label_loss
 
     def compute_dag_degree_loss(self, z_mediator, train_idx):
-        if (
-            self._last_node_degree_signal is None
-            or z_mediator.numel() == 0
-            or train_idx.numel() == 0
-        ):
-            return self.A_feat.new_zeros(())
-        med_strength = z_mediator.norm(dim=1)
-        degree_signal = self._last_node_degree_signal.to(device=z_mediator.device, dtype=z_mediator.dtype)
-        med_strength = med_strength[train_idx]
-        degree_signal = degree_signal[train_idx]
-        med_strength = (med_strength - med_strength.mean()) / med_strength.std(unbiased=False).clamp_min(1e-4)
-        degree_signal = (degree_signal - degree_signal.mean()) / degree_signal.std(unbiased=False).clamp_min(1e-4)
-        return (med_strength * degree_signal).mean().pow(2)
+        return self.A_feat.new_zeros(())
 
     def compute_spurious_label_loss(self, z_spurious, env_probs, labels, criterion, args):
         if z_spurious.numel() == 0:
@@ -869,23 +893,19 @@ class GraphFrontDoorDAG(nn.Module):
             sensitivity = sensitivity / count
         return self._normalize_score(sensitivity, default_value=0.0)
 
-    def update_spurious_env_prototypes(self, z_spurious, env_probs=None):
-        if z_spurious is None or z_spurious.numel() == 0:
+    def update_spurious_gmm(self, z_spurious, env_probs=None):
+        if not self.use_spu_gmm or z_spurious is None or z_spurious.numel() == 0:
             return
-        if env_probs is None:
-            env_probs = self.compute_pseudo_env_probs(z_spurious)
-        env_probs = env_probs.detach()
-        for env_idx in range(self.num_envs):
-            weight = env_probs[:, env_idx]
-            mass = weight.sum()
-            if mass <= 1e-6:
-                continue
-            vec = (weight.unsqueeze(-1) * z_spurious).sum(dim=0) / mass.clamp_min(1e-6)
-            vec = vec.detach()
-            if self.proto_spu_env_valid[env_idx]:
-                vec = self.gamma * self.proto_spu_env[env_idx] + (1.0 - self.gamma) * vec
-            self.proto_spu_env[env_idx] = F.normalize(vec, dim=0)
-            self.proto_spu_env_valid[env_idx] = True
+        means, vars_, valid = self._fit_spurious_gmm_stats(z_spurious, env_probs)
+        for env_idx in valid.nonzero(as_tuple=False).squeeze(-1).tolist():
+            mean = means[env_idx]
+            var = vars_[env_idx]
+            if self.gmm_spu_valid[env_idx]:
+                mean = self.gamma * self.gmm_spu_mean[env_idx] + (1.0 - self.gamma) * mean
+                var = self.gamma * self.gmm_spu_var[env_idx] + (1.0 - self.gamma) * var
+            self.gmm_spu_mean[env_idx] = mean
+            self.gmm_spu_var[env_idx] = var.clamp_min(self.gmm_min_var)
+            self.gmm_spu_valid[env_idx] = True
 
     def update_edge_env_sensitivity(self, edge_latent, env_probs=None):
         if edge_latent is None or env_probs is None:
@@ -898,7 +918,7 @@ class GraphFrontDoorDAG(nn.Module):
     def apply_state_update(self, state_payload):
         if state_payload is None:
             return
-        self.update_spurious_env_prototypes(
+        self.update_spurious_gmm(
             state_payload['spu_tr'],
             state_payload['env_probs_tr'],
         )
@@ -937,23 +957,18 @@ class GraphFrontDoorDAG(nn.Module):
         env_probs_spu = F.softmax(env_logits_spu, dim=-1) if self.num_envs > 1 else None
 
         contexts = self.sample_frontdoor_contexts(
-            self.get_frontdoor_contexts(spu_tr, env_probs_spu),
+            self.sample_gmm_contexts(spu_tr, env_probs_spu, training=True),
             training=True,
         )
-        num_base_contexts = 0 if contexts is None else int(contexts.size(0))
-        contexts, num_mixed_contexts = self.augment_frontdoor_contexts(
-            contexts,
-            training=True,
-        )
+        num_gmm_contexts = 0 if contexts is None else int(contexts.size(0))
+        num_mixed_contexts = 0
         fd_logits_tr, fd_stack_tr = self.frontdoor_logits_from_contexts(med_tr, spu_tr, contexts)
         final_logits_tr = self.blend_logits(mediator_logits_tr, fd_logits_tr)
 
         loss_cls = self.compute_supervised_loss(final_logits_tr, y_tr, criterion, args).mean()
         loss_med = self.compute_supervised_loss(mediator_logits_tr, y_tr, criterion, args).mean()
         loss_fd = self.compute_supervised_loss(fd_logits_tr, y_tr, criterion, args).mean()
-        fd_aug_stack_tr = None
-        if fd_stack_tr is not None and num_mixed_contexts > 0:
-            fd_aug_stack_tr = fd_stack_tr[:, num_base_contexts:, :]
+        fd_aug_stack_tr = fd_stack_tr if num_gmm_contexts > 0 else None
         loss_fd_aug = self.compute_context_supervised_loss(fd_aug_stack_tr, y_tr, criterion, args)
         loss_var = self.compute_frontdoor_variance_loss(fd_stack_tr)
         loss_ind = self.compute_independence_loss(med_tr, spu_tr)
@@ -1022,6 +1037,7 @@ class GraphFrontDoorDAG(nn.Module):
             'pollution_score_mean': pollution_score.mean().detach(),
             'num_contexts': torch.tensor(float(num_contexts), device=x.device),
             'num_mixed_contexts': torch.tensor(float(num_mixed_contexts), device=x.device),
+            'num_gmm_contexts': torch.tensor(float(num_gmm_contexts), device=x.device),
             'state_payload': state_payload,
         }
 

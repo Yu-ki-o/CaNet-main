@@ -66,8 +66,27 @@ loss += lambda_casper * dag_score
 
 Expected benefit: more stable feature DAG and mediator mask learning, especially when `A_feat` otherwise falls into a task-fitting but structurally weak solution.
 
+## V007 - Advective-FrontDoor Encoder
+
+Sources: `P008`, `P004`, `P001`
+
+Replace or augment the current GCN encoder with a scalable advective diffusion encoder:
+
+```text
+z0 = encoder(x)
+P = nonlocal_attention(z0) + beta * normalized_adj
+z = projection([z0, P z0, ..., P^K z0])
+```
+
+Then pass `z` into the existing causal/spurious/front-door branches.
+
+Expected benefit: lower sensitivity to topology shift on Arxiv/Twitch/Elliptic while retaining useful observed-graph structure.
+
+Minimal caution: begin with `K=2/3`, approximate attention, and a small `beta` grid before combining with additional DAG or CIW losses.
+
 ## Deprecated / Caution
 
 - Do not combine V001 + V002 + V003 all at once. The loss surface and hyperparameter space will become hard to diagnose.
 - Do not implement full cross-domain DAG from `P006` before a lightweight causal-strength mask baseline.
 - Do not implement full bilevel `P007` CASPER before a lightweight DAG-ness-aware auxiliary score. The inner-loop scorer can destabilize current front-door training.
+- Do not use dense all-pair attention from `P008` on Arxiv without a memory-aware approximation.

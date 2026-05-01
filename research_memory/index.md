@@ -1,6 +1,6 @@
 # Research Memory Index
 
-This is the project-level memory set for the current CaNet/front-door graph OOD work. It started from the six user-selected papers most related to the current model and now also includes a DAG structure learning paper for the `model_frontdoor_dag.py` direction.
+This is the project-level memory set for the current CaNet/front-door graph OOD work. It started from the six user-selected papers most related to the current model and now also includes DAG structure learning and topology-shift graph transformer papers for the `model_frontdoor_dag.py` / Arxiv OOD direction.
 
 ## Paper Map
 
@@ -11,6 +11,7 @@ This is the project-level memory set for the current CaNet/front-door graph OOD 
 - `P005` DAG-aware Transformer: injects causal DAG structure into attention and connects to ATE/CATE/IPTW/AIPW.
 - `P006` CIW: causal-effect-guided differential feature decorrelation and sample weighting.
 - `P007` CASPER: DAG-ness-aware score function for differentiable DAG structure learning in a dynamic causal space.
+- `P008` AdvDIFFormer: advective diffusion graph transformer for topology-shift generalization.
 
 ## Current Knowledge Map
 
@@ -46,6 +47,12 @@ Project synthesis: current `model_frontdoor_dag.py` can be evolved into a small 
 
 Project synthesis: the current feature DAG `A_feat` in `model_frontdoor_dag.py` should eventually use a DAG-ness-aware score or dynamic regularizer, not only classification/front-door losses plus `h(A)` penalty.
 
+### Topological Distribution Shift
+
+`P008` reframes graph OOD as environment-induced topology shift, where local adjacency propagation can make node representations overly sensitive to changes in graph structure.
+
+Project synthesis: for Arxiv/Twitch/Elliptic-style shifts, the base encoder should not rely only on adjacency-driven diffusion. A scalable advective encoder can mix stable non-local attention with weighted observed-topology propagation before front-door causal/spurious decomposition.
+
 ### Decorrelation
 
 `P006` warns that uniform decorrelation can destroy useful causal feature correlations.
@@ -59,6 +66,7 @@ Project synthesis: the current `lambda_ind` loss should eventually become causal
 3. DAG-Masked FrontDoor: use `P005` DAG-aware latent attention to control causal/spurious/context information flow.
 4. CIW-Independence: replace uniform independence with `P006` causal-strength-guided decorrelation.
 5. CASPER-FeatureDAG: use `P007` DAG-ness-aware scoring to make the learned feature DAG more structurally meaningful.
+6. Advective-FrontDoor Encoder: use `P008` non-local diffusion plus weighted adjacency advection to reduce topology-shift sensitivity.
 
 ## How To Use This Memory
 

@@ -7,7 +7,18 @@ from datetime import datetime
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except ModuleNotFoundError:
+    class SummaryWriter:
+        def __init__(self, *args, **kwargs):
+            print('[WARN] tensorboard is not installed; scalar logging is disabled.')
+
+        def add_scalar(self, *args, **kwargs):
+            pass
+
+        def close(self):
+            pass
 
 from dataset import *
 from eval import eval_acc, eval_f1, eval_rocauc, evaluate_full
@@ -30,7 +41,7 @@ def fix_seed(seed):
 def add_frontdoor_dag_args(parser):
     parser.set_defaults(use_cipt_schedule=True, use_cosine_lr=True)
     parser.add_argument('--gamma', type=float, default=0.99,
-                        help='EMA momentum for spurious context prototypes')
+                        help='EMA momentum for spurious context statistics')
     parser.add_argument('--lambda_l1', type=float, default=1e-5,
                         help='L1 sparsity weight inside the DAG regularizer')
     parser.add_argument('--lambda_ind', type=float, default=0.1,
@@ -77,12 +88,25 @@ def add_frontdoor_dag_args(parser):
                         help='balance weight inside label-free pseudo-environment discovery')
     parser.add_argument('--edge_env_momentum', type=float, default=0.9,
                         help='EMA momentum for edge-dimension pseudo-env sensitivity')
+    parser.add_argument('--edge_score_temp', type=float, default=2.0,
+                        help='temperature for edge semantic gate logits; larger values produce smoother gates')
+    parser.add_argument('--edge_blend', type=float, default=0.2,
+                        help='residual strength of edge-aware neighbor aggregation')
     parser.add_argument('--fd_blend', type=float, default=0.5,
                         help='blend ratio between mediator logits and front-door aggregated logits')
     parser.add_argument('--proto_aug_k', type=int, default=1,
-                        help='number of mixed environment prototypes added during training')
+                        help='deprecated: prototype mixup is replaced by GMM context sampling in the DAG model')
     parser.add_argument('--proto_mix_alpha', type=float, default=1.0,
-                        help='Beta distribution alpha for environment prototype mixup')
+                        help='deprecated: prototype mixup is replaced by GMM context sampling in the DAG model')
+    parser.add_argument('--disable_spu_gmm', action='store_false', dest='use_spu_gmm',
+                        help='disable GMM sampling for spurious environment contexts')
+    parser.set_defaults(use_spu_gmm=True)
+    parser.add_argument('--gmm_sample_k', type=int, default=0,
+                        help='number of GMM-sampled spurious contexts; <=0 uses K')
+    parser.add_argument('--gmm_min_var', type=float, default=1e-4,
+                        help='minimum diagonal variance used by spurious-context GMM')
+    parser.add_argument('--gmm_max_std', type=float, default=1.0,
+                        help='maximum std for GMM context sampling; <=0 disables clipping')
     parser.add_argument('--disable_dag_mixer', action='store_false', dest='use_dag_mixer',
                         help='disable DAG-masked latent mixing and use the old concat fuser')
     parser.set_defaults(use_dag_mixer=True)
@@ -273,7 +297,8 @@ print(
     f"[INFO] Training recipe | CIPT schedule: {args.use_cipt_schedule} | "
     f"cosine lr: {args.use_cosine_lr} | warmup: {args.decomp_warmup_epochs} | "
     f"ramp: {args.intervention_ramp_epochs} | grad clip: {args.grad_clip} | "
-    f"DAG mixer: {args.use_dag_mixer}"
+    f"DAG mixer: {args.use_dag_mixer} | GMM contexts: {args.use_spu_gmm} | "
+    f"GMM sample k: {args.gmm_sample_k if args.gmm_sample_k > 0 else args.K}"
 )
 
 dataset.x = dataset.x.to(device)
@@ -334,6 +359,7 @@ for run in range(args.runs):
         writer.add_scalar('Graph/PollutionScore', losses['pollution_score_mean'].item(), global_step)
         writer.add_scalar('Graph/NumContexts', losses['num_contexts'].item(), global_step)
         writer.add_scalar('Graph/NumMixedContexts', losses['num_mixed_contexts'].item(), global_step)
+        writer.add_scalar('Graph/NumGMMContexts', losses['num_gmm_contexts'].item(), global_step)
         writer.add_scalar('Schedule/LR', current_lr, global_step)
         writer.add_scalar('Schedule/InterventionScale', schedule_state['intervention_scale'], global_step)
         writer.add_scalar('Schedule/DAGScale', schedule_state['dag_scale'], global_step)
@@ -370,6 +396,7 @@ for run in range(args.runs):
                 f"LR: {current_lr:.6f}, "
                 f"IntScale: {schedule_state['intervention_scale']:.3f}, "
                 f"Ctx: {int(losses['num_contexts'].item())}, "
+                f"GMMCtx: {int(losses['num_gmm_contexts'].item())}, "
                 f"MixCtx: {int(losses['num_mixed_contexts'].item())}, "
                 f"Train: {100 * result[0]:.2f}%, Valid: {100 * result[1]:.2f}%, "
                 f"Test In: {100 * result[2]:.2f}% "

@@ -73,3 +73,18 @@ Compare:
 Start with Cora/Citeseer/Pubmed and `lambda_casper=0` default. If stable, run stage2 search for `lambda_casper` and one temperature/clipping parameter.
 
 Measure: OOD accuracy, validation stability, `h(A_feat)`, mediator mask entropy, and whether causal branch accuracy drops.
+
+## E007 - Advective Encoder Topology-Reliance Sweep
+
+Sources: `P008`
+
+Compare:
+
+- current GCN/GAT encoder
+- non-local diffusion only (`beta=0`)
+- advective diffusion with `beta in {0.2, 0.5, 0.8, 1.0}`
+- current front-door DAG model with advective encoder plugged in
+
+Start with Cora/Citeseer/Pubmed for debugging, then prioritize Arxiv and Twitch.
+
+Measure: OOD accuracy, validation-to-OOD gap, memory/runtime, and embedding/logit sensitivity to edge dropout or edge rewiring.
