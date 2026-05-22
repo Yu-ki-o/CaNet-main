@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Focused hyper-parameter sweep for DAG-Core on Twitch with a GCN backbone.
+# Twitch has multiple OOD splits and is sensitive to regularization/context
+# stability, so this keeps the search small and centered on the known strong
+# stage1 setting: lr=0.005, wd=5e-5, dropout=0.2, hidden=32, K=4, tau=3.
+#
+# Usage:
+#   DEVICE=1 bash run_twitch_gcn_frontdoor_dag_sweep.sh
+#   EPOCHS=300 RUNS=2 bash run_twitch_gcn_frontdoor_dag_sweep.sh
+
+DATASET="twitch"
+BACKBONE="gcn"
+ENV_TYPE="graph"
+
+EPOCHS="${EPOCHS:-500}"
+RUNS="${RUNS:-1}"
+DEVICE="${DEVICE:-0}"
+PYTHON="${PYTHON:-python}"
+DISPLAY_STEP="${DISPLAY_STEP:-10}"
+EARLY_STOP_PATIENCE="${EARLY_STOP_PATIENCE:-80}"
+EARLY_STOP_MIN_DELTA="${EARLY_STOP_MIN_DELTA:-0.0001}"
+
+WEIGHT_DECAY="${WEIGHT_DECAY:-5e-5}"
+HIDDEN_CHANNELS="${HIDDEN_CHANNELS:-32}"
+K="${K:-4}"
+TAU="${TAU:-3}"
+
+# name|lr|dropout|lambda_dag|lambda_dag_label|lambda_spu|lambda_env|fd_blend|dag_latent_dim|edge_blend|gmm_sample_k|extra_args
+CONFIGS=(
+  "weak_base|0.005|0.2|0.005|0.01|0.02|0.0|0.3|8|0.05|1|"
+  "weak_fd05|0.005|0.2|0.005|0.01|0.02|0.0|0.5|8|0.05|1|"
+  "dag01|0.005|0.2|0.01|0.01|0.02|0.0|0.3|8|0.05|1|"
+  "daglabel05|0.005|0.2|0.005|0.05|0.02|0.0|0.3|8|0.05|1|"
+  "spu05_env02|0.005|0.2|0.005|0.01|0.05|0.02|0.3|8|0.05|1|"
+  "dim16_edge01|0.005|0.2|0.005|0.01|0.02|0.0|0.3|16|0.1|1|"
+  "gmm3|0.005|0.2|0.005|0.01|0.02|0.0|0.3|8|0.05|3|"
+  "nogmm|0.005|0.2|0.005|0.01|0.02|0.0|0.3|8|0.05|0|--disable_spu_gmm"
+  "nomixer|0.005|0.2|0.005|0.01|0.02|0.0|0.3|8|0.05|1|--disable_dag_mixer"
+  "lr01_dp0|0.01|0.0|0.005|0.01|0.02|0.0|0.3|8|0.05|1|"
+  "lr005_dp0|0.005|0.0|0.005|0.01|0.02|0.0|0.3|8|0.05|1|"
+  "balanced|0.005|0.2|0.01|0.05|0.05|0.02|0.5|16|0.1|3|"
+)
+
+echo "[INFO] Twitch GCN DAG-Core focused sweep"
+echo "[INFO] epochs=${EPOCHS}, runs=${RUNS}, configs=${#CONFIGS[@]}, device=${DEVICE}, python=${PYTHON}"
+echo "[INFO] fixed: wd=${WEIGHT_DECAY}, hidden=${HIDDEN_CHANNELS}, K=${K}, tau=${TAU}"
+
+for config in "${CONFIGS[@]}"; do
+  IFS='|' read -r tag lr dropout lambda_dag lambda_dag_label lambda_spu lambda_env fd_blend dag_latent_dim edge_blend gmm_sample_k extra_args <<< "${config}"
+
+  result_name="twitch_gcn_dagcore_${tag}_lr${lr}_dp${dropout}_d${lambda_dag}_dl${lambda_dag_label}_spu${lambda_spu}_env${lambda_env}_fd${fd_blend}_dim${dag_latent_dim}_edge${edge_blend}_gmm${gmm_sample_k}"
+  echo "[RUN] ${result_name}"
+
+  # shellcheck disable=SC2206
+  extra_args_array=(${extra_args})
+
+  "${PYTHON}" main_frontdoor_dag_core.py \
+    --dataset "${DATASET}" \
+    --backbone "${BACKBONE}" \
+    --lr "${lr}" \
+    --weight_decay "${WEIGHT_DECAY}" \
+    --dropout "${dropout}" \
+    --tau "${TAU}" \
+    --hidden_channels "${HIDDEN_CHANNELS}" \
+    --K "${K}" \
+    --lambda_dag "${lambda_dag}" \
+    --lambda_dag_label "${lambda_dag_label}" \
+    --lambda_spu "${lambda_spu}" \
+    --lambda_env "${lambda_env}" \
+    --lambda_fd 0.5 \
+    --fd_blend "${fd_blend}" \
+    --dag_latent_dim "${dag_latent_dim}" \
+    --edge_blend "${edge_blend}" \
+    --gmm_sample_k "${gmm_sample_k}" \
+    --env_type "${ENV_TYPE}" \
+    --epochs "${EPOCHS}" \
+    --runs "${RUNS}" \
+    --device "${DEVICE}" \
+    --display_step "${DISPLAY_STEP}" \
+    --early_stop_patience "${EARLY_STOP_PATIENCE}" \
+    --early_stop_min_delta "${EARLY_STOP_MIN_DELTA}" \
+    --store \
+    --result_name "${result_name}" \
+    "${extra_args_array[@]}"
+done

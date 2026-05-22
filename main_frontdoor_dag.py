@@ -68,6 +68,8 @@ def add_frontdoor_dag_args(parser):
                         help='weight of bottleneck DAG semantic reconstruction/prediction loss')
     parser.add_argument('--lambda_spu_y', type=float, default=0.1,
                         help='weight of environment-conditioned spurious label supervision')
+    parser.add_argument('--use_true_env_contexts', action='store_true',
+                        help='use dataset env labels, when available, for spurious contexts and environment loss')
     parser.add_argument('--dag_latent_dim', type=int, default=16,
                         help='bottleneck dimension used for node/edge variables in the learned DAG')
     parser.add_argument('--mediator_temp', type=float, default=8.0,
@@ -92,6 +94,18 @@ def add_frontdoor_dag_args(parser):
                         help='temperature for edge semantic gate logits; larger values produce smoother gates')
     parser.add_argument('--edge_blend', type=float, default=0.2,
                         help='residual strength of edge-aware neighbor aggregation')
+    parser.add_argument('--use_global_info', action='store_true',
+                        help='inject MLEI/AdvDIFFormer-style global information before DAG/front-door splitting')
+    parser.add_argument('--global_info_mode', type=str, default='advective', choices=['linear', 'advective'],
+                        help="'linear' uses MLEI-style global linear attention; 'advective' mixes it with local topology")
+    parser.add_argument('--global_alpha', type=float, default=0.2,
+                        help='residual strength of the global information channel')
+    parser.add_argument('--global_beta', type=float, default=0.5,
+                        help='topology reliance weight beta for advective global-local mixing')
+    parser.add_argument('--global_steps', type=int, default=1,
+                        help='number of lightweight advective propagation steps')
+    parser.add_argument('--global_local_source', type=str, default='gcn', choices=['edge', 'gcn'],
+                        help="'edge' uses learned edge-gated aggregation as AdvDIFFormer V; 'gcn' uses raw GCN propagation")
     parser.add_argument('--fd_blend', type=float, default=0.5,
                         help='blend ratio between mediator logits and front-door aggregated logits')
     parser.add_argument('--proto_aug_k', type=int, default=1,
@@ -298,7 +312,11 @@ print(
     f"cosine lr: {args.use_cosine_lr} | warmup: {args.decomp_warmup_epochs} | "
     f"ramp: {args.intervention_ramp_epochs} | grad clip: {args.grad_clip} | "
     f"DAG mixer: {args.use_dag_mixer} | GMM contexts: {args.use_spu_gmm} | "
-    f"GMM sample k: {args.gmm_sample_k if args.gmm_sample_k > 0 else args.K}"
+    f"GMM sample k: {args.gmm_sample_k if args.gmm_sample_k > 0 else args.K} | "
+    f"true env contexts: {args.use_true_env_contexts} | "
+    f"global info: {args.use_global_info} ({args.global_info_mode}, "
+    f"alpha={args.global_alpha}, beta={args.global_beta}, steps={args.global_steps}, "
+    f"local={args.global_local_source})"
 )
 
 dataset.x = dataset.x.to(device)

@@ -84,9 +84,27 @@ Expected benefit: lower sensitivity to topology shift on Arxiv/Twitch/Elliptic w
 
 Minimal caution: begin with `K=2/3`, approximate attention, and a small `beta` grid before combining with additional DAG or CIW losses.
 
+## V008 - CGRL-Stabilized Mediator
+
+Sources: `P009`, `P004`, `P006`
+
+Extend the current HSIC+EBR front-door model by adding class-geometry regularization on the causal mediator:
+
+```text
+L = current_frontdoor_loss
+  + lambda_ebr * KL(Q_phi(G | M) || P_theta(G))
+  + lambda_intra * compact_same_class(M)
+  + lambda_inter * separate_class_centers(M)
+```
+
+Expected benefit: stabilize mediator-label information and reduce spurious ID fitting without changing the front-door context mechanism.
+
+Minimal caution: `model_gmm3_frontdoor_hsic_ebr.py` already has CGRL-style EBR, so the first experiment should vary `lambda_ebr` and add only small `lambda_intra/lambda_inter` values. Avoid adding the full CGRL branch reweighting module in the same run.
+
 ## Deprecated / Caution
 
 - Do not combine V001 + V002 + V003 all at once. The loss surface and hyperparameter space will become hard to diagnose.
 - Do not implement full cross-domain DAG from `P006` before a lightweight causal-strength mask baseline.
 - Do not implement full bilevel `P007` CASPER before a lightweight DAG-ness-aware auxiliary score. The inner-loop scorer can destabilize current front-door training.
 - Do not use dense all-pair attention from `P008` on Arxiv without a memory-aware approximation.
+- Do not stack CGRL class compactness with strong HSIC/EBR weights before checking whether the mediator collapses on minority classes.

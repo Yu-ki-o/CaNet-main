@@ -27,6 +27,7 @@ The strongest related papers in the current memory are:
 - Better independence regularization: `P006`
 - DAG-ness-aware feature DAG learning: `P007`
 - Topology-shift robust propagation: `P008`
+- Causal representation stability and EBR: `P009`
 
 ## Current Implementation Bias
 
@@ -40,6 +41,8 @@ The current DAG-frontdoor model has a feature-only DAG. `P007` suggests the feat
 
 The current graph encoder still depends on observed topology propagation. `P008` suggests this can be fragile under topology shift; use a controllable mixture of stable non-local attention and weighted local adjacency propagation when Arxiv/Twitch/Elliptic splits are dominated by structural changes.
 
+The current HSIC+EBR model already uses CGRL-style energy-based reconstruction on the mediator. `P009` suggests treating this as a representation-stability module, then adding mediator class compactness/separation and MI-stability diagnostics before introducing another large causal mechanism.
+
 ## Dataset Notes
 
 - Cora/Citeseer/Pubmed: small citation graphs; good for fast ablation and debugging.
@@ -48,6 +51,8 @@ The current graph encoder still depends on observed topology propagation. `P008`
 - Elliptic: temporal transaction snapshots; likely benefits from causal edge/subgraph and inference-light design.
 
 `P008` makes Arxiv/Twitch especially important diagnostic datasets for topology reliance: tune or learn the adjacency-advection weight instead of assuming stronger graph propagation is always better.
+
+`P009` makes Cora/Citeseer/Pubmed useful for quick MI-stability checks under feature shifts, while Arxiv/Twitch test whether EBR and mediator compactness survive temporal or spatial shifts at scale.
 
 ## Near-Term Research Constraint
 

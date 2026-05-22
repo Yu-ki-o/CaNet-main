@@ -39,9 +39,47 @@ class Logger(object):
             table.add_row([key, value])
         return table.draw()
 
+    def _run_tensor(self, run):
+        if len(self.results[run]) == 0:
+            raise ValueError(f'Run {run + 1:02d} has no logged results.')
+        return 100 * torch.tensor(self.results[run])
+
+    def _best_results(self):
+        best_results = []
+        ood_size = None
+        for run in range(len(self.results)):
+            r = self._run_tensor(run)
+            run_ood_size = r.size(1) - 3
+            if ood_size is None:
+                ood_size = run_ood_size
+            elif run_ood_size != ood_size:
+                raise ValueError(
+                    f'Run {run + 1:02d} has {run_ood_size} OOD metrics, '
+                    f'expected {ood_size}.'
+                )
+
+            train_high = r[:, 0].max().item()
+            valid_high = r[:, 1].max().item()
+            test_in_high = r[:, 2].max().item()
+            test_ood_high = []
+            for i in range(run_ood_size):
+                test_ood_high += [r[:, i+3].max().item()]
+            best_idx = r[:, 1].argmax()
+            train_final = r[best_idx, 0].item()
+            test_in_final = r[best_idx, 2].item()
+            test_ood_final = []
+            for i in range(run_ood_size):
+                test_ood_final += [r[best_idx, i+3].item()]
+            best_result = [train_high, valid_high, test_in_high] + test_ood_high + [train_final, test_in_final] + test_ood_final
+            best_results.append(best_result)
+
+        if not best_results:
+            raise ValueError('No results were logged.')
+        return torch.tensor(best_results), ood_size
+
     def print_statistics(self, run=None):
         if run is not None:
-            result = 100 * torch.tensor(self.results[run])
+            result = self._run_tensor(run)
             argmax = result[:, 1].argmax().item()
             print(f'Run {run + 1:02d}:')
             print(f'Highest Train: {result[:, 0].max():.2f}')
@@ -56,24 +94,7 @@ class Logger(object):
                 print(f'Final OOD Test: {result[argmax, i+3]:.2f}')
             self.test = result[argmax, 2]
         else:
-            result = 100 * torch.tensor(self.results)
-            best_results = []
-            for r in result:
-                train_high = r[:, 0].max().item()
-                valid_high = r[:, 1].max().item()
-                test_in_high = r[:, 2].max().item()
-                test_ood_high = []
-                for i in range(r.size(1) - 3):
-                    test_ood_high += [r[:, i+3].max().item()]
-                train_final = r[r[:, 1].argmax(), 0].item()
-                test_in_final = r[r[:, 1].argmax(), 2].item()
-                test_ood_final = []
-                for i in range(r.size(1) - 3):
-                    test_ood_final += [r[r[:, 1].argmax(), i+3].item()]
-                best_result = [train_high, valid_high, test_in_high] + test_ood_high + [train_final, test_in_final] + test_ood_final
-                best_results.append(best_result)
-
-            best_result = torch.tensor(best_results)
+            best_result, ood_size = self._best_results()
             print(f'All runs:')
             r = best_result[:, 0]
             print(f'Highest Train: {r.mean():.2f} ± {r.std():.2f}')
@@ -81,7 +102,6 @@ class Logger(object):
             print(f'Highest Valid: {r.mean():.2f} ± {r.std():.2f}')
             r = best_result[:, 2]
             print(f'Highest In Test: {r.mean():.2f} ± {r.std():.2f}')
-            ood_size = result[0].size(1)-3
             for i in range(ood_size):
                 r = best_result[:, i+3]
                 print(f'Highest OOD Test: {r.mean():.2f} ± {r.std():.2f}')
@@ -94,23 +114,7 @@ class Logger(object):
                 print(f'   Final OOD Test: {r.mean():.2f} ± {r.std():.2f}')
 
     def output(self, args):
-        result = 100 * torch.tensor(self.results)
-        best_results = []
-        for r in result:
-            train_high = r[:, 0].max().item()
-            valid_high = r[:, 1].max().item()
-            test_in_high = r[:, 2].max().item()
-            test_ood_high = []
-            for i in range(r.size(1) - 3):
-                test_ood_high += [r[:, i+3].max().item()]
-            train_final = r[r[:, 1].argmax(), 0].item()
-            test_in_final = r[r[:, 1].argmax(), 2].item()
-            test_ood_final = []
-            for i in range(r.size(1) - 3):
-                test_ood_final += [r[r[:, 1].argmax(), i+3].item()]
-            best_result = [train_high, valid_high, test_in_high] + test_ood_high + [train_final, test_in_final] + test_ood_final
-            best_results.append(best_result)
-        best_result = torch.tensor(best_results)
+        best_result, ood_size = self._best_results()
 
         result_dir = f'results/{args.dataset}/{args.backbone_type}'
         os.makedirs(result_dir, exist_ok=True)
@@ -128,7 +132,6 @@ class Logger(object):
             f.write(f'Highest Valid: {r.mean():.2f} ± {r.std():.2f}\n')
             r = best_result[:, 2]
             f.write(f'Highest In Test: {r.mean():.2f} ± {r.std():.2f}\n')
-            ood_size = result[0].size(1)-3
             for i in range(ood_size):
                 r = best_result[:, i+3]
                 f.write(f'Highest OOD Test: {r.mean():.2f} ± {r.std():.2f}\n')

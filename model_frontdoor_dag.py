@@ -197,6 +197,93 @@ class DAGAwareLatentMixer(nn.Module):
         return tokens[:, 3, :]
 
 
+class GlobalLinearAttention(nn.Module):
+    """
+    MLEI-style global linear attention used as the non-local diffusion channel.
+
+    It avoids materializing an N x N attention matrix, so it can be used on
+    Arxiv-scale full-batch node classification while still giving every node a
+    graph-level information path.
+    """
+
+    def __init__(self, hidden_dim, dropout=0.0):
+        super().__init__()
+        self.query_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.key_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.value_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.out_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.norm = nn.LayerNorm(hidden_dim)
+        self.dropout = float(dropout)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for module in (self.query_proj, self.key_proj, self.value_proj, self.out_proj):
+            nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        self.norm.reset_parameters()
+
+    def forward(self, x, training=False):
+        num_nodes = max(1, x.size(0))
+        q = self.query_proj(x)
+        k = self.key_proj(x)
+        v = self.value_proj(x)
+
+        q = q / q.norm(p='fro').clamp_min(1e-12)
+        k = k / k.norm(p='fro').clamp_min(1e-12)
+
+        ones = torch.ones(x.size(0), 1, device=x.device, dtype=x.dtype)
+        kv = torch.matmul(k.transpose(0, 1), v)
+        k_sum = torch.matmul(k.transpose(0, 1), ones)
+        attn_norm = 1.0 + torch.matmul(q, k_sum) / num_nodes
+        global_repr = v + torch.matmul(q, kv) / num_nodes
+        global_repr = global_repr / attn_norm.clamp_min(1e-12)
+        global_repr = self.out_proj(global_repr)
+        global_repr = F.dropout(global_repr, self.dropout, training=training)
+        return self.norm(global_repr)
+
+
+class AdvectiveGlobalMixer(nn.Module):
+    """
+    Lightweight AdvDIFFormer-S inspired mixer.
+
+    Each step combines non-local linear attention C with beta-scaled local
+    topology propagation V, then projects [z0, Pz0, ..., P^K z0] back to
+    hidden_dim. The local operator can be raw GCN propagation or the model's
+    learned edge-gated neighbor aggregation.
+    """
+
+    def __init__(self, hidden_dim, beta=0.5, steps=1, dropout=0.0):
+        super().__init__()
+        self.beta = float(beta)
+        self.steps = max(1, int(steps))
+        self.global_attn = GlobalLinearAttention(hidden_dim, dropout=dropout)
+        self.proj = nn.Linear(hidden_dim * (self.steps + 1), hidden_dim)
+        self.norm = nn.LayerNorm(hidden_dim)
+        self.dropout = float(dropout)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.global_attn.reset_parameters()
+        self.proj.reset_parameters()
+        self.norm.reset_parameters()
+
+    def forward(self, x, edge_index, training=False, local_fn=None):
+        states = [x]
+        h = x
+        for _ in range(self.steps):
+            h_global = self.global_attn(h, training=training)
+            if local_fn is None:
+                h_local = gcn_backbone_conv(h, edge_index)
+            else:
+                h_local = local_fn(h, edge_index, training=training)
+            h = h_global + self.beta * h_local
+            h = F.dropout(h, self.dropout, training=training)
+            states.append(h)
+        mixed = self.proj(torch.cat(states, dim=-1))
+        return self.norm(mixed)
+
+
 class GraphFrontDoorDAG(nn.Module):
     """
     Front-door graph model with a DAG over node and edge-summary variables.
@@ -239,6 +326,31 @@ class GraphFrontDoorDAG(nn.Module):
             )
             for _ in range(self.num_layers)
         ])
+        self.use_global_info = bool(getattr(args, 'use_global_info', False))
+        self.global_info_mode = getattr(args, 'global_info_mode', 'advective')
+        self.global_alpha = float(getattr(args, 'global_alpha', 0.2))
+        self.global_beta = float(getattr(args, 'global_beta', 0.5))
+        self.global_steps = max(1, int(getattr(args, 'global_steps', 1)))
+        self.global_local_source = getattr(args, 'global_local_source', 'gcn')
+        if self.use_global_info:
+            if self.global_info_mode == 'linear':
+                self.global_encoder = GlobalLinearAttention(self.d, dropout=getattr(args, 'dropout', 0.0))
+            elif self.global_info_mode == 'advective':
+                self.global_encoder = AdvectiveGlobalMixer(
+                    self.d,
+                    beta=self.global_beta,
+                    steps=self.global_steps,
+                    dropout=getattr(args, 'dropout', 0.0),
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported global_info_mode='{self.global_info_mode}'. "
+                    "Use 'linear' or 'advective'."
+                )
+            self.global_fuse_norm = nn.LayerNorm(self.d)
+        else:
+            self.global_encoder = None
+            self.global_fuse_norm = None
 
         self.classifier = nn.Linear(self.d, c)
         self.fd_classifier = nn.Linear(self.d, c)
@@ -344,6 +456,7 @@ class GraphFrontDoorDAG(nn.Module):
         self.lambda_sem = getattr(args, 'lambda_sem', 0.05)
         self.lambda_dag_degree = getattr(args, 'lambda_dag_degree', 0.0)
         self.lambda_spu_y = getattr(args, 'lambda_spu_y', 0.1)
+        self.use_true_env_contexts = bool(getattr(args, 'use_true_env_contexts', False))
         self.pseudo_env_balance = getattr(args, 'pseudo_env_balance', 1.0)
         self.edge_env_momentum = getattr(args, 'edge_env_momentum', 0.9)
 
@@ -368,6 +481,9 @@ class GraphFrontDoorDAG(nn.Module):
         self.input_proj.reset_parameters()
         for layer in self.backbone_layers:
             layer.reset_parameters()
+        if self.global_encoder is not None:
+            self.global_encoder.reset_parameters()
+            self.global_fuse_norm.reset_parameters()
         self.classifier.reset_parameters()
         self.fd_classifier.reset_parameters()
         self.env_classifier.reset_parameters()
@@ -528,6 +644,21 @@ class GraphFrontDoorDAG(nn.Module):
         for layer in self.backbone_layers:
             h = F.dropout(h, self.dropout, training=training)
             h = self.act_fn(layer(h, edge_index))
+
+        if self.global_encoder is not None:
+            if self.global_info_mode == 'linear':
+                h_global = self.global_encoder(h, training=training)
+            else:
+                local_fn = None
+                if self.global_local_source == 'edge':
+                    local_fn = self.compute_edge_semantic_summary
+                elif self.global_local_source != 'gcn':
+                    raise ValueError(
+                        f"Unsupported global_local_source='{self.global_local_source}'. "
+                        "Use 'edge' or 'gcn'."
+                    )
+                h_global = self.global_encoder(h, edge_index, training=training, local_fn=local_fn)
+            h = h + self.global_alpha * self.global_fuse_norm(h_global)
 
         edge_summary = self.compute_edge_semantic_summary(h, edge_index, training=training)
         z = self.fuse_node_edge_representation(h, edge_summary, training=training)
@@ -791,6 +922,35 @@ class GraphFrontDoorDAG(nn.Module):
         balance = F.kl_div(mean_probs.clamp_min(1e-8).log(), uniform, reduction='sum')
         return entropy + self.pseudo_env_balance * balance
 
+    def get_true_env_probs(self, data, train_idx, ref_tensor):
+        if (
+            not self.use_true_env_contexts
+            or not hasattr(data, 'env')
+            or data.env is None
+            or self.num_envs <= 1
+        ):
+            return None, None, None
+
+        env_labels = data.env[train_idx].view(-1).long()
+        valid = (env_labels >= 0) & (env_labels < self.num_envs)
+        if valid.sum() == 0:
+            return None, None, None
+
+        env_probs = ref_tensor.new_zeros(env_labels.size(0), self.num_envs)
+        env_probs[valid] = F.one_hot(env_labels[valid], self.num_envs).to(
+            device=ref_tensor.device,
+            dtype=ref_tensor.dtype,
+        )
+        if valid.sum() < valid.numel():
+            fallback = torch.full(
+                (int((~valid).sum().item()), self.num_envs),
+                1.0 / self.num_envs,
+                device=ref_tensor.device,
+                dtype=ref_tensor.dtype,
+            )
+            env_probs[~valid] = fallback
+        return env_probs, env_labels, valid
+
     def compute_pseudo_env_invariance_loss(self, logits, env_probs):
         if env_probs is None or env_probs.numel() == 0 or env_probs.size(-1) <= 1:
             return self.A_feat.new_zeros(())
@@ -954,7 +1114,11 @@ class GraphFrontDoorDAG(nn.Module):
         edge_latent_tr = dag_vars_tr[:, self.edge_var_slice]
         mediator_logits_tr = mediator_logits_all[train_idx]
         env_logits_spu = self.env_classifier(spu_tr)
-        env_probs_spu = F.softmax(env_logits_spu, dim=-1) if self.num_envs > 1 else None
+        true_env_probs, true_env_labels, true_env_valid = self.get_true_env_probs(data, train_idx, spu_tr)
+        if true_env_probs is not None:
+            env_probs_spu = true_env_probs
+        else:
+            env_probs_spu = F.softmax(env_logits_spu, dim=-1) if self.num_envs > 1 else None
 
         contexts = self.sample_frontdoor_contexts(
             self.sample_gmm_contexts(spu_tr, env_probs_spu, training=True),
@@ -982,7 +1146,13 @@ class GraphFrontDoorDAG(nn.Module):
         if self.num_envs > 1:
             env_logits_med = self.env_classifier(med_tr)
             loss_env_med = self.compute_env_uniform_loss(env_logits_med)
-            loss_spu = self.compute_pseudo_env_loss(env_logits_spu)
+            if true_env_labels is not None and true_env_valid is not None:
+                loss_spu = F.cross_entropy(
+                    env_logits_spu[true_env_valid],
+                    true_env_labels[true_env_valid],
+                )
+            else:
+                loss_spu = self.compute_pseudo_env_loss(env_logits_spu)
             loss_inv = self.compute_pseudo_env_invariance_loss(final_logits_tr, env_probs_spu)
         else:
             env_logits_med = None

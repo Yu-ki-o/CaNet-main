@@ -88,3 +88,18 @@ Compare:
 Start with Cora/Citeseer/Pubmed for debugging, then prioritize Arxiv and Twitch.
 
 Measure: OOD accuracy, validation-to-OOD gap, memory/runtime, and embedding/logit sensitivity to edge dropout or edge rewiring.
+
+## E008 - CGRL Mediator Stability
+
+Sources: `P009`
+
+Compare:
+
+- current `model_gmm3_frontdoor_hsic_ebr.py` with `lambda_ebr=0`
+- current default HSIC+EBR
+- HSIC+EBR with mediator `L_intra`
+- HSIC+EBR with mediator `L_intra + L_inter`
+
+Start with Cora/Citeseer/Pubmed feature shifts, then run Arxiv/Twitch only if mediator compactness does not collapse minority classes.
+
+Measure: OOD accuracy, validation-to-OOD gap, `loss_ebr_kl`, mediator class compactness, class-center margin, HSIC, and a lightweight MI or dependence proxy between mediator/spurious branches and labels.

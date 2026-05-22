@@ -1,5 +1,28 @@
 # Update Log
 
+## 2026-05-12
+
+Added `P009` from `/public/wc/lunwen/CGRL Causal-Guided Representation Learning.pdf`.
+
+Changed files:
+
+- Created `papers/P009_cgrl.md`.
+- Created `methods/causal_guided_representation_learning.md`.
+- Updated `meta/paper_registry.csv`.
+- Updated `index.md`, `project_context.md`, `meta/taxonomy.md`.
+- Updated `ideas/model_variants.md` and `ideas/experiment_queue.md`.
+
+New insights:
+
+- CGRL (`P009`) treats graph OOD failure as unstable mutual information between prediction representation and labels caused by spurious correlations and non-causal paths.
+- The current `model_gmm3_frontdoor_hsic_ebr.py` already implements the most direct CGRL transfer: EBM graph reconstruction on the causal mediator.
+- The next low-risk extension is not another large context module, but mediator class compactness/separation plus MI-stability diagnostics.
+
+Unresolved uncertainties:
+
+- CGRL is preliminary arXiv work, and its same-order loss replacement assumptions are idealized.
+- Strong mediator compactness may conflict with front-door context averaging or minority-class behavior, so it needs small weights and collapse diagnostics.
+
 ## 2026-05-01
 
 Added `P008` from `/public/wc/lunwen/Supercharging_Graph_Trans.pdf`.
@@ -61,4 +84,4 @@ Changed files:
 
 Scope note:
 
-- Other PDFs in `/public/wc/lunwen` were intentionally left out of this first memory pass. Add them later as `P009+` if they become relevant.
+- Other PDFs in `/public/wc/lunwen` were intentionally left out of this first memory pass. Add them later as `P010+` if they become relevant.

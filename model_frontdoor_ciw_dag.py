@@ -1,0 +1,391 @@
+"""
+Graph Front-Door CIW-DAG model.
+
+This file keeps the original CIPT/front-door graph framework, but replaces the
+DAG-Core shortcut objective with a CIW-style DAG construction objective matching
+Eq. (1)-(2) of "Causal-Guided Strength Differential Independence Sample
+Weighting for OOD Generalization":
+
+  feature factors: reconstruct every non-label factor from its DAG parents;
+  label factor: mask parent factors by A and map them to logits with M;
+  L_rec = feature-factor L2 reconstruction + label-factor CE.
+
+The model still uses the learned DAG total effect exp(A*A) to build the mediator
+mask and keeps the original front-door context aggregation path.
+"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from model_frontdoor_dag_core import GraphFrontDoorDAG
+
+
+class GraphFrontDoorCIWDAG(GraphFrontDoorDAG):
+    """CIPT/front-door model with article-aligned CIW DAG construction."""
+
+    def __init__(self, d_in, c, args, device):
+        super().__init__(d_in, c, args, device)
+
+        # Eq. (1), label branch: M(A_y^T \odot F).  We keep A as the mask/strength
+        # and use a separate mapper M instead of letting A itself become the whole
+        # classifier.  This prevents the DAG adjacency from degenerating into a
+        # pure linear label head.
+        self.dag_label_mapper = nn.Linear(self.non_label_var_dim, self.c)
+
+        # Optional light nonlinear reconstructor for the parent signal.  The default
+        # is identity because Eq. (1) uses A_i,:F directly for feature factors.
+        self.use_dag_feature_mlp = bool(getattr(args, 'use_dag_feature_mlp', False))
+        if self.use_dag_feature_mlp:
+            self.dag_feature_mapper = nn.Sequential(
+                nn.Linear(self.non_label_var_dim, self.non_label_var_dim),
+                nn.ReLU(),
+                nn.Linear(self.non_label_var_dim, self.non_label_var_dim),
+            )
+        else:
+            self.dag_feature_mapper = nn.Identity()
+
+        self.lambda_dag_rec = float(getattr(args, 'lambda_dag_rec', getattr(args, 'lambda_dag_label', 0.05)))
+        self.lambda_dag_feat = float(getattr(args, 'lambda_dag_feat', 1.0))
+        self.lambda_dag_label_rec = float(getattr(args, 'lambda_dag_label_rec', 1.0))
+        self.lambda_dag_proto = float(getattr(args, 'lambda_dag_proto', 0.0))
+        self.lambda_causal_mask_cls = float(getattr(args, 'lambda_causal_mask_cls', 0.0))
+        self.dag_rec_detach_input = bool(getattr(args, 'dag_rec_detach_input', False))
+        self.dag_rec_use_abs_mask = bool(getattr(args, 'dag_rec_use_abs_mask', True))
+        self.dag_proto_min_count = max(1, int(getattr(args, 'dag_proto_min_count', 1)))
+        self.zero_current_spurious_in_fd = bool(getattr(args, 'zero_current_spurious_in_fd', True))
+        self.eval_gmm_use_mean = bool(getattr(args, 'eval_gmm_use_mean', True))
+        self.current_fd_blend = self.fd_blend
+        self._reset_ciw_modules()
+
+    def reset_parameters(self):
+        # Base __init__ calls reset_parameters before CIW modules exist.  Guarding
+        # keeps that path safe and also resets CIW modules on later run resets.
+        super().reset_parameters()
+        if hasattr(self, 'dag_label_mapper'):
+            self._reset_ciw_modules()
+
+    def _reset_ciw_modules(self):
+        self.dag_label_mapper.reset_parameters()
+        if hasattr(self, 'dag_feature_mapper') and hasattr(self.dag_feature_mapper, 'modules'):
+            for module in self.dag_feature_mapper.modules():
+                if module is self.dag_feature_mapper:
+                    continue
+                if hasattr(module, 'reset_parameters'):
+                    module.reset_parameters()
+        self.current_fd_blend = self.fd_blend
+
+    def _label_to_onehot(self, labels, num_rows=None):
+        if labels.dim() > 1 and labels.size(1) == self.c:
+            out = labels.float()
+        elif labels.dim() > 1 and labels.size(1) > 1:
+            out = labels.float()
+        else:
+            out = F.one_hot(labels.view(-1).long().clamp_min(0), num_classes=self.c).float()
+        if num_rows is not None:
+            out = out[:num_rows]
+        return out
+
+    def _non_label_label_parent_strength(self, A):
+        """Compress all label sink columns into one parent mask over non-label factors."""
+        label_A = A[:self.non_label_var_dim, self.label_var_slice]
+        if self.dag_rec_use_abs_mask:
+            strength = label_A.abs().mean(dim=1)
+        else:
+            strength = label_A.mean(dim=1)
+        # Keep scale stable across runs.  Detach min/max? No: causal strength should
+        # still train through A; clamp only for numerical stability.
+        strength = strength / strength.max().clamp_min(1e-8)
+        return strength
+
+    def _dag_label_logits_from_factors(self, dag_vars, A=None):
+        if A is None:
+            A = self.get_masked_A()
+        parent_strength = self._non_label_label_parent_strength(A).unsqueeze(0)
+        masked_factors = dag_vars * parent_strength
+        return self.dag_label_mapper(masked_factors)
+
+    def _make_dag_prototypes(self, dag_vars, labels, env, train_idx):
+        """Build lightweight env/class and class prototypes for CIW-style DAG learning."""
+        if train_idx is None or train_idx.numel() == 0:
+            return None, None, None
+        z = dag_vars[train_idx]
+        y_raw = labels[train_idx]
+        if y_raw.dim() > 1 and y_raw.size(1) > 1:
+            y_cls = y_raw.argmax(dim=1)
+        else:
+            y_cls = y_raw.view(-1).long()
+        if env is None:
+            e_cls = torch.zeros_like(y_cls)
+            env_count = 1
+        else:
+            e = env[train_idx]
+            e_cls = e.view(-1).long() if e.dim() > 1 else e.long()
+            env_count = max(self.num_envs, int(e_cls.max().item()) + 1 if e_cls.numel() > 0 else 1)
+
+        proto_list = []
+        proto_labels = []
+        proto_envs = []
+        for env_idx in range(env_count):
+            for cls_idx in range(self.c):
+                mask = (e_cls == env_idx) & (y_cls == cls_idx)
+                if int(mask.sum().item()) >= self.dag_proto_min_count:
+                    proto_list.append(z[mask].mean(dim=0))
+                    proto_labels.append(cls_idx)
+                    proto_envs.append(env_idx)
+
+        # Cross-domain invariant class prototypes: one per class, averaged over all
+        # training envs.  This is a compact analogue of the paper's B_cr^d.
+        for cls_idx in range(self.c):
+            mask = (y_cls == cls_idx)
+            if int(mask.sum().item()) >= self.dag_proto_min_count:
+                proto_list.append(z[mask].mean(dim=0))
+                proto_labels.append(cls_idx)
+                proto_envs.append(-1)
+
+        if not proto_list:
+            return None, None, None
+        proto_z = torch.stack(proto_list, dim=0)
+        proto_y = torch.tensor(proto_labels, device=dag_vars.device, dtype=torch.long).view(-1, 1)
+        proto_e = torch.tensor(proto_envs, device=dag_vars.device, dtype=torch.long)
+        return proto_z, proto_y, proto_e
+
+    def dag_reconstruction_loss(self, dag_vars, labels, train_idx, criterion, args, env=None):
+        """
+        CIW Eq. (1)-(2) DAG construction loss.
+
+        Orientation in this code: A[source, target].  Therefore target-factor
+        reconstruction is F @ A[:, target].  Label reconstruction uses a separate
+        M over A-masked parent factors.
+        """
+        if dag_vars.numel() == 0 or train_idx.numel() == 0:
+            return self.A_feat.new_zeros(()), self.A_feat.new_zeros(()), self.A_feat.new_zeros(())
+
+        A = self.get_masked_A()
+        z_train = dag_vars[train_idx]
+        y_train = labels[train_idx]
+        if self.dag_rec_detach_input:
+            z_for_rec = z_train.detach()
+        else:
+            z_for_rec = z_train
+
+        # Eq. (1), feature factors: G_i = A_i,: F.  With source->target
+        # orientation this is F @ A[:, non_label].  We only reconstruct non-label
+        # factors; label sinks are excluded from feature parents by the allowed mask.
+        A_feat_to_feat = A[:self.non_label_var_dim, :self.non_label_var_dim]
+        feature_parent_signal = torch.matmul(z_for_rec, A_feat_to_feat)
+        recon_features = self.dag_feature_mapper(feature_parent_signal)
+        loss_feat = F.mse_loss(recon_features, z_train.detach())
+
+        # Eq. (1), label factor: M(A_y^T \odot F), then Eq. (2) CE.
+        label_logits = self._dag_label_logits_from_factors(z_for_rec, A=A)
+        loss_label = self.compute_supervised_loss(label_logits, y_train, criterion, args).mean()
+
+        loss_proto = self.A_feat.new_zeros(())
+        if self.lambda_dag_proto > 0.0:
+            proto_z, proto_y, _ = self._make_dag_prototypes(dag_vars, labels, env, train_idx)
+            if proto_z is not None and proto_z.size(0) > 0:
+                proto_input = proto_z.detach() if self.dag_rec_detach_input else proto_z
+                proto_parent_signal = torch.matmul(proto_input, A_feat_to_feat)
+                proto_recon = self.dag_feature_mapper(proto_parent_signal)
+                proto_feat_loss = F.mse_loss(proto_recon, proto_z.detach())
+                proto_logits = self._dag_label_logits_from_factors(proto_input, A=A)
+                proto_label_loss = self.compute_supervised_loss(proto_logits, proto_y, criterion, args).mean()
+                loss_proto = proto_feat_loss + proto_label_loss
+
+        loss_rec = (
+            self.lambda_dag_feat * loss_feat
+            + self.lambda_dag_label_rec * loss_label
+            + self.lambda_dag_proto * loss_proto
+        )
+        return loss_rec, loss_feat.detach(), loss_label.detach()
+
+    def dag_label_loss(self, dag_vars, labels, train_idx, criterion, args):
+        """Backward-compatible label branch, now using M(A_y^T \odot F)."""
+        if dag_vars.numel() == 0 or train_idx.numel() == 0:
+            return self.A_feat.new_zeros(())
+        logits = self._dag_label_logits_from_factors(dag_vars[train_idx])
+        return self.compute_supervised_loss(logits, labels[train_idx], criterion, args).mean()
+
+    def blend_logits(self, med_logits, fd_logits):
+        if fd_logits is None:
+            return med_logits
+        blend = float(getattr(self, 'current_fd_blend', self.fd_blend))
+        return (1.0 - blend) * med_logits + blend * fd_logits
+
+    def sample_gmm_contexts(self, z_spurious=None, env_probs=None, training=False):
+        # CIW/CIPT evaluation should be deterministic.  By default use the learned
+        # GMM means at eval time instead of reintroducing random context noise.
+        if not self.use_spu_gmm or self.gmm_sample_k <= 0:
+            return None
+
+        if training and z_spurious is not None:
+            means, vars_, valid = self._fit_spurious_gmm_stats(z_spurious, env_probs)
+        else:
+            means, vars_, valid = self.gmm_spu_mean, self.gmm_spu_var, self.gmm_spu_valid
+
+        valid_envs = valid.nonzero(as_tuple=False).squeeze(-1)
+        if valid_envs.numel() == 0:
+            return None
+
+        sample_k = self.gmm_sample_k
+        if self.fd_sample_k > 0:
+            sample_k = min(sample_k, self.fd_sample_k)
+        if sample_k <= 0:
+            return None
+
+        if training:
+            env_indices = valid_envs[torch.randint(valid_envs.numel(), (sample_k,), device=valid_envs.device)]
+        else:
+            repeat = (sample_k + valid_envs.numel() - 1) // valid_envs.numel()
+            env_indices = valid_envs.repeat(repeat)[:sample_k]
+
+        mean = means.index_select(0, env_indices)
+        if (not training) and self.eval_gmm_use_mean:
+            return F.normalize(mean, dim=1)
+
+        var = vars_.index_select(0, env_indices).clamp_min(self.gmm_min_var)
+        std = var.sqrt()
+        if self.gmm_max_std > 0.0:
+            std = std.clamp_max(self.gmm_max_std)
+        noise = torch.randn_like(mean)
+        contexts = mean + noise * std
+        return F.normalize(contexts, dim=1)
+
+    def frontdoor_logits_from_contexts(self, z_mediator, z_spurious, contexts):
+        # Keep the front-door adjustment, but default to preventing the current
+        # node's spurious representation from leaking through the DAG mixer path.
+        if self.zero_current_spurious_in_fd and z_spurious is not None:
+            z_spurious = torch.zeros_like(z_spurious)
+        return super().frontdoor_logits_from_contexts(z_mediator, z_spurious, contexts)
+
+    def compute_losses(self, data, criterion, args, update_state=False):
+        x, edge_index, y = data.x, data.edge_index, data.y
+        train_idx = data.train_idx
+
+        # Be robust to small changes in the parent model's training forward()
+        # return tuple.  GraphFrontDoorDAG currently returns 13 values, but some
+        # local versions append extra diagnostics.  We only need the first 13.
+        forward_out = self.forward(x, edge_index, training=True)
+        (
+            _,
+            z_all,
+            _,
+            dag_vars_all,
+            z_mediator_all,
+            z_spurious_all,
+            mediator_gate,
+            causal_score,
+            pollution_score,
+            dag_total,
+            mediator_logits_all,
+            _,
+            _,
+        ) = forward_out[:13]
+
+        y_tr = y[train_idx]
+        med_tr = z_mediator_all[train_idx]
+        spu_tr = z_spurious_all[train_idx]
+        dag_vars_tr = dag_vars_all[train_idx]
+        edge_latent_tr = dag_vars_tr[:, self.edge_var_slice]
+        mediator_logits_tr = mediator_logits_all[train_idx]
+        env_logits_spu = self.env_classifier(spu_tr)
+        env_probs_spu = F.softmax(env_logits_spu, dim=-1) if self.num_envs > 1 else None
+
+        contexts = self.sample_frontdoor_contexts(
+            self.sample_gmm_contexts(spu_tr, env_probs_spu, training=True),
+            training=True,
+        )
+        num_gmm_contexts = 0 if contexts is None else int(contexts.size(0))
+        fd_logits_tr, fd_stack_tr = self.frontdoor_logits_from_contexts(med_tr, spu_tr, contexts)
+        final_logits_tr = self.blend_logits(mediator_logits_tr, fd_logits_tr)
+
+        loss_cls = self.compute_supervised_loss(final_logits_tr, y_tr, criterion, args).mean()
+        loss_fd = self.compute_supervised_loss(fd_logits_tr, y_tr, criterion, args).mean()
+        loss_dag = self.dag_regularization_loss(mediator_gate, dag_total)
+        loss_dag_rec, loss_dag_feat, loss_dag_label_rec = self.dag_reconstruction_loss(
+            dag_vars_all,
+            y,
+            train_idx,
+            criterion,
+            args,
+            env=getattr(data, 'env', None),
+        )
+        loss_dag_label = loss_dag_rec
+
+        if self.num_envs > 1:
+            env_logits_med = self.env_classifier(med_tr)
+            loss_env_med = self.compute_env_uniform_loss(env_logits_med)
+            loss_spu = self.compute_pseudo_env_loss(env_logits_spu)
+        else:
+            loss_env_med = self.A_feat.new_zeros(())
+            loss_spu = self.compute_uniform_loss(self.classifier(spu_tr))
+
+        zero = self.A_feat.new_zeros(())
+        loss_med = zero
+        loss_fd_aug = zero
+        loss_var = zero
+        loss_ind = zero
+        loss_sem = zero
+        loss_degree = zero
+        loss_spu_y = zero
+        loss_inv = zero
+        loss_causal_mask_cls = zero
+        if self.lambda_causal_mask_cls > 0.0:
+            # Paper Eq. (5) style auxiliary: z_invariant = z \odot Ca.  The model's
+            # main classifier already uses mediator_gate; this term directly tests
+            # whether the raw total-effect mask is label-predictive.
+            causal_expand = self.dag_gate_expander(causal_score.unsqueeze(0)).squeeze(0)
+            causal_mask = torch.sigmoid(self.mediator_temp * (causal_expand - self.mediator_threshold))
+            z_causal_mask = z_all * causal_mask.unsqueeze(0)
+            loss_causal_mask_cls = self.compute_supervised_loss(
+                self.classifier(z_causal_mask[train_idx]), y_tr, criterion, args
+            ).mean()
+
+        total_loss = (
+            loss_cls
+            + self.lambda_fd * loss_fd
+            + self.lambda_dag * loss_dag
+            + self.lambda_dag_rec * loss_dag_rec
+            + self.lambda_spu * loss_spu
+            + self.lambda_env * loss_env_med
+            + self.lambda_causal_mask_cls * loss_causal_mask_cls
+        )
+
+        state_payload = None
+        if update_state:
+            state_payload = {
+                'spu_tr': spu_tr.detach(),
+                'env_probs_tr': env_probs_spu.detach() if env_probs_spu is not None else None,
+                'edge_latent_tr': edge_latent_tr.detach(),
+            }
+
+        num_contexts = 0 if contexts is None else int(contexts.size(0))
+        return {
+            'total_loss': total_loss,
+            'loss_cls': loss_cls,
+            'loss_med': loss_med,
+            'loss_fd': loss_fd,
+            'loss_fd_aug': loss_fd_aug,
+            'loss_var': loss_var,
+            'loss_ind': loss_ind,
+            'loss_dag': loss_dag,
+            'loss_dag_label': loss_dag_label,
+            'loss_dag_rec': loss_dag_rec,
+            'loss_dag_feat': loss_dag_feat,
+            'loss_dag_label_rec': loss_dag_label_rec,
+            'loss_sem': loss_sem,
+            'loss_degree': loss_degree,
+            'loss_spu_y': loss_spu_y,
+            'loss_spu': loss_spu,
+            'loss_env_med': loss_env_med,
+            'loss_inv': loss_inv,
+            'loss_causal_mask_cls': loss_causal_mask_cls,
+            'mediator_gate_mean': mediator_gate.mean().detach(),
+            'causal_score_mean': causal_score.mean().detach(),
+            'pollution_score_mean': pollution_score.mean().detach(),
+            'num_contexts': torch.tensor(float(num_contexts), device=x.device),
+            'num_mixed_contexts': torch.tensor(0.0, device=x.device),
+            'num_gmm_contexts': torch.tensor(float(num_gmm_contexts), device=x.device),
+            'state_payload': state_payload,
+        }

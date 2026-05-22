@@ -1,6 +1,6 @@
 # Research Memory Index
 
-This is the project-level memory set for the current CaNet/front-door graph OOD work. It started from the six user-selected papers most related to the current model and now also includes DAG structure learning and topology-shift graph transformer papers for the `model_frontdoor_dag.py` / Arxiv OOD direction.
+This is the project-level memory set for the current CaNet/front-door graph OOD work. It started from the six user-selected papers most related to the current model and now also includes DAG structure learning, topology-shift graph transformer, and CGRL-style representation-stability papers for the front-door HSIC+EBR direction.
 
 ## Paper Map
 
@@ -12,6 +12,7 @@ This is the project-level memory set for the current CaNet/front-door graph OOD 
 - `P006` CIW: causal-effect-guided differential feature decorrelation and sample weighting.
 - `P007` CASPER: DAG-ness-aware score function for differentiable DAG structure learning in a dynamic causal space.
 - `P008` AdvDIFFormer: advective diffusion graph transformer for topology-shift generalization.
+- `P009` CGRL: backdoor-guided causal representation learning with EBM graph reconstruction and MI-stability diagnostics.
 
 ## Current Knowledge Map
 
@@ -53,6 +54,12 @@ Project synthesis: the current feature DAG `A_feat` in `model_frontdoor_dag.py` 
 
 Project synthesis: for Arxiv/Twitch/Elliptic-style shifts, the base encoder should not rely only on adjacency-driven diffusion. A scalable advective encoder can mix stable non-local attention with weighted observed-topology propagation before front-door causal/spurious decomposition.
 
+### Representation Stability And EBR
+
+`P009` reframes graph OOD training instability as unstable mutual information between prediction representation and label under shifted data.
+
+Project synthesis: the current `model_gmm3_frontdoor_hsic_ebr.py` already uses `P009`-style EBM graph reconstruction on the mediator. The next CGRL-consistent additions are mediator class compactness/separation losses and MI-stability diagnostics for mediator vs spurious branches.
+
 ### Decorrelation
 
 `P006` warns that uniform decorrelation can destroy useful causal feature correlations.
@@ -67,6 +74,7 @@ Project synthesis: the current `lambda_ind` loss should eventually become causal
 4. CIW-Independence: replace uniform independence with `P006` causal-strength-guided decorrelation.
 5. CASPER-FeatureDAG: use `P007` DAG-ness-aware scoring to make the learned feature DAG more structurally meaningful.
 6. Advective-FrontDoor Encoder: use `P008` non-local diffusion plus weighted adjacency advection to reduce topology-shift sensitivity.
+7. CGRL-Stabilized Mediator: use `P009` EBR plus class compactness/separation and MI-stability logging on the causal mediator.
 
 ## How To Use This Memory
 
