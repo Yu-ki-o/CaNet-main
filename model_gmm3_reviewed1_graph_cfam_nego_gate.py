@@ -278,69 +278,6 @@ class AdvectiveGlobalMixer(nn.Module):
         return self.norm(mixed)
 
 
-class LatentDiffusionDenoiser(nn.Module):
-    """
-    Small DDPM-style denoiser for node latent states.
-
-    It trains by predicting Gaussian noise added to z.  The predicted clean
-    latent is used as an optional residual blend, so the main graph encoder
-    remains intact when diffusion_blend is zero.
-    """
-
-    def __init__(self, hidden_dim, steps=20, beta_start=1e-4, beta_end=2e-2, dropout=0.0):
-        super().__init__()
-        self.hidden_dim = hidden_dim
-        self.steps = max(1, int(steps))
-        betas = torch.linspace(float(beta_start), float(beta_end), self.steps).clamp(1e-6, 0.999)
-        alphas = 1.0 - betas
-        self.register_buffer('alpha_bars', torch.cumprod(alphas, dim=0))
-        self.time_embed = nn.Embedding(self.steps, hidden_dim)
-        self.net = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim * 2),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim * 2, hidden_dim),
-        )
-        self.norm = nn.LayerNorm(hidden_dim)
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.time_embed.reset_parameters()
-        for module in self.net:
-            if hasattr(module, 'reset_parameters'):
-                module.reset_parameters()
-        self.norm.reset_parameters()
-
-    def _predict_noise(self, z_t, t):
-        t_emb = self.time_embed(t)
-        return self.net(torch.cat([z_t, t_emb], dim=-1))
-
-    def forward(self, z, training=False, blend=0.0):
-        zero = z.new_zeros(())
-        if z.numel() == 0:
-            return z, zero
-
-        if training:
-            t = torch.randint(self.steps, (z.size(0),), device=z.device)
-            alpha_bar = self.alpha_bars.to(device=z.device, dtype=z.dtype).index_select(0, t).unsqueeze(-1)
-            noise = torch.randn_like(z)
-            z_t = alpha_bar.sqrt() * z + (1.0 - alpha_bar).sqrt() * noise
-            pred_noise = self._predict_noise(z_t, t)
-            loss = F.mse_loss(pred_noise, noise)
-        else:
-            t = torch.zeros(z.size(0), device=z.device, dtype=torch.long)
-            alpha_bar = self.alpha_bars.to(device=z.device, dtype=z.dtype).index_select(0, t).unsqueeze(-1)
-            z_t = z
-            pred_noise = self._predict_noise(z_t, t)
-            loss = zero
-
-        z0_hat = (z_t - (1.0 - alpha_bar).sqrt() * pred_noise) / alpha_bar.sqrt().clamp_min(1e-6)
-        z0_hat = self.norm(z0_hat)
-        if blend <= 0.0:
-            return z, loss
-        return z + float(blend) * (z0_hat - z), loss
-
-
 class GraphFrontDoorDAG(nn.Module):
     """
     Front-door graph model with a DAG over node and edge-summary variables.
@@ -440,9 +377,30 @@ class GraphFrontDoorDAG(nn.Module):
             1.0,
         )
         self.lambda_layerwise_gate = max(0.0, float(getattr(args, 'lambda_layerwise_gate', 0.0)))
+        # Edge-gate environment invariance: regularize the learned edge routing
+        # itself, not only the final node representation.  For each class, the
+        # destination-node averaged gate pattern should be stable across training
+        # environments, so edge gates are discouraged from selecting
+        # environment-specific shortcuts.
+        self.lambda_edge_gate_env = max(0.0, float(getattr(args, 'lambda_edge_gate_env', 0.0)))
+        self.edge_gate_env_min_count = max(1, int(getattr(args, 'edge_gate_env_min_count', 2)))
+        self.edge_gate_env_apply_final = bool(getattr(args, 'edge_gate_env_apply_final', True))
+        self.edge_gate_env_apply_layerwise = bool(getattr(args, 'edge_gate_env_apply_layerwise', True))
+        self.edge_gate_env_detach_node = bool(getattr(args, 'edge_gate_env_detach_node', False))
+        self._edge_gate_records = []
+        self._record_edge_gates = False
+        self._last_edge_gate_env_loss = None
+        self._last_edge_gate_env_valid_groups = 0
+        self._last_edge_gate_env_mean_var = None
         self._last_layerwise_gate_loss = None
         self._last_layerwise_gate_mean = None
         self._last_layerwise_gate_layers = 0
+        # Optional low-relevance neighbor denoising. The edge gate still builds
+        # a useful neighbor summary with g_uv, while (1-g_uv) builds a
+        # low-relevance neighbor summary that can be softly subtracted from h.
+        self.use_neighbor_denoise = bool(getattr(args, 'use_neighbor_denoise', False))
+        self.noise_subtract_alpha = max(0.0, float(getattr(args, 'noise_subtract_alpha', 0.1)))
+        self.noise_gate_temp = max(1e-3, float(getattr(args, 'noise_gate_temp', 1.0)))
         self.edge_feat_mode = getattr(args, 'edge_feat_mode', 'mul')
         self.edge_gate_mode = getattr(args, 'edge_gate_mode', 'vector')
         if self.edge_gate_mode not in ('scalar', 'vector'):
@@ -472,12 +430,6 @@ class GraphFrontDoorDAG(nn.Module):
         self.use_graph_cfam = bool(getattr(args, 'use_graph_cfam', False))
         self.use_final_graph_cfam = bool(getattr(args, 'use_final_graph_cfam', True))
         self.graph_cfam_residual_blend = max(0.0, float(getattr(args, 'graph_cfam_residual_blend', 0.1)))
-        self.use_pre_gnn_graph_cfam = bool(getattr(args, 'use_pre_gnn_graph_cfam', False))
-        self.pre_graph_cfam_blend = max(0.0, float(getattr(args, 'pre_graph_cfam_blend', 0.1)))
-        self.pre_graph_cfam_residual_blend = max(
-            0.0,
-            float(getattr(args, 'pre_graph_cfam_residual_blend', 0.0)),
-        )
         self.graph_cfam_gate_temp = max(1e-3, float(getattr(args, 'graph_cfam_gate_temp', 1.0)))
         self.graph_cfam_gate_target = min(max(float(getattr(args, 'graph_cfam_gate_target', 0.5)), 0.0), 1.0)
         self.lambda_graph_cfam_gate = max(0.0, float(getattr(args, 'lambda_graph_cfam_gate', 0.0)))
@@ -496,6 +448,12 @@ class GraphFrontDoorDAG(nn.Module):
         self._last_graph_cfam_layers = 0
 
         self.noise_summary_norm = nn.LayerNorm(self.d)
+        self.node_noise_fuser = nn.Sequential(
+            nn.Linear(self.d * 3, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.node_noise_gate = nn.Linear(self.d * 3, 1)
 
         # CIPT-style decomposition: keep node enhancement and front-door
         # adjustment decoupled, and use two adapters as a temporary
@@ -636,11 +594,6 @@ class GraphFrontDoorDAG(nn.Module):
         self.nego_source = getattr(args, 'nego_source', 'spurious')
         if self.nego_source not in ('spurious', 'mediator', 'z'):
             self.nego_source = 'spurious'
-        self.nego_context_mode = getattr(args, 'nego_context_mode', 'class_mean')
-        if self.nego_context_mode not in ('class_mean', 'sample_mix'):
-            self.nego_context_mode = 'class_mean'
-        self.nego_mix_k = max(1, int(getattr(args, 'nego_mix_k', 3)))
-        self.nego_mix_alpha = max(1e-3, float(getattr(args, 'nego_mix_alpha', 0.5)))
         self.fd_context_source = getattr(args, 'fd_context_source', 'mixed')
         if self.fd_context_source not in ('mixed', 'nego_only'):
             self.fd_context_source = 'mixed'
@@ -703,49 +656,35 @@ class GraphFrontDoorDAG(nn.Module):
         self.cf_beta = max(0.0, float(getattr(args, 'cf_beta', 1.0)))
         self.cf_noise_std = max(0.0, float(getattr(args, 'cf_noise_std', 1.0)))
         self.lambda_fd_aug = getattr(args, 'lambda_fd_aug', 0.5)
-        self.lambda_var = getattr(args, 'lambda_var', 0.0)
+        self.lambda_var = getattr(args, 'lambda_var', 0.05)
         self.lambda_ind = getattr(args, 'lambda_ind', 0.1)
         self.lambda_env = 0.0
         self.lambda_inv = getattr(args, 'lambda_inv', 0.1)
         self.lambda_global_env = getattr(args, 'lambda_global_env', 0.0)
-        # Retired experimental CNS/noise branch.  Kept as zero-valued fields so
-        # old checkpoints or scripts that inspect these attributes do not fail.
-        self.use_complement_noise_smoothing = False
-        self.lambda_cns = 0.0
-        self.lambda_cns_cons = 0.0
-        self.direct_z_spurious_mode = getattr(args, 'direct_z_spurious_mode', 'zero')
-        if self.direct_z_spurious_mode not in ('shortcut', 'zero', 'z_adapter'):
-            self.direct_z_spurious_mode = 'zero'
+        self.lambda_layerwise_fd = max(0.0, float(getattr(args, 'lambda_layerwise_fd', 0.0)))
+        self.layerwise_fd_weighting = getattr(args, 'layerwise_fd_weighting', 'linear')
+        if self.layerwise_fd_weighting not in ('uniform', 'linear', 'reverse', 'last'):
+            self.layerwise_fd_weighting = 'linear'
+        self.layerwise_fd_detach_context = bool(getattr(args, 'layerwise_fd_detach_context', True))
+        # Local node-aware bi-smoothing consistency. This keeps the overall
+        # front-door framework unchanged: the randomized local subgraph is
+        # only used to regularize the mediator M, not to replace the
+        # front-door prediction path.
+        self.use_local_bismooth = bool(getattr(args, 'use_local_bismooth', False))
+        self.lambda_bismooth = float(getattr(args, 'lambda_bismooth', 0.0))
+        self.lambda_bismooth_cls = float(getattr(args, 'lambda_bismooth_cls', 0.0))
         self.lambda_enhance_sem = float(getattr(args, 'lambda_enhance_sem', 0.0))
         self.enhance_sem_mode = getattr(args, 'enhance_sem_mode', 'cosine')
         if self.enhance_sem_mode not in ('cosine', 'mse'):
             self.enhance_sem_mode = 'cosine'
-        self.lambda_latent_diffusion = max(0.0, float(getattr(args, 'lambda_latent_diffusion', 0.0)))
-        self.diffusion_blend = max(0.0, float(getattr(args, 'diffusion_blend', 0.0)))
-        self.use_latent_diffusion = (
-            self.lambda_latent_diffusion > 0.0
-            or self.diffusion_blend > 0.0
-            or bool(getattr(args, 'use_latent_diffusion', False))
-        )
-        if self.use_latent_diffusion:
-            self.latent_diffusion = LatentDiffusionDenoiser(
-                self.d,
-                steps=getattr(args, 'diffusion_steps', 20),
-                beta_start=getattr(args, 'diffusion_beta_start', 1e-4),
-                beta_end=getattr(args, 'diffusion_beta_end', 2e-2),
-                dropout=getattr(args, 'dropout', 0.0),
-            )
-        else:
-            self.latent_diffusion = None
-        self._last_diffusion_loss = None
-        self.lambda_entropy_dro = max(0.0, float(getattr(args, 'lambda_entropy_dro', 0.0)))
-        self.dro_entropy_beta = max(1e-6, float(getattr(args, 'dro_entropy_beta', 1.0)))
-        self.dro_num_groups = max(1, int(getattr(args, 'dro_num_groups', 4)))
-        self.dro_group_by = getattr(args, 'dro_group_by', 'degree_label')
-        if self.dro_group_by not in ('degree', 'label', 'degree_label', 'none'):
-            self.dro_group_by = 'degree_label'
-        self._last_dro_entropy = None
-        self._last_dro_max_weight = None
+        self.bismooth_edge_drop = min(max(float(getattr(args, 'bismooth_edge_drop', 0.1)), 0.0), 1.0)
+        self.bismooth_node_drop = min(max(float(getattr(args, 'bismooth_node_drop', 0.05)), 0.0), 1.0)
+        self.bismooth_samples = max(1, int(getattr(args, 'bismooth_samples', 1)))
+        self.bismooth_consistency = getattr(args, 'bismooth_consistency', 'cosine')
+        self.bismooth_keep_train_nodes = bool(getattr(args, 'bismooth_keep_train_nodes', True))
+        self.bismooth_singleton = getattr(args, 'bismooth_singleton', 'exclude')
+        if self.bismooth_singleton not in ('include', 'exclude'):
+            self.bismooth_singleton = 'exclude'
         self.lambda_gate = 0.0
         self.lambda_dag_label = 0.0
         self.lambda_sem = getattr(args, 'lambda_sem', 0.0)
@@ -818,11 +757,14 @@ class GraphFrontDoorDAG(nn.Module):
         self._last_graph_cfam_gate_mean = None
         self._last_graph_cfam_layers = 0
         self.noise_summary_norm.reset_parameters()
-        if self.latent_diffusion is not None:
-            self.latent_diffusion.reset_parameters()
-        self._last_diffusion_loss = None
-        self._last_dro_entropy = None
-        self._last_dro_max_weight = None
+        self._reset_module_parameters(self.node_noise_fuser)
+        # Start from the original model behavior: the denoising branch initially
+        # subtracts exactly zero, then learns only if useful.
+        nn.init.zeros_(self.node_noise_fuser[-1].weight)
+        nn.init.zeros_(self.node_noise_fuser[-1].bias)
+        self.node_noise_gate.reset_parameters()
+        nn.init.zeros_(self.node_noise_gate.weight)
+        nn.init.zeros_(self.node_noise_gate.bias)
         self._reset_module_parameters(self.node_dag_proj)
         self._reset_module_parameters(self.edge_dag_proj)
         self.dag_gate_expander.reset_parameters()
@@ -863,6 +805,11 @@ class GraphFrontDoorDAG(nn.Module):
         self.edge_env_sensitivity.zero_()
         self.counterexample_penalty.zero_()
         self._last_node_degree_signal = None
+        self._edge_gate_records = []
+        self._record_edge_gates = False
+        self._last_edge_gate_env_loss = None
+        self._last_edge_gate_env_valid_groups = 0
+        self._last_edge_gate_env_mean_var = None
         self._last_layerwise_gate_loss = None
         self._last_layerwise_gate_mean = None
         self._last_layerwise_gate_layers = 0
@@ -1074,7 +1021,7 @@ class GraphFrontDoorDAG(nn.Module):
             "mul_diff_degree, mul_signed_diff_degree."
         )
 
-    def compute_edge_summaries(self, h, edge_index, training=False):
+    def compute_edge_summaries(self, h, edge_index, training=False, record_gate=True):
         """
         Build both useful and low-relevance neighbor summaries.
 
@@ -1084,9 +1031,8 @@ class GraphFrontDoorDAG(nn.Module):
         The existing edge feature modes (mul/diff/degree/...) define g_uv.
         When edge_gate_mode='scalar', g_uv is one score per edge. When
         edge_gate_mode='vector', g_uv is a per-dimension edge gate so each
-        hidden channel can keep or reject a neighbor independently.  The
-        complementary low-gate summary is now used as a shortcut/spurious
-        source instead of being subtracted from h.
+        hidden channel can keep or reject a neighbor independently.
+        The low-relevance summary is not used unless --use_neighbor_denoise is set.
         """
         if edge_index.numel() == 0:
             zero = h.new_zeros(h.size())
@@ -1111,6 +1057,15 @@ class GraphFrontDoorDAG(nn.Module):
         edge_gate = torch.sigmoid(edge_logits)
         if edge_gate.dim() == 1:
             edge_gate = edge_gate.unsqueeze(-1)
+        if (
+            record_gate
+            and getattr(self, '_record_edge_gates', False)
+            and getattr(self, 'lambda_edge_gate_env', 0.0) > 0.0
+        ):
+            # Store destination-indexed gates from each enhancement stage.
+            # The edge indices are non-differentiable tensors; edge_gate keeps
+            # gradients so the environment-invariance loss can update the gate MLP.
+            self._edge_gate_records.append((dst, edge_gate))
 
         norm = (deg[src].pow(-0.5) * deg[dst].pow(-0.5)).unsqueeze(-1)
         useful_weight = torch.nan_to_num(norm * edge_gate, nan=0.0, posinf=0.0, neginf=0.0)
@@ -1128,7 +1083,9 @@ class GraphFrontDoorDAG(nn.Module):
     def compute_edge_semantic_summary(self, h, edge_index, training=False):
         # Backward-compatible local propagation function used by the global
         # advective mixer. It returns only the useful relation-aware summary.
-        useful_summary, _, _ = self.compute_edge_summaries(h, edge_index, training=training)
+        useful_summary, _, _ = self.compute_edge_summaries(
+            h, edge_index, training=training, record_gate=False
+        )
         return useful_summary
 
     def fuse_node_edge_representation(self, h, edge_summary, noise_summary=None, training=False):
@@ -1137,20 +1094,24 @@ class GraphFrontDoorDAG(nn.Module):
         useful_delta = F.dropout(useful_delta, self.dropout, training=training)
 
         fused = h + self.edge_blend * useful_delta
-        return self.node_edge_norm(fused)
 
-    def apply_latent_diffusion(self, z, training=False):
-        if self.latent_diffusion is None:
-            zero = z.new_zeros(())
-            self._last_diffusion_loss = zero
-            return z, zero
-        z_denoised, loss_diffusion = self.latent_diffusion(
-            z,
-            training=training,
-            blend=self.diffusion_blend,
-        )
-        self._last_diffusion_loss = loss_diffusion
-        return z_denoised, loss_diffusion
+        if (
+            self.use_neighbor_denoise
+            and self.noise_subtract_alpha > 0.0
+            and noise_summary is not None
+        ):
+            # Estimate the environment/noise component contributed by low-gate
+            # neighbors and subtract it softly. The node-level gate prevents
+            # hard removal of heterophilic but useful neighbors.
+            noise_input = torch.cat([h, noise_summary, h * noise_summary], dim=-1)
+            noise_delta = self.node_noise_fuser(noise_input)
+            noise_delta = F.dropout(noise_delta, self.dropout, training=training)
+
+            gate_input = torch.cat([h, noise_summary, torch.abs(h - noise_summary)], dim=-1)
+            noise_gate = torch.sigmoid(self.node_noise_gate(gate_input) / self.noise_gate_temp)
+            fused = fused - self.noise_subtract_alpha * noise_gate * noise_delta
+
+        return self.node_edge_norm(fused)
 
     def _graph_cfam_energy(self, value):
         # Row-wise energy spectralization.  Squared activations highlight
@@ -1160,14 +1121,7 @@ class GraphFrontDoorDAG(nn.Module):
         denom = energy.mean(dim=-1, keepdim=True).clamp_min(1e-6)
         return energy / denom
 
-    def graph_cfam_adapt(
-        self,
-        h,
-        edge_index,
-        training=False,
-        local_blend=None,
-        residual_blend=None,
-    ):
+    def graph_cfam_adapt(self, h, edge_index, training=False, record_gate=True):
         """
         Graph-CFAM local decoupling.
 
@@ -1181,6 +1135,7 @@ class GraphFrontDoorDAG(nn.Module):
             h,
             edge_index,
             training=training,
+            record_gate=record_gate,
         )
         residual = h - smooth
         smooth_energy = self._graph_cfam_energy(smooth)
@@ -1192,11 +1147,7 @@ class GraphFrontDoorDAG(nn.Module):
         domain_local = (1.0 - gate) * smooth
         if noise_summary is not None:
             domain_local = domain_local + noise_summary
-        if local_blend is None:
-            local_blend = self.edge_blend
-        if residual_blend is None:
-            residual_blend = self.graph_cfam_residual_blend
-        adapted = h + local_blend * causal_local + residual_blend * residual
+        adapted = h + self.edge_blend * causal_local + self.graph_cfam_residual_blend * residual
         adapted = F.dropout(adapted, self.dropout, training=training)
         adapted = self.graph_cfam_norm(adapted)
         gate_loss = (gate.mean() - self.graph_cfam_gate_target).pow(2)
@@ -1300,10 +1251,119 @@ class GraphFrontDoorDAG(nn.Module):
             return zero
         return torch.stack(losses).mean()
 
-    def encode_representation(self, x, edge_index, training=False):
+    def compute_edge_gate_env_invariance_loss(self, y, env, train_idx, num_nodes=None):
+        """
+        Class-conditional edge-gate environment invariance.
+
+        Each recorded edge gate is first averaged to its destination node.  For
+        each class c, we compare the mean destination-gate pattern across
+        available training environments and penalize the variance.  This keeps
+        the learned relation router from using environment-specific edge/dim
+        patterns for nodes of the same label.
+        """
+        zero = self.A_feat.new_zeros(())
+        records = getattr(self, '_edge_gate_records', None)
+        if (
+            self.lambda_edge_gate_env <= 0.0
+            or records is None
+            or len(records) == 0
+            or y is None
+            or env is None
+            or train_idx is None
+            or train_idx.numel() == 0
+        ):
+            self._last_edge_gate_env_loss = zero
+            self._last_edge_gate_env_valid_groups = 0
+            self._last_edge_gate_env_mean_var = zero.detach()
+            return zero, zero, 0
+
+        device = records[0][1].device
+        dtype = records[0][1].dtype
+        y_flat = self._flat_class_labels(y).to(device=device)
+        env_flat = env.to(device=device)
+        if env_flat.dim() > 1:
+            env_flat = env_flat.squeeze(-1)
+        env_flat = env_flat.long()
+        train_idx = train_idx.to(device=device, dtype=torch.long)
+        if num_nodes is None:
+            num_nodes = int(max(int(y_flat.size(0)), int(train_idx.max().item()) + 1))
+
+        node_gate_summaries = []
+        for dst, edge_gate in records:
+            if edge_gate is None or edge_gate.numel() == 0:
+                continue
+            dst = dst.to(device=device, dtype=torch.long)
+            gate = edge_gate
+            if gate.dim() == 1:
+                gate = gate.unsqueeze(-1)
+            if gate.size(-1) == 1 and self.edge_gate_mode == 'scalar':
+                # Scalar gates are still meaningful: the invariance loss then
+                # regularizes the amount of neighbor reliance per environment.
+                gate_values = gate
+            else:
+                gate_values = gate
+            node_gate = gate_values.new_zeros(num_nodes, gate_values.size(-1))
+            node_count = gate_values.new_zeros(num_nodes, 1)
+            node_gate.index_add_(0, dst, gate_values)
+            node_count.index_add_(0, dst, gate_values.new_ones(gate_values.size(0), 1))
+            node_gate = node_gate / node_count.clamp_min(1.0)
+            if self.edge_gate_env_detach_node:
+                node_gate = node_gate.detach()
+            node_gate_summaries.append(node_gate)
+
+        if not node_gate_summaries:
+            self._last_edge_gate_env_loss = zero
+            self._last_edge_gate_env_valid_groups = 0
+            self._last_edge_gate_env_mean_var = zero.detach()
+            return zero, zero, 0
+
+        # Average the gate patterns collected from final/layerwise enhancement
+        # calls, so the loss supervises the effective router used by z.
+        gate_by_node = torch.stack(node_gate_summaries, dim=0).mean(dim=0)
+        labels_train = y_flat[train_idx]
+        env_train = env_flat[train_idx]
+        gate_train = gate_by_node[train_idx]
+
+        losses = []
+        valid_groups = 0
+        for cls in labels_train.unique().tolist():
+            cls = int(cls)
+            cls_mask = labels_train == cls
+            if cls_mask.sum() < self.edge_gate_env_min_count:
+                continue
+            env_means = []
+            for env_id in env_train[cls_mask].unique().tolist():
+                env_id = int(env_id)
+                env_mask = cls_mask & (env_train == env_id)
+                if env_mask.sum() < self.edge_gate_env_min_count:
+                    continue
+                env_means.append(gate_train[env_mask].mean(dim=0))
+            if len(env_means) <= 1:
+                continue
+            env_means = torch.stack(env_means, dim=0)
+            losses.append(env_means.var(dim=0, unbiased=False).mean())
+            valid_groups += len(env_means)
+
+        if not losses:
+            self._last_edge_gate_env_loss = zero
+            self._last_edge_gate_env_valid_groups = 0
+            self._last_edge_gate_env_mean_var = zero.detach()
+            return zero, zero, 0
+
+        loss = torch.stack(losses).mean()
+        mean_var = loss.detach()
+        self._last_edge_gate_env_loss = loss
+        self._last_edge_gate_env_valid_groups = int(valid_groups)
+        self._last_edge_gate_env_mean_var = mean_var
+        return loss, mean_var, int(valid_groups)
+
+    def encode_representation(self, x, edge_index, training=False, return_layerwise_fd=False):
+        self._edge_gate_records = []
+        self._record_edge_gates = bool(training and self.lambda_edge_gate_env > 0.0)
         x = F.dropout(x, self.dropout, training=training)
         h = self.act_fn(self.input_proj(x))
         layerwise_states = []
+        layerwise_fd_states = []
         layerwise_gate_loss = h.new_zeros(())
         layerwise_gate_mean = h.new_zeros(())
         layerwise_gate_layers = 0
@@ -1312,26 +1372,6 @@ class GraphFrontDoorDAG(nn.Module):
         graph_cfam_layers = 0
         num_backbone_layers = len(self.backbone_layers)
 
-        # Pre-message-passing CFAM: filter/enhance projected node states before
-        # the first GNN aggregation mixes potentially shortcut-heavy neighbours.
-        if self.use_pre_gnn_graph_cfam:
-            h, edge_summary_pre, domain_summary_pre, cfam_gate_pre, edge_gate_pre, cfam_gate_loss_pre = self.graph_cfam_adapt(
-                h,
-                edge_index,
-                training=training,
-                local_blend=self.pre_graph_cfam_blend,
-                residual_blend=self.pre_graph_cfam_residual_blend,
-            )
-            graph_cfam_gate_mean = graph_cfam_gate_mean + cfam_gate_pre.mean()
-            graph_cfam_gate_loss = graph_cfam_gate_loss + cfam_gate_loss_pre
-            graph_cfam_layers += 1
-            if edge_gate_pre is not None:
-                layerwise_gate_mean = layerwise_gate_mean + edge_gate_pre.mean()
-                if self.lambda_layerwise_gate > 0.0:
-                    layerwise_gate_loss = layerwise_gate_loss + (
-                        edge_gate_pre.mean() - self.layerwise_gate_target
-                    ).pow(2)
-                layerwise_gate_layers += 1
         for layer_idx, layer in enumerate(self.backbone_layers):
             h = F.dropout(h, self.dropout, training=training)
             h = self.act_fn(layer(h, edge_index))
@@ -1352,6 +1392,7 @@ class GraphFrontDoorDAG(nn.Module):
                         h,
                         edge_index,
                         training=training,
+                        record_gate=self.edge_gate_env_apply_layerwise,
                     )
                     graph_cfam_gate_mean = graph_cfam_gate_mean + cfam_gate_l.mean()
                     graph_cfam_gate_loss = graph_cfam_gate_loss + cfam_gate_loss_l
@@ -1373,6 +1414,7 @@ class GraphFrontDoorDAG(nn.Module):
                         h,
                         edge_index,
                         training=training,
+                        record_gate=self.edge_gate_env_apply_layerwise,
                     )
                     h = self.fuse_node_edge_representation(
                         h,
@@ -1390,6 +1432,8 @@ class GraphFrontDoorDAG(nn.Module):
 
             if self.use_layerwise_spurious_contexts:
                 layerwise_states.append(h)
+            if return_layerwise_fd:
+                layerwise_fd_states.append(h)
 
         if layerwise_gate_layers > 0:
             layerwise_gate_mean = layerwise_gate_mean / float(layerwise_gate_layers)
@@ -1403,6 +1447,7 @@ class GraphFrontDoorDAG(nn.Module):
         self._last_graph_cfam_gate_mean = graph_cfam_gate_mean.detach()
         self._last_graph_cfam_gate_loss = graph_cfam_gate_loss
         self._last_graph_cfam_layers = int(graph_cfam_layers)
+
         h_global_context = None
         if self.global_encoder is not None:
             if self.global_info_mode == 'linear':
@@ -1422,16 +1467,13 @@ class GraphFrontDoorDAG(nn.Module):
                 h = h + self.global_alpha * self.global_fuse_norm(h_global)
 
         h_pre_enhance = h
-        shortcut_summary = None
-        cns_gate = None
         if self.use_graph_cfam and self.use_final_graph_cfam:
             z, causal_local_final, edge_summary, cfam_gate_final, _, cfam_gate_loss_final = self.graph_cfam_adapt(
                 h,
                 edge_index,
                 training=training,
+                record_gate=self.edge_gate_env_apply_final,
             )
-            shortcut_summary = edge_summary
-            cns_gate = cfam_gate_final
             prev_layers = max(0, int(self._last_graph_cfam_layers))
             denom = float(prev_layers + 1)
             self._last_graph_cfam_gate_mean = (
@@ -1442,12 +1484,14 @@ class GraphFrontDoorDAG(nn.Module):
             ) / denom
             self._last_graph_cfam_layers = prev_layers + 1
         elif self.use_graph_cfam:
-            edge_summary, _, _ = self.compute_edge_summaries(h, edge_index, training=training)
+            edge_summary, _, _ = self.compute_edge_summaries(
+                h, edge_index, training=training, record_gate=False
+            )
             z = h
-            shortcut_summary = edge_summary
-            cns_gate = torch.full_like(z, 0.5)
         else:
-            edge_summary, noise_summary, _ = self.compute_edge_summaries(h, edge_index, training=training)
+            edge_summary, noise_summary, _ = self.compute_edge_summaries(
+                h, edge_index, training=training, record_gate=self.edge_gate_env_apply_final
+            )
             if self.use_layerwise_local_igm and not self.layerwise_final_edge_fuse:
                 z = self.node_edge_norm(h)
             else:
@@ -1457,27 +1501,13 @@ class GraphFrontDoorDAG(nn.Module):
                     noise_summary=noise_summary,
                     training=training,
                 )
-            shortcut_summary = noise_summary
-            cns_gate = torch.full_like(z, 0.5)
-        z_raw = z
-        z_denoised, _ = self.apply_latent_diffusion(z_raw, training=training)
         dag_vars = z.new_zeros(z.size(0), self.non_label_var_dim)
         mediator_gate = z.new_ones(self.d)
         causal_score = z.new_ones(self.dag_latent_dim)
         pollution_score = z.new_zeros(self.dag_latent_dim)
         dag_total = self.A_feat.new_zeros(self.dag_var_dim, self.dag_var_dim)
-        z = z_denoised
-        z_mediator = z_denoised
-        if self.direct_z_spurious_mode == 'zero':
-            z_spurious = z.new_zeros(z.size())
-        elif self.direct_z_spurious_mode == 'z_adapter':
-            z_spurious = self.spurious_norm(z + 0.1 * self.spurious_adapter(z))
-        else:
-            if shortcut_summary is None:
-                shortcut_summary = z_raw - z_denoised
-            else:
-                shortcut_summary = shortcut_summary + (z_raw - z_denoised)
-            z_spurious = self.spurious_norm(shortcut_summary + 0.1 * self.spurious_adapter(shortcut_summary))
+        z_mediator = z
+        z_spurious = z.new_zeros(z.size())
         zero = z.new_zeros(())
         self._last_ica_cov_loss = zero
         self._last_ica_ng_loss = zero
@@ -1491,7 +1521,7 @@ class GraphFrontDoorDAG(nn.Module):
         if self.use_layerwise_spurious_contexts and layerwise_states:
             layerwise_spurious = None
         mediator_logits = self.classifier(z_mediator)
-        return (
+        outputs = (
             z,
             edge_summary,
             dag_vars,
@@ -1505,8 +1535,10 @@ class GraphFrontDoorDAG(nn.Module):
             h_global_context,
             layerwise_spurious,
             h_pre_enhance,
-            cns_gate,
         )
+        if return_layerwise_fd:
+            return outputs + (layerwise_fd_states,)
+        return outputs
 
     def compute_pseudo_env_probs(self, z_spurious):
         if self.num_envs <= 1 or z_spurious.numel() == 0:
@@ -1629,79 +1661,16 @@ class GraphFrontDoorDAG(nn.Module):
         answer = self.nego_prompt_norm(answer + prompts)
         return F.normalize(answer, dim=-1)
 
-    def sample_mixed_nego_contexts(self, answers, labels=None, training=False):
-        if answers is None or answers.numel() == 0 or answers.size(1) <= 1:
-            return None
-
-        num_samples, num_classes, _ = answers.shape
-        device = answers.device
-        class_ids = torch.arange(num_classes, device=device)
-        if labels is None:
-            valid = torch.ones(num_samples, num_classes, device=device, dtype=torch.bool)
-        else:
-            labels = labels.to(device=device, dtype=torch.long).view(-1).clamp(min=-1, max=num_classes - 1)
-            valid = class_ids.unsqueeze(0) != labels.unsqueeze(1)
-        valid_count = valid.sum(dim=1, keepdim=True)
-        if (valid_count <= 0).any():
-            valid = torch.ones_like(valid)
-            valid_count = valid.sum(dim=1, keepdim=True)
-
-        valid_float = valid.float()
-        num_mix = max(1, self.nego_mix_k)
-        if training:
-            concentration = torch.full(
-                (num_samples, num_mix, num_classes),
-                self.nego_mix_alpha,
-                device=device,
-                dtype=answers.dtype,
-            )
-            gamma = torch.distributions.Gamma(
-                concentration,
-                torch.ones_like(concentration),
-            ).sample()
-            weights = gamma * valid_float.unsqueeze(1)
-        else:
-            base = (class_ids.to(dtype=answers.dtype).view(1, 1, -1) + 1.0)
-            mix_ids = (
-                torch.arange(num_mix, device=device, dtype=answers.dtype).view(1, -1, 1)
-                + 1.0
-            )
-            weights = torch.sin(base * 12.9898 + mix_ids * 78.233).abs() + 1e-3
-            weights = weights.expand(num_samples, -1, -1) * valid_float.unsqueeze(1)
-
-        weights = weights / weights.sum(dim=-1, keepdim=True).clamp_min(1e-6)
-        answers_expand = answers.unsqueeze(1).expand(
-            num_samples,
-            num_mix,
-            num_classes,
-            self.d,
-        ).reshape(num_samples * num_mix, num_classes, self.d)
-        mixed = torch.bmm(
-            weights.reshape(num_samples * num_mix, 1, num_classes).to(dtype=answers.dtype),
-            answers_expand,
-        ).view(num_samples, num_mix, self.d)
-        return F.normalize(mixed, dim=-1)
-
     def get_nego_contexts(self, z_source=None, y=None, sample_idx=None, training=False):
         if not self.use_nego_context or self.nego_context_weight <= 0.0:
             return None
 
         contexts = None
-        if z_source is not None and y is not None and sample_idx is not None and sample_idx.numel() > 0:
+        if training and z_source is not None and y is not None and sample_idx is not None and sample_idx.numel() > 0:
             y_flat = y.squeeze(-1).long()
             labels = y_flat[sample_idx]
             answers = self.negative_prompt_answers(z_source.index_select(0, sample_idx))
             if answers is not None:
-                if self.nego_context_mode == 'sample_mix':
-                    contexts = self.sample_mixed_nego_contexts(
-                        answers,
-                        labels=labels,
-                        training=training,
-                    )
-                    if contexts is not None:
-                        self._last_nego_context_mean = contexts.mean().detach()
-                        return self.nego_context_weight * F.normalize(contexts, dim=-1)
-
                 class_contexts = []
                 for cls_idx in range(self.c):
                     extra_mask = labels != cls_idx
@@ -1771,10 +1740,7 @@ class GraphFrontDoorDAG(nn.Module):
     def update_nego_context_bank(self, contexts):
         if contexts is None or contexts.numel() == 0:
             return
-        contexts = contexts.detach()
-        if contexts.dim() == 3:
-            contexts = contexts.mean(dim=0)
-        contexts = F.normalize(contexts, dim=-1)
+        contexts = F.normalize(contexts.detach(), dim=1)
         take = min(contexts.size(0), self.c)
         if take <= 0:
             return
@@ -1959,21 +1925,7 @@ class GraphFrontDoorDAG(nn.Module):
         contexts = [ctx for ctx in context_sets if ctx is not None and ctx.numel() > 0]
         if not contexts:
             return None
-        sample_contexts = [ctx for ctx in contexts if ctx.dim() == 3]
-        global_contexts = [ctx for ctx in contexts if ctx.dim() == 2]
-        if not sample_contexts:
-            return torch.cat(global_contexts, dim=0)
-
-        num_nodes = sample_contexts[0].size(0)
-        merged = []
-        for ctx in sample_contexts:
-            if ctx.size(0) == num_nodes:
-                merged.append(ctx)
-        for ctx in global_contexts:
-            merged.append(ctx.unsqueeze(0).expand(num_nodes, -1, -1))
-        if not merged:
-            return None
-        return torch.cat(merged, dim=1)
+        return torch.cat(contexts, dim=0)
 
     def build_frontdoor_contexts(
         self,
@@ -1992,13 +1944,6 @@ class GraphFrontDoorDAG(nn.Module):
             nego_contexts,
         )
 
-    def count_frontdoor_contexts(self, contexts):
-        if contexts is None or contexts.numel() == 0:
-            return 0
-        if contexts.dim() == 3:
-            return int(contexts.size(1))
-        return int(contexts.size(0))
-
     def sample_frontdoor_contexts(self, contexts, training=False):
         """
         Approximate the front-door intervention with K diverse contexts.
@@ -2010,11 +1955,10 @@ class GraphFrontDoorDAG(nn.Module):
         if contexts is None or contexts.size(0) == 0:
             return contexts
 
-        context_dim = 1 if contexts.dim() == 3 else 0
-        num_contexts = contexts.size(context_dim)
-        if self.fd_sample_k <= 0 or num_contexts <= self.fd_sample_k:
+        if self.fd_sample_k <= 0 or contexts.size(0) <= self.fd_sample_k:
             return contexts
 
+        num_contexts = contexts.size(0)
         if training:
             indices = torch.randperm(num_contexts, device=contexts.device)[:self.fd_sample_k]
         else:
@@ -2022,7 +1966,7 @@ class GraphFrontDoorDAG(nn.Module):
             generator.manual_seed(self.context_sample_seed + num_contexts)
             indices = torch.randperm(num_contexts, generator=generator)[:self.fd_sample_k]
             indices = indices.to(contexts.device)
-        return contexts.index_select(context_dim, indices)
+        return contexts.index_select(0, indices)
 
     def _fit_spurious_gmm_stats(self, z_spurious, env_probs):
         means = z_spurious.new_zeros(self.num_envs, self.d)
@@ -2091,20 +2035,12 @@ class GraphFrontDoorDAG(nn.Module):
 
     def frontdoor_logits_from_contexts(self, z_mediator, z_spurious, contexts):
         base_logits = self.fd_classifier(z_mediator)
-        if contexts is None or contexts.numel() == 0:
+        if contexts is None or contexts.size(0) == 0:
             return base_logits, None
 
-        if contexts.dim() == 3:
-            if contexts.size(0) != z_mediator.size(0):
-                return base_logits, None
-            num_contexts = contexts.size(1)
-            context_expand = contexts
-        else:
-            num_contexts = contexts.size(0)
-            context_expand = contexts.unsqueeze(0).expand(z_mediator.size(0), -1, -1)
-        if num_contexts <= 0:
-            return base_logits, None
+        num_contexts = contexts.size(0)
         mediator_expand = z_mediator.unsqueeze(1).expand(-1, num_contexts, -1)
+        context_expand = contexts.unsqueeze(0).expand(z_mediator.size(0), -1, -1)
 
         fused_input = torch.cat([mediator_expand, context_expand], dim=-1)
         fused = self.fd_fuser(fused_input.reshape(-1, self.d * 2)).view(z_mediator.size(0), num_contexts, self.d)
@@ -2119,36 +2055,60 @@ class GraphFrontDoorDAG(nn.Module):
             return med_logits
         return (1.0 - self.fd_blend) * med_logits + self.fd_blend * fd_logits
 
-    def compute_logit_consistency(self, clean_logits, aug_logits):
-        if clean_logits is None or aug_logits is None or clean_logits.numel() == 0:
-            return self.A_feat.new_zeros(())
-        if clean_logits.size(-1) == 1:
-            clean_prob = torch.sigmoid(clean_logits.detach()).clamp(1e-6, 1.0 - 1e-6)
-            aug_prob = torch.sigmoid(aug_logits).clamp(1e-6, 1.0 - 1e-6)
-            return F.binary_cross_entropy(aug_prob, clean_prob)
-        clean_prob = F.softmax(clean_logits.detach(), dim=-1)
-        aug_log = F.log_softmax(aug_logits, dim=-1)
-        return F.kl_div(aug_log, clean_prob, reduction='batchmean')
+    def _layerwise_fd_weight(self, layer_idx, num_layers):
+        if self.layerwise_fd_weighting == 'uniform':
+            return 1.0
+        if self.layerwise_fd_weighting == 'reverse':
+            return float(num_layers - layer_idx) / float(max(1, num_layers))
+        if self.layerwise_fd_weighting == 'last':
+            return 1.0 if layer_idx == num_layers - 1 else 0.0
+        return float(layer_idx + 1) / float(max(1, num_layers))
 
-    def compute_frontdoor_variance_consistency(self, clean_stack, aug_stack):
+    def compute_layerwise_frontdoor_loss(
+        self,
+        layerwise_states,
+        train_idx,
+        y_tr,
+        contexts,
+        criterion,
+        args,
+    ):
+        zero = self.A_feat.new_zeros(())
         if (
-            clean_stack is None
-            or aug_stack is None
-            or clean_stack.numel() == 0
-            or aug_stack.numel() == 0
-            or clean_stack.size(1) <= 1
-            or clean_stack.shape != aug_stack.shape
+            self.lambda_layerwise_fd <= 0.0
+            or layerwise_states is None
+            or len(layerwise_states) == 0
+            or train_idx is None
+            or train_idx.numel() == 0
         ):
-            return self.A_feat.new_zeros(())
-        if clean_stack.size(-1) == 1:
-            clean_pred = torch.sigmoid(clean_stack.detach())
-            aug_pred = torch.sigmoid(aug_stack)
-        else:
-            clean_pred = F.softmax(clean_stack.detach(), dim=-1)
-            aug_pred = F.softmax(aug_stack, dim=-1)
-        clean_var = clean_pred.var(dim=1, unbiased=False)
-        aug_var = aug_pred.var(dim=1, unbiased=False)
-        return F.mse_loss(aug_var, clean_var)
+            return zero, zero, zero
+
+        contexts_aux = contexts.detach() if contexts is not None and self.layerwise_fd_detach_context else contexts
+        loss_sum = zero
+        weight_sum = 0.0
+        num_layers = len(layerwise_states)
+        used_layers = 0
+
+        for layer_idx, h_layer in enumerate(layerwise_states):
+            weight = self._layerwise_fd_weight(layer_idx, num_layers)
+            if weight <= 0.0:
+                continue
+            h_tr = h_layer[train_idx]
+            med_logits_l = self.classifier(h_tr)
+            fd_logits_l, _ = self.frontdoor_logits_from_contexts(
+                h_tr,
+                h_tr.new_zeros(h_tr.size()),
+                contexts_aux,
+            )
+            logits_l = self.blend_logits(med_logits_l, fd_logits_l)
+            loss_l = self.compute_supervised_loss(logits_l, y_tr, criterion, args).mean()
+            loss_sum = loss_sum + float(weight) * loss_l
+            weight_sum += float(weight)
+            used_layers += 1
+
+        if used_layers == 0 or weight_sum <= 0.0:
+            return zero, zero, zero
+        return loss_sum / weight_sum, torch.tensor(float(used_layers), device=zero.device), torch.tensor(weight_sum, device=zero.device)
 
     def sample_counterfactual_branch(self, branch):
         if self.cf_mode == 'zero':
@@ -2247,6 +2207,12 @@ class GraphFrontDoorDAG(nn.Module):
         return loss_kl, cf_shift.detach()
 
     def forward(self, x, edge_index, training=False):
+        encode_outputs = self.encode_representation(
+            x,
+            edge_index,
+            training=training,
+            return_layerwise_fd=bool(training and self.lambda_layerwise_fd > 0.0),
+        )
         (
             z,
             edge_summary,
@@ -2261,8 +2227,8 @@ class GraphFrontDoorDAG(nn.Module):
             h_global_context,
             layerwise_spurious,
             h_pre_enhance,
-            cns_gate,
-        ) = self.encode_representation(x, edge_index, training=training)
+        ) = encode_outputs[:13]
+        layerwise_fd_states = encode_outputs[13] if len(encode_outputs) > 13 else None
 
         gmm_contexts = self.sample_frontdoor_contexts(
             self.sample_gmm_contexts(training=training),
@@ -2272,21 +2238,7 @@ class GraphFrontDoorDAG(nn.Module):
             layerwise_spurious,
             self.compute_pseudo_env_probs(z_spurious) if self.num_envs > 1 else None,
         )
-        if self.nego_context_mode == 'sample_mix':
-            nego_source_all = self.get_nego_source_representation(z, z_mediator, z_spurious)
-            if mediator_logits.size(-1) > 1:
-                pseudo_labels = mediator_logits.detach().argmax(dim=-1)
-            else:
-                pseudo_labels = torch.zeros(z.size(0), device=z.device, dtype=torch.long)
-            all_idx = torch.arange(z.size(0), device=z.device, dtype=torch.long)
-            nego_contexts = self.get_nego_contexts(
-                nego_source_all,
-                pseudo_labels,
-                all_idx,
-                training=training,
-            )
-        else:
-            nego_contexts = self.get_nego_contexts(training=False)
+        nego_contexts = self.get_nego_contexts(training=False)
         contexts = self.build_frontdoor_contexts(
             gmm_contexts,
             self.get_global_contexts(h_global_context),
@@ -2315,7 +2267,7 @@ class GraphFrontDoorDAG(nn.Module):
                 h_global_context,
                 layerwise_spurious,
                 h_pre_enhance,
-                cns_gate,
+                layerwise_fd_states,
             )
         if self.eval_pred_mode == 'mediator':
             return mediator_logits
@@ -2345,70 +2297,6 @@ class GraphFrontDoorDAG(nn.Module):
             target = y.squeeze(1)
             loss = criterion(out, target)
         return loss
-
-    def _per_node_loss(self, loss):
-        if loss.dim() <= 1:
-            return loss
-        return loss.reshape(loss.size(0), -1).mean(dim=1)
-
-    def _degree_buckets(self, edge_index, num_nodes, node_idx):
-        if self.dro_num_groups <= 1 or edge_index is None or edge_index.numel() == 0:
-            return torch.zeros(node_idx.size(0), device=node_idx.device, dtype=torch.long)
-        src, dst = edge_index
-        deg = degree(src, num_nodes).to(device=node_idx.device) + degree(dst, num_nodes).to(device=node_idx.device)
-        score = self._normalize_score(torch.log1p(deg.index_select(0, node_idx)), default_value=0.5)
-        bucket = torch.floor(score * float(self.dro_num_groups)).long()
-        return bucket.clamp_(0, self.dro_num_groups - 1)
-
-    def _dro_group_ids(self, edge_index, num_nodes, train_idx, y):
-        if self.dro_group_by == 'none':
-            return torch.zeros(train_idx.size(0), device=train_idx.device, dtype=torch.long)
-
-        degree_bucket = self._degree_buckets(edge_index, num_nodes, train_idx)
-        if self.dro_group_by == 'degree':
-            return degree_bucket
-
-        labels = self._flat_class_labels(y).to(device=train_idx.device).index_select(0, train_idx)
-        labels = labels.clamp_min(0)
-        if self.dro_group_by == 'label':
-            return labels.long()
-        return labels.long() * self.dro_num_groups + degree_bucket
-
-    def compute_entropy_dro_loss(self, raw_loss, edge_index, num_nodes, train_idx, y):
-        per_node = self._per_node_loss(raw_loss)
-        base_loss = per_node.mean()
-        zero = base_loss.new_zeros(())
-        if (
-            self.lambda_entropy_dro <= 0.0
-            or per_node.numel() <= 1
-            or train_idx is None
-            or train_idx.numel() != per_node.numel()
-        ):
-            self._last_dro_entropy = zero
-            self._last_dro_max_weight = zero
-            return base_loss, base_loss.detach(), zero, zero
-
-        group_ids = self._dro_group_ids(edge_index, num_nodes, train_idx, y)
-        group_losses = []
-        for group_id in group_ids.unique(sorted=True):
-            mask = group_ids == group_id
-            if mask.any():
-                group_losses.append(per_node[mask].mean())
-        if len(group_losses) <= 1:
-            self._last_dro_entropy = zero
-            self._last_dro_max_weight = zero
-            return base_loss, base_loss.detach(), zero, zero
-
-        group_losses = torch.stack(group_losses)
-        weights = F.softmax(group_losses.detach() / self.dro_entropy_beta, dim=0)
-        dro_loss = (weights * group_losses).sum()
-        mix = min(max(float(self.lambda_entropy_dro), 0.0), 1.0)
-        robust_loss = (1.0 - mix) * base_loss + mix * dro_loss
-        entropy = -(weights * weights.clamp_min(1e-12).log()).sum()
-        max_weight = weights.max()
-        self._last_dro_entropy = entropy.detach()
-        self._last_dro_max_weight = max_weight.detach()
-        return robust_loss, base_loss.detach(), entropy.detach(), max_weight.detach()
 
        
     
@@ -2498,18 +2386,10 @@ class GraphFrontDoorDAG(nn.Module):
         return 0.5 * (corr ** 2).mean()
 
     def compute_frontdoor_variance_loss(self, logits_stack):
-        if (
-            self.lambda_var <= 0.0
-            or logits_stack is None
-            or logits_stack.numel() == 0
-            or logits_stack.size(1) <= 1
-        ):
+        if logits_stack is None or logits_stack.size(1) <= 1:
             return self.A_feat.new_zeros(())
-        if logits_stack.size(-1) == 1:
-            pred_stack = torch.sigmoid(logits_stack)
-        else:
-            pred_stack = torch.softmax(logits_stack, dim=-1)
-        return pred_stack.var(dim=1, unbiased=False).mean()
+        probs = torch.softmax(logits_stack, dim=-1)
+        return probs.var(dim=1, unbiased=False).mean()
 
     def compute_context_supervised_loss(self, logits_stack, y, criterion, args):
         if logits_stack is None or logits_stack.size(1) == 0:
@@ -2778,6 +2658,146 @@ class GraphFrontDoorDAG(nn.Module):
             state_payload.get('class_env_proto'),
         )
 
+    def sample_bismooth_edge_index(self, edge_index, num_nodes, train_idx=None):
+        """
+        Node-aware bi-smoothing randomization used as a training regularizer.
+
+        It follows the official node-aware bi-smoothing spirit: randomly delete
+        existing edges and randomly delete nodes by removing all incident edges.
+        The node feature matrix shape is unchanged.  When singleton='exclude',
+        nodes that become isolated in the smoothed graph are excluded from the
+        bi-smoothing consistency/classification loss, matching the practical
+        node-aware-exclude idea without turning this model into a certificate.
+        """
+        if edge_index is None or edge_index.numel() == 0:
+            valid_nodes = torch.ones(num_nodes, device=edge_index.device, dtype=torch.bool)
+            return edge_index, valid_nodes
+
+        src, dst = edge_index
+        device = edge_index.device
+
+        node_keep = torch.ones(num_nodes, device=device, dtype=torch.bool)
+        if self.bismooth_node_drop > 0.0:
+            node_keep = torch.rand(num_nodes, device=device) >= self.bismooth_node_drop
+            if self.bismooth_keep_train_nodes and train_idx is not None and train_idx.numel() > 0:
+                node_keep[train_idx] = True
+            keep = node_keep[src] & node_keep[dst]
+        else:
+            keep = torch.ones(src.size(0), device=device, dtype=torch.bool)
+
+        if self.bismooth_edge_drop > 0.0:
+            edge_keep = torch.rand(src.size(0), device=device) >= self.bismooth_edge_drop
+            keep = keep & edge_keep
+
+        if keep.sum() == 0:
+            smooth_edge_index = edge_index
+            valid_nodes = torch.ones(num_nodes, device=device, dtype=torch.bool)
+            return smooth_edge_index, valid_nodes
+
+        smooth_edge_index = edge_index[:, keep]
+        if self.bismooth_singleton == 'exclude':
+            smooth_src, smooth_dst = smooth_edge_index
+            deg_in = degree(smooth_dst, num_nodes).to(device=device)
+            deg_out = degree(smooth_src, num_nodes).to(device=device)
+            valid_nodes = (deg_in + deg_out) > 0
+            # Nodes explicitly dropped by node smoothing should not contribute
+            # to the local-invariance regularizer even if directed bookkeeping
+            # accidentally leaves a residual degree.
+            valid_nodes = valid_nodes & node_keep
+        else:
+            valid_nodes = node_keep
+        return smooth_edge_index, valid_nodes
+
+    def compute_local_bismooth_loss(
+        self,
+        x,
+        edge_index,
+        train_idx,
+        y,
+        z_mediator_clean,
+        criterion,
+        args,
+    ):
+        """
+        Local bi-smoothed mediator consistency.
+
+        The randomized graph is not used as the final prediction graph. It is
+        used only to enforce that the front-door mediator representation M is
+        stable under distribution-internal local structural perturbations. This
+        keeps the framework as front-door adjustment:
+
+            stable local structure -> mediator M
+            unstable structure     -> spurious/context C
+            M + sampled C          -> front-door prediction
+        """
+        if (
+            not self.use_local_bismooth
+            or self.lambda_bismooth <= 0.0
+            or train_idx is None
+            or train_idx.numel() == 0
+        ):
+            zero = z_mediator_clean.new_zeros(())
+            return zero, zero, zero
+
+        loss_cons = z_mediator_clean.new_zeros(())
+        loss_cls = z_mediator_clean.new_zeros(())
+        valid_ratio_sum = z_mediator_clean.new_zeros(())
+        used_samples = 0
+        samples = max(1, int(self.bismooth_samples))
+        clean_ref = z_mediator_clean.detach()
+
+        for _ in range(samples):
+            smooth_edge_index, valid_nodes = self.sample_bismooth_edge_index(
+                edge_index,
+                x.size(0),
+                train_idx=train_idx,
+            )
+            train_valid = valid_nodes[train_idx]
+            if train_valid.sum() == 0:
+                continue
+
+            (
+                _,
+                _,
+                _,
+                z_mediator_smooth,
+                _,
+                mediator_logits_smooth,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+            ) = self.encode_representation(x, smooth_edge_index, training=True)
+
+            idx = train_idx[train_valid]
+            clean_train = clean_ref[idx]
+            smooth_train = z_mediator_smooth[idx]
+            if self.bismooth_consistency == 'mse':
+                loss_cons = loss_cons + F.mse_loss(smooth_train, clean_train)
+            else:
+                clean_norm = F.normalize(clean_train, dim=1)
+                smooth_norm = F.normalize(smooth_train, dim=1)
+                loss_cons = loss_cons + (1.0 - (smooth_norm * clean_norm).sum(dim=1)).mean()
+
+            if self.lambda_bismooth_cls > 0.0:
+                loss_cls = loss_cls + self.compute_supervised_loss(
+                    mediator_logits_smooth[idx],
+                    y[idx],
+                    criterion,
+                    args,
+                ).mean()
+            valid_ratio_sum = valid_ratio_sum + train_valid.float().mean()
+            used_samples += 1
+
+        if used_samples == 0:
+            zero = z_mediator_clean.new_zeros(())
+            return zero, zero, zero
+        denom = float(used_samples)
+        return loss_cons / denom, loss_cls / denom, valid_ratio_sum / denom
+
     def compute_losses(self, data, criterion, args, update_state=False):
         x, edge_index, y = data.x, data.edge_index, data.y
         y = y.to(x.device)
@@ -2800,7 +2820,7 @@ class GraphFrontDoorDAG(nn.Module):
             h_global_all,
             layerwise_spurious_all,
             h_pre_enhance_all,
-            cns_gate_all,
+            layerwise_fd_states_all,
         ) = self.forward(x, edge_index, training=True)
 
         y_tr = y[train_idx]
@@ -2840,10 +2860,10 @@ class GraphFrontDoorDAG(nn.Module):
             nego_contexts,
             training=True,
         )
-        num_gmm_contexts = self.count_frontdoor_contexts(gmm_contexts)
-        num_global_contexts = self.count_frontdoor_contexts(global_contexts)
-        num_layerwise_contexts = self.count_frontdoor_contexts(layerwise_contexts)
-        num_nego_contexts = self.count_frontdoor_contexts(nego_contexts)
+        num_gmm_contexts = 0 if gmm_contexts is None else int(gmm_contexts.size(0))
+        num_global_contexts = 0 if global_contexts is None else int(global_contexts.size(0))
+        num_layerwise_contexts = 0 if layerwise_contexts is None else int(layerwise_contexts.size(0))
+        num_nego_contexts = 0 if nego_contexts is None else int(nego_contexts.size(0))
         num_mixed_contexts = 0
         fd_logits_tr, fd_stack_tr = self.frontdoor_logits_from_contexts(med_tr, spu_tr, contexts)
         final_logits_tr = self.blend_logits(mediator_logits_tr, fd_logits_tr)
@@ -2854,23 +2874,16 @@ class GraphFrontDoorDAG(nn.Module):
             contexts,
         )
 
-        raw_loss_cls = self.compute_supervised_loss(final_logits_tr, y_tr, criterion, args)
-        raw_loss_fd = self.compute_supervised_loss(fd_logits_tr, y_tr, criterion, args)
-        loss_cls, loss_cls_mean, dro_entropy, dro_max_weight = self.compute_entropy_dro_loss(
-            raw_loss_cls,
-            edge_index,
-            x.size(0),
+        loss_cls = self.compute_supervised_loss(final_logits_tr, y_tr, criterion, args).mean()
+        loss_fd = self.compute_supervised_loss(fd_logits_tr, y_tr, criterion, args).mean()
+        loss_layerwise_fd, layerwise_fd_layers, layerwise_fd_weight_sum = self.compute_layerwise_frontdoor_loss(
+            layerwise_fd_states_all,
             train_idx,
-            y,
+            y_tr,
+            contexts,
+            criterion,
+            args,
         )
-        loss_fd, loss_fd_mean, _, _ = self.compute_entropy_dro_loss(
-            raw_loss_fd,
-            edge_index,
-            x.size(0),
-            train_idx,
-            y,
-        )
-        loss_var = self.compute_frontdoor_variance_loss(fd_stack_tr)
         loss_graph_delf = self.compute_graph_delf_loss(
             z_mediator_all,
             edge_summary_all,
@@ -2919,7 +2932,15 @@ class GraphFrontDoorDAG(nn.Module):
             h_pre_enhance_all,
             train_idx,
         )
-        loss_diffusion = zero if self._last_diffusion_loss is None else self._last_diffusion_loss
+        loss_bismooth, loss_bismooth_cls, bismooth_valid_ratio = self.compute_local_bismooth_loss(
+            x,
+            edge_index,
+            train_idx,
+            y,
+            z_mediator_all,
+            criterion,
+            args,
+        )
         if self._last_layerwise_gate_loss is None:
             loss_layerwise_gate = self.A_feat.new_zeros(())
             layerwise_gate_mean = self.A_feat.new_zeros(())
@@ -2953,18 +2974,23 @@ class GraphFrontDoorDAG(nn.Module):
             y,
             train_idx,
         )
+        loss_edge_gate_env, edge_gate_env_mean_var, edge_gate_env_valid_groups = (
+            self.compute_edge_gate_env_invariance_loss(
+                y,
+                getattr(data, 'env', None),
+                train_idx,
+                num_nodes=x.size(0),
+            )
+        )
 
         loss_med = loss_role_med_y
         loss_fd_aug = zero
+        loss_var = zero
         loss_ind = zero
         loss_sem = zero
         loss_degree = zero
         loss_spu_y = zero
         loss_inv = zero
-        loss_cns = zero
-        loss_cns_cons = zero
-        cns_complement_mean = zero
-        cns_gate_mean = zero
 
         total_loss = (
             loss_cls
@@ -2980,9 +3006,11 @@ class GraphFrontDoorDAG(nn.Module):
             + self.lambda_role * loss_role
             + self.lambda_env * loss_env_med
             + self.lambda_global_env * loss_global_env
-            + self.lambda_var * loss_var
-            + self.lambda_latent_diffusion * loss_diffusion
+            + self.lambda_layerwise_fd * loss_layerwise_fd
+            + self.lambda_bismooth * loss_bismooth
+            + self.lambda_bismooth_cls * loss_bismooth_cls
             + self.lambda_layerwise_gate * loss_layerwise_gate
+            + self.lambda_edge_gate_env * loss_edge_gate_env
             + self.lambda_graph_cfam_gate * loss_graph_cfam_gate
             + self.lambda_graph_delf * loss_graph_delf
             + self.lambda_enhance_sem * loss_enhance_sem
@@ -3001,14 +3029,12 @@ class GraphFrontDoorDAG(nn.Module):
                 'class_env_proto': class_proto_payload,
             }
 
-        num_contexts = self.count_frontdoor_contexts(contexts)
+        num_contexts = 0 if contexts is None else int(contexts.size(0))
         return {
             'total_loss': total_loss,
             'loss_cls': loss_cls,
-            'loss_cls_mean': loss_cls_mean,
             'loss_med': loss_med,
             'loss_fd': loss_fd,
-            'loss_fd_mean': loss_fd_mean,
             'loss_cf': loss_cf,
             'loss_fd_aug': loss_fd_aug,
             'loss_var': loss_var,
@@ -3031,10 +3057,13 @@ class GraphFrontDoorDAG(nn.Module):
             'loss_env_med': loss_env_med,
             'loss_inv': loss_inv,
             'loss_global_env': loss_global_env,
-            'loss_diffusion': loss_diffusion,
-            'loss_cns': loss_cns,
-            'loss_cns_cons': loss_cns_cons,
+            'loss_layerwise_fd': loss_layerwise_fd,
+            'loss_bismooth': loss_bismooth,
+            'loss_bismooth_cls': loss_bismooth_cls,
             'loss_layerwise_gate': loss_layerwise_gate,
+            'loss_edge_gate_env': loss_edge_gate_env,
+            'edge_gate_env_mean_var': edge_gate_env_mean_var.detach(),
+            'edge_gate_env_valid_groups': torch.tensor(float(edge_gate_env_valid_groups), device=x.device),
             'loss_graph_cfam_gate': loss_graph_cfam_gate,
             'loss_graph_delf': loss_graph_delf,
             'loss_enhance_sem': loss_enhance_sem,
@@ -3058,13 +3087,9 @@ class GraphFrontDoorDAG(nn.Module):
                 float(self.class_env_proto_valid.sum().item()),
                 device=x.device,
             ),
-            'dro_weight_entropy': dro_entropy.detach(),
-            'dro_max_weight': dro_max_weight.detach(),
-            'cns_complement_mean': cns_complement_mean.detach(),
-            'cns_gate_mean': cns_gate_mean.detach(),
-            'cns_layer_complement_mean': zero.detach(),
-            'cns_layer_gate_mean': zero.detach(),
-            'cns_layer_layers': torch.tensor(0.0, device=x.device),
+            'bismooth_valid_ratio': bismooth_valid_ratio.detach(),
+            'layerwise_fd_layers': layerwise_fd_layers.detach(),
+            'layerwise_fd_weight_sum': layerwise_fd_weight_sum.detach(),
             'layerwise_gate_mean': layerwise_gate_mean.detach(),
             'layerwise_gate_layers': torch.tensor(float(self._last_layerwise_gate_layers), device=x.device),
             'graph_cfam_gate_mean': graph_cfam_gate_mean.detach(),

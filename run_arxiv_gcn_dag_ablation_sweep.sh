@@ -68,6 +68,7 @@ CONFIGS=(
   "no_pollution_gate|0.05|0.05|1e-5|0.5|--dag_ablate_pollution"
   "no_edge_pollution|0.05|0.05|1e-5|0.0|"
   "no_dag_mixer|0.05|0.05|1e-5|0.5|--disable_dag_mixer"
+  "enhanced_as_causal|0.0|0.0|0.0|0.5|--use_enhanced_as_causal --disable_dag_mixer --lambda_spu 0.0 --lambda_env 0.0"
   "ica_no_dag_split|0.05|0.05|1e-5|0.5|--use_ica_split"
 )
 

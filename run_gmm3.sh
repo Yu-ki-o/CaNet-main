@@ -1,6 +1,6 @@
 # GCN backbone
 python main_gmm3.py --dataset cora --backbone gcn --weight_decay 5e-5 --tau 1 --dropout 0.2 --env_type graph --combine_result --store --edge_feat_mode mul --gmm_sample_k 3 --edge_blend 0.2 --edge_score_temp 5.0 --dag_latent_dim 16 --lambda_dag 0.05 --lambda_dag_label 0.05 --lambda_spu 0.05 --lambda_env 0.05 --lambda_fd 0.5 --fd_blend 0.5
-python main_gmm3.py --dataset citeseer --backbone gcn --weight_decay 5e-5 --tau 1 --dropout 0.1 --env_type graph --combine_result --store --edge_feat_mode mul --gmm_sample_k 3 --edge_blend 0.2 --edge_score_temp 5.0 --dag_latent_dim 16 --lambda_dag 0.05 --lambda_dag_label 0.05 --lambda_spu 0.05 --lambda_env 0.05 --lambda_fd 0.5 --fd_blend 0.5 --hidden_channels 32
+python main_gmm3.py   
 # Aligned to results/pubmed/gcn/pubmed_gcn_edgectx_fine_spugate_thr0.40_temp8.0_..._residual_gmm2.txt.
 # edge_spu_* args from that run are not available in model_gmm3, so this line uses the shared hyperparameters.
 python main_gmm3.py --dataset pubmed --backbone gcn --lr 0.005 --weight_decay 5e-5 --tau 2 --K 2 --dropout 0.3 --hidden_channels 64 --num_layers 2 --env_type graph --combine_result --store --edge_feat_mode mul --gmm_sample_k 2 --edge_blend 0.2 --edge_score_temp 5.0 --dag_latent_dim 16 --lambda_dag 0.05 --lambda_dag_label 0.05 --lambda_spu 0.05 --lambda_env 0.05 --lambda_fd 0.5 --fd_blend 0.5 --display_step 10 --runs 5 --epochs 500 --early_stop_patience 80 --early_stop_min_delta 0.0001 --result_name pubmed_gcn_gmm3_from_edgectx_fine_spugate_thr0.40_temp8.0_lr0.005_dp0.3_gmm2

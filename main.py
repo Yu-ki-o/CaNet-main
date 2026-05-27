@@ -15,7 +15,7 @@ from data_utils import normalize, gen_normalized_adjs, to_sparse_tensor, \
     load_fixed_splits, rand_splits, get_gpu_memory_map, count_parameters, reindex_env
 from eval import evaluate_full, eval_acc, eval_rocauc, eval_f1
 from parse import parser_add_main_args
-from model import *
+from model_mulexp_enhance import *
 from ica_utils import infer_pseudo_envs_with_ica
 import time
 import os

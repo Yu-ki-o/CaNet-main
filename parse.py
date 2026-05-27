@@ -33,7 +33,6 @@ def parser_add_main_args(parser):
                         help='how to aggregate expert predictions at inference time')
     parser.add_argument('--gate_hidden', type=int, default=64,
                         help='hidden size of the shared gating network for expert weighting')
-
     # training
     parser.add_argument('--weight_decay', type=float, default=5e-4)
     parser.add_argument('--dropout', type=float, default=0.01)
