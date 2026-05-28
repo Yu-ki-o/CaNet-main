@@ -166,6 +166,30 @@ def add_frontdoor_dag_args(parser):
     parser.add_argument('--edge_gate_mode', type=str, default='vector',
                         choices=['scalar', 'vector'],
                         help='scalar uses one edge gate per neighbor; vector uses one gate per hidden dimension')
+    parser.add_argument('--use_class_neighbor_uncertainty', action='store_true',
+                        help='split neighbors into same/different predicted-class families and suppress high-variance dimensions')
+    parser.add_argument('--class_neighbor_label_source', type=str, default='pred',
+                        choices=['pred', 'detach_pred', 'train_label', 'label'],
+                        help='prediction source used to form same/different class neighbor families')
+    parser.add_argument('--class_neighbor_uncertainty_temp', type=float, default=1.0,
+                        help='temperature for converting family-wise dimension uncertainty into causal confidence')
+    parser.add_argument('--class_neighbor_uncertainty_blend', type=float, default=1.0,
+                        help='blend strength of family uncertainty in edge gates')
+    parser.add_argument('--class_neighbor_min_gate', type=float, default=0.05,
+                        help='minimum retained causal gate after class-family uncertainty modulation')
+    parser.add_argument('--class_neighbor_same_threshold', type=float, default=0.5,
+                        help='edge-feature similarity threshold used to infer same-class edges without labels')
+    parser.add_argument('--class_neighbor_test_agg', type=str, default='same_only',
+                        choices=['same_only', 'all_masked'],
+                        help='test-time aggregation ablation: same_only filters by edge-feature same-class score; all_masked aggregates all edges through learned masks')
+    parser.add_argument('--lambda_class_neighbor_uncert', type=float, default=0.0,
+                        help='weight for masked same/different-family prediction energy and variance loss')
+    parser.add_argument('--class_neighbor_ce_weight', type=float, default=1.0,
+                        help='inside class-neighbor uncertainty loss: supervised masked-relation prediction weight')
+    parser.add_argument('--class_neighbor_energy_weight', type=float, default=0.1,
+                        help='inside class-neighbor uncertainty loss: low-energy confidence weight')
+    parser.add_argument('--class_neighbor_var_weight', type=float, default=0.1,
+                        help='inside class-neighbor uncertainty loss: masked relation and energy variance weight')
     parser.add_argument('--use_layerwise_local_igm', action='store_true',
                         help='apply Local-IGM edge routing after each GNN layer before the next layer')
     parser.add_argument('--layerwise_local_igm_include_last', action='store_false',
@@ -208,6 +232,30 @@ def add_frontdoor_dag_args(parser):
                         help='target mean Graph-CFAM gate for optional balance regularization')
     parser.add_argument('--lambda_graph_cfam_gate', type=float, default=0.0,
                         help='weight of Graph-CFAM gate balance regularization')
+    parser.add_argument('--use_energy_cfam', action='store_true',
+                        help='condition the final Graph-CFAM gate with energy-based node uncertainty')
+    parser.add_argument('--use_energy_node_gate', action='store_true',
+                        help='skip Graph-CFAM and use energy uncertainty as a node-level enhancement gate')
+    parser.add_argument('--disable_energy_detach', action='store_false',
+                        dest='energy_detach',
+                        help='allow gradients to flow through the energy uncertainty probe')
+    parser.set_defaults(energy_detach=True)
+    parser.add_argument('--energy_prop_steps', type=int, default=2,
+                        help='number of structure-aware energy propagation steps before CFAM modulation')
+    parser.add_argument('--energy_prop_gamma', type=float, default=0.7,
+                        help='self-retention coefficient for structure-aware energy propagation')
+    parser.add_argument('--energy_cfam_bias_scale', type=float, default=1.0,
+                        help='scale of the uncertainty bias added to Graph-CFAM gate logits')
+    parser.add_argument('--energy_node_gate_scale', type=float, default=1.0,
+                        help='scale of the uncertainty MLP logits used by the node-level enhancement gate')
+    parser.add_argument('--lambda_energy_reg', type=float, default=0.0,
+                        help='weight of logits boundedness regularization for energy uncertainty')
+    parser.add_argument('--energy_reg_norm_weight', type=float, default=1.0,
+                        help='weight for logit-norm variance inside energy regularization')
+    parser.add_argument('--energy_reg_mass_weight', type=float, default=1.0,
+                        help='weight for logsumexp/logit-mass variance inside energy regularization')
+    parser.add_argument('--energy_reg_mean_weight', type=float, default=0.0,
+                        help='optional weight for penalizing mean logit norm and mass')
     parser.add_argument('--lambda_graph_delf', type=float, default=0.0,
                         help='weight of Graph-DELF ambiguous local shortcut decoupling loss')
     parser.add_argument('--graph_delf_top_frac', type=float, default=0.2,
@@ -408,6 +456,8 @@ def capture_lambda_state(model):
         'lambda_graph_delf',
         'lambda_enhance_sem',
         'lambda_nego',
+        'lambda_energy_reg',
+        'lambda_class_neighbor_uncert',
         'lambda_class_proto_var',
         'lambda_class_proto_pos',
         'lambda_class_proto_neg',
@@ -471,6 +521,8 @@ def apply_cipt_schedule(model, base_lambdas, epoch, args):
         'lambda_graph_cfam_gate',
         'lambda_graph_delf',
         'lambda_nego',
+        'lambda_energy_reg',
+        'lambda_class_neighbor_uncert',
         'lambda_class_proto_var',
         'lambda_class_proto_pos',
         'lambda_class_proto_neg',
@@ -585,6 +637,12 @@ print(
     f"ramp: {args.intervention_ramp_epochs} | grad clip: {args.grad_clip} | "
     f"DAG mixer: {model.use_dag_mixer} | edge feat: {args.edge_feat_mode} | "
     f"edge gate: {args.edge_gate_mode} | "
+    f"class-neighbor uncertainty: {args.use_class_neighbor_uncertainty} "
+    f"(label={args.class_neighbor_label_source}, temp={args.class_neighbor_uncertainty_temp}, "
+    f"blend={args.class_neighbor_uncertainty_blend}, min_gate={args.class_neighbor_min_gate}, "
+    f"same_thr={args.class_neighbor_same_threshold}, "
+    f"test_agg={args.class_neighbor_test_agg}, "
+    f"lambda={args.lambda_class_neighbor_uncert}) | "
     f"latent diffusion: {model.use_latent_diffusion} "
     f"(lambda={args.lambda_latent_diffusion}, steps={args.diffusion_steps}, "
     f"blend={args.diffusion_blend}) | "
@@ -612,6 +670,11 @@ print(
     f"final={args.use_final_graph_cfam}, "
     f"gate_lambda={args.lambda_graph_cfam_gate}, delf_lambda={args.lambda_graph_delf}, "
     f"delf_top={args.graph_delf_top_frac}, direct_z_spu={args.direct_z_spurious_mode}) | "
+    f"energy-CFAM: {args.use_energy_cfam} "
+    f"(steps={args.energy_prop_steps}, gamma={args.energy_prop_gamma}, "
+    f"detach={args.energy_detach}, bias_scale={args.energy_cfam_bias_scale}, "
+    f"node_gate={args.use_energy_node_gate}, node_gate_scale={args.energy_node_gate_scale}, "
+    f"lambda_reg={args.lambda_energy_reg}) | "
     f"layerwise spurious ctx: {args.use_layerwise_spurious_contexts} "
     f"(weight={args.layerwise_spurious_context_weight}, "
     f"detach={args.layerwise_spurious_context_detach}) | "
@@ -705,6 +768,8 @@ for run in range(args.runs):
         writer.add_scalar('Loss/GraphDELF', (model.lambda_graph_delf * losses['loss_graph_delf']).item(), global_step)
         writer.add_scalar('Loss/EnhanceSem', (model.lambda_enhance_sem * losses['loss_enhance_sem']).item(), global_step)
         writer.add_scalar('Loss/NeGo', (model.lambda_nego * losses['loss_nego']).item(), global_step)
+        writer.add_scalar('Loss/EnergyReg', (model.lambda_energy_reg * losses['loss_energy_reg']).item(), global_step)
+        writer.add_scalar('Loss/ClassNeighborUncert', (model.lambda_class_neighbor_uncert * losses['loss_class_neighbor_uncert']).item(), global_step)
         writer.add_scalar('Loss/ClassProto', losses['loss_class_proto'].item(), global_step)
         writer.add_scalar('Loss/ClassProtoVar', losses['loss_class_proto_var'].item(), global_step)
         writer.add_scalar('Loss/ClassProtoPos', losses['loss_class_proto_pos'].item(), global_step)
@@ -715,6 +780,18 @@ for run in range(args.runs):
         writer.add_scalar('Diag/ClassProtoAssignEntropy', losses['class_proto_assign_entropy'].item(), global_step)
         writer.add_scalar('DRO/WeightEntropy', losses['dro_weight_entropy'].item(), global_step)
         writer.add_scalar('DRO/MaxWeight', losses['dro_max_weight'].item(), global_step)
+        writer.add_scalar('Energy/RawMean', losses['energy_raw_mean'].item(), global_step)
+        writer.add_scalar('Energy/PropMean', losses['energy_prop_mean'].item(), global_step)
+        writer.add_scalar('Energy/DeltaMean', losses['energy_delta_mean'].item(), global_step)
+        writer.add_scalar('Energy/NodeGateMean', losses['energy_node_gate_mean'].item(), global_step)
+        writer.add_scalar('ClassNeighbor/SameEdgeRatio', losses['same_family_edge_ratio'].item(), global_step)
+        writer.add_scalar('ClassNeighbor/ExplicitEdgeRatio', losses['explicit_family_edge_ratio'].item(), global_step)
+        writer.add_scalar('ClassNeighbor/EnergyConfidence', losses['family_energy_conf_mean'].item(), global_step)
+        writer.add_scalar('ClassNeighbor/DiffEnergy', losses['family_diff_energy_mean'].item(), global_step)
+        writer.add_scalar('ClassNeighbor/MaskMean', losses['family_mask_mean'].item(), global_step)
+        writer.add_scalar('ClassNeighbor/SameUncertainty', losses['same_family_uncertainty_mean'].item(), global_step)
+        writer.add_scalar('ClassNeighbor/DiffUncertainty', losses['diff_family_uncertainty_mean'].item(), global_step)
+        writer.add_scalar('ClassNeighbor/CausalGateMean', losses['class_neighbor_causal_gate_mean'].item(), global_step)
         writer.add_scalar('Graph/LayerwiseGateMean', losses['layerwise_gate_mean'].item(), global_step)
         writer.add_scalar('Graph/LayerwiseGateLayers', losses['layerwise_gate_layers'].item(), global_step)
         writer.add_scalar('Graph/GraphCFAMGateMean', losses['graph_cfam_gate_mean'].item(), global_step)
@@ -775,6 +852,13 @@ for run in range(args.runs):
                 f"GCFAMGate: {(model.lambda_graph_cfam_gate * losses['loss_graph_cfam_gate']).item():.4f}, "
                 f"GDELF: {(model.lambda_graph_delf * losses['loss_graph_delf']).item():.4f}, "
                 f"EnhSem: {(model.lambda_enhance_sem * losses['loss_enhance_sem']).item():.4f}, "
+                f"EnergyReg: {(model.lambda_energy_reg * losses['loss_energy_reg']).item():.4f}, "
+                f"ClsNbrLoss: {(model.lambda_class_neighbor_uncert * losses['loss_class_neighbor_uncert']).item():.4f}, "
+                f"EnergyDelta: {losses['energy_delta_mean'].item():.3f}, "
+                f"EnergyNodeGate: {losses['energy_node_gate_mean'].item():.3f}, "
+                f"ClsNbrSame: {losses['same_family_edge_ratio'].item():.3f}, "
+                f"ClsNbrGate: {losses['class_neighbor_causal_gate_mean'].item():.3f}, "
+                f"ClsNbrMask: {losses['family_mask_mean'].item():.3f}, "
                 f"CProto: {losses['loss_class_proto'].item():.4f}, "
                 f"CFShift: {losses['cf_pred_shift'].item():.4f}, "
                 f"LayerGateMean: {losses['layerwise_gate_mean'].item():.3f}, "

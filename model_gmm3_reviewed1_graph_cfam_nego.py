@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -455,6 +456,83 @@ class GraphFrontDoorDAG(nn.Module):
         )
         edge_gate_out_dim = 1 if self.edge_gate_mode == 'scalar' else self.d
         self.edge_score_head = nn.Linear(self.d, edge_gate_out_dim)
+        # Class-family neighbor modeling. Same-class edges keep dimensions
+        # with high similarity; different-class edges keep dimensions with
+        # high difference.  Within each family, dimension-wise neighbor
+        # variance estimates uncertainty: stable dimensions are treated as
+        # causal, highly varying dimensions as environment/noise.
+        self.use_class_neighbor_uncertainty = bool(
+            getattr(args, 'use_class_neighbor_uncertainty', False)
+        )
+        self.class_neighbor_label_source = getattr(args, 'class_neighbor_label_source', 'pred')
+        if self.class_neighbor_label_source not in ('pred', 'detach_pred', 'train_label', 'label'):
+            self.class_neighbor_label_source = 'pred'
+        self.class_neighbor_uncertainty_temp = max(
+            1e-3,
+            float(getattr(args, 'class_neighbor_uncertainty_temp', 1.0)),
+        )
+        self.class_neighbor_uncertainty_blend = min(
+            max(float(getattr(args, 'class_neighbor_uncertainty_blend', 1.0)), 0.0),
+            1.0,
+        )
+        self.class_neighbor_min_gate = min(
+            max(float(getattr(args, 'class_neighbor_min_gate', 0.05)), 0.0),
+            1.0,
+        )
+        self.class_neighbor_same_threshold = min(
+            max(float(getattr(args, 'class_neighbor_same_threshold', 0.5)), 0.0),
+            1.0,
+        )
+        self.class_neighbor_test_agg = getattr(args, 'class_neighbor_test_agg', 'same_only')
+        if self.class_neighbor_test_agg not in ('same_only', 'all_masked'):
+            self.class_neighbor_test_agg = 'same_only'
+        self.same_family_edge_pair_encoder = nn.Sequential(
+            nn.Linear(edge_feat_dim, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.diff_family_edge_pair_encoder = nn.Sequential(
+            nn.Linear(edge_feat_dim, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.same_family_edge_score_head = nn.Linear(self.d, edge_gate_out_dim)
+        self.diff_family_edge_score_head = nn.Linear(self.d, edge_gate_out_dim)
+        self.same_family_diff_energy = nn.Sequential(
+            nn.Linear(self.d, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.diff_family_diff_energy = nn.Sequential(
+            nn.Linear(self.d, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.family_shared_mask_head = nn.Sequential(
+            nn.Linear(self.d, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.same_family_mask_delta = nn.Linear(self.d, self.d)
+        self.diff_family_mask_delta = nn.Linear(self.d, self.d)
+        self.same_family_pred_head = nn.Linear(self.d, self.c)
+        self.diff_family_pred_head = nn.Linear(self.d, self.c)
+        self.lambda_class_neighbor_uncert = max(
+            0.0,
+            float(getattr(args, 'lambda_class_neighbor_uncert', 0.0)),
+        )
+        self.class_neighbor_ce_weight = max(
+            0.0,
+            float(getattr(args, 'class_neighbor_ce_weight', 1.0)),
+        )
+        self.class_neighbor_energy_weight = max(
+            0.0,
+            float(getattr(args, 'class_neighbor_energy_weight', 0.1)),
+        )
+        self.class_neighbor_var_weight = max(
+            0.0,
+            float(getattr(args, 'class_neighbor_var_weight', 0.1)),
+        )
         self.edge_summary_norm = nn.LayerNorm(self.d)
         self.node_edge_fuser = nn.Sequential(
             nn.Linear(self.d * 3, self.d),
@@ -485,15 +563,58 @@ class GraphFrontDoorDAG(nn.Module):
         self.graph_delf_top_frac = min(max(float(getattr(args, 'graph_delf_top_frac', 0.2)), 0.0), 1.0)
         self.graph_delf_margin = float(getattr(args, 'graph_delf_margin', 0.2))
         self.graph_delf_shortcut_weight = max(0.0, float(getattr(args, 'graph_delf_shortcut_weight', 0.5)))
+        self.use_energy_cfam = bool(getattr(args, 'use_energy_cfam', False))
+        self.use_energy_node_gate = bool(getattr(args, 'use_energy_node_gate', False))
+        self.use_energy_edge_split = bool(getattr(args, 'use_energy_edge_split', False))
+        self.energy_detach = bool(getattr(args, 'energy_detach', True))
+        self.energy_prop_steps = max(0, int(getattr(args, 'energy_prop_steps', 2)))
+        self.energy_prop_gamma = min(max(float(getattr(args, 'energy_prop_gamma', 0.7)), 0.0), 1.0)
+        self.energy_cfam_bias_scale = max(0.0, float(getattr(args, 'energy_cfam_bias_scale', 1.0)))
+        self.energy_node_gate_scale = max(0.0, float(getattr(args, 'energy_node_gate_scale', 1.0)))
+        self.energy_edge_threshold = min(max(float(getattr(args, 'energy_edge_threshold', 0.5)), 0.0), 1.0)
+        self.energy_edge_consistency_weight = min(
+            max(float(getattr(args, 'energy_edge_consistency_weight', 0.5)), 0.0),
+            1.0,
+        )
+        self.energy_min_causal_edge_ratio = min(
+            max(float(getattr(args, 'energy_min_causal_edge_ratio', 0.05)), 0.0),
+            1.0,
+        )
+        self.energy_max_causal_edge_ratio = min(
+            max(float(getattr(args, 'energy_max_causal_edge_ratio', 1.0)), 0.0),
+            1.0,
+        )
+        self.lambda_energy_reg = max(0.0, float(getattr(args, 'lambda_energy_reg', 0.0)))
+        self.energy_reg_norm_weight = max(0.0, float(getattr(args, 'energy_reg_norm_weight', 1.0)))
+        self.energy_reg_mass_weight = max(0.0, float(getattr(args, 'energy_reg_mass_weight', 1.0)))
+        self.energy_reg_mean_weight = max(0.0, float(getattr(args, 'energy_reg_mean_weight', 0.0)))
         self.graph_cfam_gate = nn.Sequential(
             nn.Linear(self.d * 5, self.d),
             nn.ReLU(),
             nn.Linear(self.d, self.d),
         )
+        self.energy_cfam_gate_bias = nn.Sequential(
+            nn.Linear(3, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, self.d),
+        )
+        self.energy_node_gate = nn.Sequential(
+            nn.Linear(3, self.d),
+            nn.ReLU(),
+            nn.Linear(self.d, 1),
+        )
         self.graph_cfam_norm = nn.LayerNorm(self.d)
         self._last_graph_cfam_gate_loss = None
         self._last_graph_cfam_gate_mean = None
         self._last_graph_cfam_layers = 0
+        self._last_energy_raw_mean = None
+        self._last_energy_prop_mean = None
+        self._last_energy_delta_mean = None
+        self._last_energy_node_gate_mean = None
+        self._last_energy_edge_score_mean = None
+        self._last_energy_causal_edge_ratio = None
+        self._last_energy_num_causal_edges = None
+        self._last_energy_num_env_edges = None
 
         self.noise_summary_norm = nn.LayerNorm(self.d)
 
@@ -805,6 +926,17 @@ class GraphFrontDoorDAG(nn.Module):
         self.env_classifier.reset_parameters()
         self._reset_module_parameters(self.edge_pair_encoder)
         self.edge_score_head.reset_parameters()
+        self._reset_module_parameters(self.same_family_edge_pair_encoder)
+        self._reset_module_parameters(self.diff_family_edge_pair_encoder)
+        self.same_family_edge_score_head.reset_parameters()
+        self.diff_family_edge_score_head.reset_parameters()
+        self._reset_module_parameters(self.same_family_diff_energy)
+        self._reset_module_parameters(self.diff_family_diff_energy)
+        self._reset_module_parameters(self.family_shared_mask_head)
+        self.same_family_mask_delta.reset_parameters()
+        self.diff_family_mask_delta.reset_parameters()
+        self.same_family_pred_head.reset_parameters()
+        self.diff_family_pred_head.reset_parameters()
         self.edge_summary_norm.reset_parameters()
         self._reset_module_parameters(self.node_edge_fuser)
         nn.init.zeros_(self.node_edge_fuser[-1].weight)
@@ -813,10 +945,33 @@ class GraphFrontDoorDAG(nn.Module):
         self._reset_module_parameters(self.graph_cfam_gate)
         nn.init.zeros_(self.graph_cfam_gate[-1].weight)
         nn.init.zeros_(self.graph_cfam_gate[-1].bias)
+        self._reset_module_parameters(self.energy_cfam_gate_bias)
+        nn.init.zeros_(self.energy_cfam_gate_bias[-1].weight)
+        nn.init.zeros_(self.energy_cfam_gate_bias[-1].bias)
+        self._reset_module_parameters(self.energy_node_gate)
+        nn.init.zeros_(self.energy_node_gate[-1].weight)
+        nn.init.zeros_(self.energy_node_gate[-1].bias)
         self.graph_cfam_norm.reset_parameters()
         self._last_graph_cfam_gate_loss = None
         self._last_graph_cfam_gate_mean = None
         self._last_graph_cfam_layers = 0
+        self._last_energy_raw_mean = None
+        self._last_energy_prop_mean = None
+        self._last_energy_delta_mean = None
+        self._last_energy_node_gate_mean = None
+        self._last_energy_edge_score_mean = None
+        self._last_energy_causal_edge_ratio = None
+        self._last_energy_num_causal_edges = None
+        self._last_energy_num_env_edges = None
+        self._last_same_family_edge_ratio = None
+        self._last_explicit_family_edge_ratio = None
+        self._last_family_energy_conf_mean = None
+        self._last_family_diff_energy_mean = None
+        self._last_family_mask_mean = None
+        self._last_class_neighbor_uncert_loss = None
+        self._last_same_family_uncertainty_mean = None
+        self._last_diff_family_uncertainty_mean = None
+        self._last_class_neighbor_causal_gate_mean = None
         self.noise_summary_norm.reset_parameters()
         if self.latent_diffusion is not None:
             self.latent_diffusion.reset_parameters()
@@ -1074,7 +1229,296 @@ class GraphFrontDoorDAG(nn.Module):
             "mul_diff_degree, mul_signed_diff_degree."
         )
 
-    def compute_edge_summaries(self, h, edge_index, training=False):
+    def build_family_edge_feat(self, h_src, h_dst, deg_src, deg_dst, deg_max, same_mask):
+        """
+        Edge feature construction for same/different class families.
+
+        Same-family edges use the requested edge feature mode directly.  For
+        different-family edges, the modes that rely on multiplication replace
+        the leading similarity signal with an absolute-difference signal, so
+        `mul` keeps the original "similar dimensions" meaning for same-class
+        neighbors while becoming "different dimensions" for heterophilic
+        neighbors.
+        """
+        same_feat = self.build_edge_feat(h_src, h_dst, deg_src, deg_dst, deg_max)
+        if not self.use_class_neighbor_uncertainty:
+            return same_feat
+
+        diff_family_feat = self.build_difference_edge_feat(h_src, h_dst, deg_src, deg_dst, deg_max)
+        return torch.where(same_mask.unsqueeze(-1), same_feat, diff_family_feat)
+
+    def build_difference_edge_feat(self, h_src, h_dst, deg_src, deg_dst, deg_max):
+        mode = self.edge_feat_mode
+        mul_feat = h_src * h_dst
+        signed_diff_feat = h_src - h_dst
+        diff_feat = torch.abs(signed_diff_feat)
+
+        log_deg_src = torch.log1p(deg_src)
+        log_deg_dst = torch.log1p(deg_dst)
+        deg_pair = torch.maximum(log_deg_src, log_deg_dst) / deg_max.clamp_min(1.0)
+        deg_pair = deg_pair.unsqueeze(-1)
+
+        if mode == 'mul':
+            diff_family_feat = diff_feat
+        elif mode == 'mul_degree':
+            diff_family_feat = torch.cat([diff_feat, deg_pair], dim=-1)
+        elif mode == 'mul_diff':
+            diff_family_feat = torch.cat([diff_feat, mul_feat], dim=-1)
+        elif mode == 'mul_signed_diff':
+            diff_family_feat = torch.cat([diff_feat, signed_diff_feat], dim=-1)
+        elif mode == 'mul_diff_degree':
+            diff_family_feat = torch.cat([diff_feat, mul_feat, deg_pair], dim=-1)
+        elif mode == 'mul_signed_diff_degree':
+            diff_family_feat = torch.cat([diff_feat, signed_diff_feat, deg_pair], dim=-1)
+        else:
+            diff_family_feat = self.build_edge_feat(h_src, h_dst, deg_src, deg_dst, deg_max)
+        return diff_family_feat
+
+    def infer_neighbor_family_labels(self, h, labels=None, label_mask=None):
+        logits = self.classifier(h)
+        if self.class_neighbor_label_source in ('detach_pred', 'train_label', 'label'):
+            logits = logits.detach()
+        if logits.size(-1) == 1:
+            pred_labels = (torch.sigmoid(logits.squeeze(-1)) > 0.5).long()
+        else:
+            pred_labels = logits.argmax(dim=-1).long()
+
+        explicit_mask = torch.zeros(h.size(0), device=h.device, dtype=torch.bool)
+        if self.class_neighbor_label_source in ('train_label', 'label') and labels is not None:
+            label_values = self._flat_class_labels(labels).to(device=h.device)
+            valid_label = (label_values >= 0) & (label_values < self.c)
+            if self.class_neighbor_label_source == 'train_label':
+                if label_mask is None:
+                    explicit_mask = valid_label
+                else:
+                    explicit_mask = label_mask.to(device=h.device, dtype=torch.bool) & valid_label
+            else:
+                explicit_mask = valid_label
+            pred_labels = torch.where(explicit_mask, label_values.long(), pred_labels)
+        return pred_labels, explicit_mask
+
+    def infer_edge_same_by_feature(self, h_src, h_dst):
+        mode = self.edge_feat_mode
+        diff_mag = torch.abs(h_src - h_dst).mean(dim=-1)
+        diff_same_score = 1.0 - self._normalize_score(diff_mag, default_value=0.5)
+        cosine_score = 0.5 * (F.cosine_similarity(h_src, h_dst, dim=-1) + 1.0)
+        mul_score = self._normalize_score((h_src * h_dst).mean(dim=-1), default_value=0.5)
+
+        if mode in ('diff', 'signed_diff', 'diff_degree'):
+            same_score = diff_same_score
+        elif mode in (
+            'mul',
+            'mul_degree',
+            'mul_diff',
+            'mul_signed_diff',
+            'mul_diff_degree',
+            'mul_signed_diff_degree',
+        ):
+            same_score = 0.5 * (mul_score + cosine_score)
+        else:
+            same_score = cosine_score
+        return same_score >= self.class_neighbor_same_threshold, same_score
+
+    def aggregate_family_uncertainty(self, evidence, dst, family_mask, num_nodes):
+        zero = evidence.new_zeros(num_nodes, evidence.size(1))
+        if evidence.numel() == 0 or not bool(family_mask.any()):
+            uncertainty = evidence.new_full((num_nodes, evidence.size(1)), 0.5)
+            valid = torch.zeros(num_nodes, device=evidence.device, dtype=torch.bool)
+            return uncertainty, valid
+
+        family_evidence = evidence * family_mask.to(evidence.dtype).unsqueeze(-1)
+        mass = evidence.new_zeros(num_nodes, 1)
+        mass.index_add_(0, dst, family_mask.to(evidence.dtype).unsqueeze(-1))
+
+        mean = zero.clone()
+        mean.index_add_(0, dst, family_evidence)
+        mean = mean / mass.clamp_min(1.0)
+
+        second = zero.clone()
+        second.index_add_(0, dst, family_evidence.pow(2))
+        second = second / mass.clamp_min(1.0)
+        var = (second - mean.pow(2)).clamp_min(0.0)
+
+        valid = mass.squeeze(-1) > 0.0
+        uncertainty = self._normalize_score(var.reshape(-1), default_value=0.5).view_as(var)
+        uncertainty = torch.where(valid.unsqueeze(-1), uncertainty, uncertainty.new_full(uncertainty.shape, 0.5))
+        return uncertainty, valid
+
+    def aggregate_family_scalar_variance(self, values, dst, family_mask, num_nodes):
+        if values.numel() == 0 or not bool(family_mask.any()):
+            return values.new_full((num_nodes,), 0.5), torch.zeros(num_nodes, device=values.device, dtype=torch.bool)
+
+        weight = family_mask.to(values.dtype)
+        mass = values.new_zeros(num_nodes)
+        mass.index_add_(0, dst, weight)
+        mean = values.new_zeros(num_nodes)
+        mean.index_add_(0, dst, values * weight)
+        mean = mean / mass.clamp_min(1.0)
+        second = values.new_zeros(num_nodes)
+        second.index_add_(0, dst, values.pow(2) * weight)
+        second = second / mass.clamp_min(1.0)
+        var = (second - mean.pow(2)).clamp_min(0.0)
+        valid = mass > 0.0
+        var = self._normalize_score(var, default_value=0.5)
+        var = torch.where(valid, var, var.new_full(var.shape, 0.5))
+        return var, valid
+
+    def compute_family_difference_energy_confidence(self, diff_info, family_evidence, same_mask):
+        same_energy = self.same_family_diff_energy(diff_info).pow(2)
+        diff_energy = self.diff_family_diff_energy(diff_info).pow(2)
+        diff_energy = torch.where(same_mask.unsqueeze(-1), same_energy, diff_energy)
+
+        energy_score = self._normalize_score(diff_energy.reshape(-1), default_value=0.5).view_as(diff_energy)
+        evidence_score = self._normalize_score(
+            family_evidence.abs().reshape(-1),
+            default_value=0.5,
+        ).view_as(family_evidence)
+        confidence = torch.sigmoid(
+            (evidence_score - energy_score) / self.class_neighbor_uncertainty_temp
+        )
+        return confidence.clamp_min(self.class_neighbor_min_gate), energy_score
+
+    def compute_class_family_causal_gate(
+        self,
+        h_src,
+        h_dst,
+        dst,
+        same_mask,
+        edge_gate,
+        num_nodes,
+        family_evidence,
+        diff_info,
+        energy_confidence=None,
+        energy_score=None,
+    ):
+        if not self.use_class_neighbor_uncertainty:
+            return edge_gate, None
+
+        same_uncertainty, same_valid = self.aggregate_family_uncertainty(
+            diff_info,
+            dst,
+            same_mask,
+            num_nodes,
+        )
+        diff_uncertainty, diff_valid = self.aggregate_family_uncertainty(
+            diff_info,
+            dst,
+            ~same_mask,
+            num_nodes,
+        )
+
+        same_conf = torch.sigmoid((0.5 - same_uncertainty) / self.class_neighbor_uncertainty_temp)
+        diff_conf = torch.sigmoid((0.5 - diff_uncertainty) / self.class_neighbor_uncertainty_temp)
+        same_conf = torch.where(same_valid.unsqueeze(-1), same_conf, same_conf.new_full(same_conf.shape, 0.5))
+        diff_conf = torch.where(diff_valid.unsqueeze(-1), diff_conf, diff_conf.new_full(diff_conf.shape, 0.5))
+
+        family_conf = torch.where(same_mask.unsqueeze(-1), same_conf[dst], diff_conf[dst])
+        family_conf = family_conf.clamp_min(self.class_neighbor_min_gate)
+        if edge_gate.size(1) == 1:
+            edge_gate = edge_gate.expand(-1, self.d)
+        blend = self.class_neighbor_uncertainty_blend
+        if energy_confidence is not None:
+            family_conf = family_conf * energy_confidence
+        causal_gate = edge_gate * ((1.0 - blend) + blend * family_conf)
+        causal_gate = causal_gate.clamp(0.0, 1.0)
+
+        stats = {
+            'same_ratio': same_mask.to(edge_gate.dtype).mean().detach(),
+            'energy_conf_mean': energy_confidence.detach().mean() if energy_confidence is not None else edge_gate.new_zeros(()),
+            'diff_energy_mean': energy_score.detach().mean() if energy_score is not None else edge_gate.new_zeros(()),
+            'same_uncertainty_mean': same_uncertainty[same_valid].mean().detach() if same_valid.any() else edge_gate.new_zeros(()),
+            'diff_uncertainty_mean': diff_uncertainty[diff_valid].mean().detach() if diff_valid.any() else edge_gate.new_zeros(()),
+            'causal_gate_mean': causal_gate.detach().mean(),
+        }
+        return causal_gate, stats
+
+    def compute_class_neighbor_uncertainty_loss(
+        self,
+        masked_relation,
+        edge_logits,
+        edge_energy,
+        dst,
+        same_mask,
+        active_mask,
+        num_nodes,
+        labels=None,
+    ):
+        zero = masked_relation.new_zeros(())
+        if not self.use_class_neighbor_uncertainty or masked_relation.numel() == 0:
+            return zero
+
+        active_mask = active_mask.to(device=masked_relation.device, dtype=torch.bool)
+        if not active_mask.any():
+            return zero
+
+        loss_ce = zero
+        if labels is not None and self.class_neighbor_ce_weight > 0.0:
+            flat_labels = self._flat_class_labels(labels).to(device=masked_relation.device)
+            target = flat_labels[dst]
+            valid_target = active_mask & (target >= 0) & (target < self.c)
+            if valid_target.any():
+                logits_valid = edge_logits[valid_target]
+                target_valid = target[valid_target]
+                if logits_valid.size(-1) == 1:
+                    loss_ce = F.binary_cross_entropy_with_logits(
+                        logits_valid.squeeze(-1),
+                        target_valid.to(dtype=logits_valid.dtype),
+                    )
+                else:
+                    loss_ce = F.cross_entropy(logits_valid, target_valid.long())
+
+        loss_energy = zero
+        if self.class_neighbor_energy_weight > 0.0:
+            energy_score = self._normalize_score(edge_energy[active_mask], default_value=0.5)
+            loss_energy = energy_score.mean()
+
+        loss_var = zero
+        if self.class_neighbor_var_weight > 0.0:
+            same_active = same_mask & active_mask
+            diff_active = (~same_mask) & active_mask
+            same_rel_uncert, same_rel_valid = self.aggregate_family_uncertainty(
+                masked_relation,
+                dst,
+                same_active,
+                num_nodes,
+            )
+            diff_rel_uncert, diff_rel_valid = self.aggregate_family_uncertainty(
+                masked_relation,
+                dst,
+                diff_active,
+                num_nodes,
+            )
+            same_energy_var, same_energy_valid = self.aggregate_family_scalar_variance(
+                edge_energy,
+                dst,
+                same_active,
+                num_nodes,
+            )
+            diff_energy_var, diff_energy_valid = self.aggregate_family_scalar_variance(
+                edge_energy,
+                dst,
+                diff_active,
+                num_nodes,
+            )
+            var_terms = []
+            if same_rel_valid.any():
+                var_terms.append(same_rel_uncert[same_rel_valid].mean())
+            if diff_rel_valid.any():
+                var_terms.append(diff_rel_uncert[diff_rel_valid].mean())
+            if same_energy_valid.any():
+                var_terms.append(same_energy_var[same_energy_valid].mean())
+            if diff_energy_valid.any():
+                var_terms.append(diff_energy_var[diff_energy_valid].mean())
+            if var_terms:
+                loss_var = torch.stack(var_terms).mean()
+
+        return (
+            self.class_neighbor_ce_weight * loss_ce
+            + self.class_neighbor_energy_weight * loss_energy
+            + self.class_neighbor_var_weight * loss_var
+        )
+
+    def compute_edge_summaries(self, h, edge_index, training=False, labels=None, label_mask=None):
         """
         Build both useful and low-relevance neighbor summaries.
 
@@ -1090,6 +1534,16 @@ class GraphFrontDoorDAG(nn.Module):
         """
         if edge_index.numel() == 0:
             zero = h.new_zeros(h.size())
+            scalar_zero = h.new_zeros(())
+            self._last_same_family_edge_ratio = scalar_zero
+            self._last_explicit_family_edge_ratio = scalar_zero
+            self._last_family_energy_conf_mean = scalar_zero
+            self._last_family_diff_energy_mean = scalar_zero
+            self._last_family_mask_mean = scalar_zero
+            self._last_class_neighbor_uncert_loss = scalar_zero
+            self._last_same_family_uncertainty_mean = scalar_zero
+            self._last_diff_family_uncertainty_mean = scalar_zero
+            self._last_class_neighbor_causal_gate_mean = scalar_zero
             return zero, zero, None
 
         src, dst = edge_index
@@ -1098,23 +1552,146 @@ class GraphFrontDoorDAG(nn.Module):
 
         h_src = h[src]
         h_dst = h[dst]
-        edge_feat = self.build_edge_feat(
-            h_src,
-            h_dst,
-            deg[src],
-            deg[dst],
-            deg_max,
-        )
-        edge_hidden = self.edge_pair_encoder(edge_feat)
-        edge_hidden = F.dropout(edge_hidden, self.dropout, training=training)
-        edge_logits = self.edge_score_head(edge_hidden) / self.edge_score_temp
+        if self.use_class_neighbor_uncertainty:
+            family_labels, explicit_node_mask = self.infer_neighbor_family_labels(
+                h,
+                labels=labels,
+                label_mask=label_mask,
+            )
+            explicit_edge_mask = explicit_node_mask[src] & explicit_node_mask[dst]
+            label_same_mask = family_labels[src] == family_labels[dst]
+            feature_same_mask, feature_same_score = self.infer_edge_same_by_feature(h_src, h_dst)
+            same_mask = torch.where(explicit_edge_mask, label_same_mask, feature_same_mask)
+            same_edge_feat = self.build_edge_feat(
+                h_src,
+                h_dst,
+                deg[src],
+                deg[dst],
+                deg_max,
+            )
+            diff_edge_feat = self.build_difference_edge_feat(
+                h_src,
+                h_dst,
+                deg[src],
+                deg[dst],
+                deg_max,
+            )
+            same_hidden = self.same_family_edge_pair_encoder(same_edge_feat)
+            diff_hidden = self.diff_family_edge_pair_encoder(diff_edge_feat)
+            same_hidden = F.dropout(same_hidden, self.dropout, training=training)
+            diff_hidden = F.dropout(diff_hidden, self.dropout, training=training)
+            edge_hidden = torch.where(same_mask.unsqueeze(-1), same_hidden, diff_hidden)
+
+            shared_mask = torch.sigmoid(self.family_shared_mask_head(edge_hidden))
+            same_causal_mask = shared_mask * torch.sigmoid(self.same_family_mask_delta(same_hidden))
+            diff_causal_mask = shared_mask * torch.sigmoid(self.diff_family_mask_delta(diff_hidden))
+            causal_mask = torch.where(same_mask.unsqueeze(-1), same_causal_mask, diff_causal_mask)
+
+            family_evidence = torch.where(same_mask.unsqueeze(-1), same_hidden, diff_hidden)
+            diff_info = torch.abs(h_src - h_dst)
+            energy_confidence, diff_energy_score = self.compute_family_difference_energy_confidence(
+                diff_info,
+                family_evidence,
+                same_mask,
+            )
+            masked_same = same_causal_mask * same_hidden
+            masked_diff = diff_causal_mask * diff_hidden
+            same_pred_logits = self.same_family_pred_head(masked_same)
+            diff_pred_logits = self.diff_family_pred_head(masked_diff)
+            family_pred_logits = torch.where(same_mask.unsqueeze(-1), same_pred_logits, diff_pred_logits)
+            family_energy = self.compute_logit_energy(family_pred_logits)
+
+            same_logits = self.same_family_edge_score_head(same_hidden)
+            diff_logits = self.diff_family_edge_score_head(diff_hidden)
+            edge_logits = torch.where(same_mask.unsqueeze(-1), same_logits, diff_logits)
+        else:
+            same_mask = None
+            explicit_edge_mask = None
+            causal_mask = None
+            family_evidence = None
+            energy_confidence = None
+            diff_energy_score = None
+            family_pred_logits = None
+            family_energy = None
+            edge_feat = self.build_edge_feat(
+                h_src,
+                h_dst,
+                deg[src],
+                deg[dst],
+                deg_max,
+            )
+            edge_hidden = self.edge_pair_encoder(edge_feat)
+            edge_hidden = F.dropout(edge_hidden, self.dropout, training=training)
+            edge_logits = self.edge_score_head(edge_hidden)
+        edge_logits = edge_logits / self.edge_score_temp
         edge_gate = torch.sigmoid(edge_logits)
         if edge_gate.dim() == 1:
             edge_gate = edge_gate.unsqueeze(-1)
+        if self.use_class_neighbor_uncertainty:
+            edge_gate, family_stats = self.compute_class_family_causal_gate(
+                h_src,
+                h_dst,
+                dst,
+                same_mask,
+                edge_gate,
+                h.size(0),
+                family_evidence,
+                torch.abs(h_src - h_dst),
+                energy_confidence=energy_confidence,
+                energy_score=diff_energy_score,
+            )
+            edge_gate = edge_gate * causal_mask
+            if self.training or self.class_neighbor_test_agg == 'same_only':
+                aggregate_edge_mask = same_mask
+            else:
+                aggregate_edge_mask = torch.ones_like(same_mask, dtype=torch.bool)
+            aggregation_mask = aggregate_edge_mask.unsqueeze(-1).to(dtype=edge_gate.dtype)
+            edge_gate = edge_gate * aggregation_mask
+            if explicit_edge_mask.any():
+                active_mask = explicit_edge_mask
+            elif label_mask is not None:
+                active_mask = label_mask.to(device=h.device, dtype=torch.bool)[dst]
+            else:
+                active_mask = torch.zeros_like(same_mask, dtype=torch.bool)
+            self._last_class_neighbor_uncert_loss = self.compute_class_neighbor_uncertainty_loss(
+                causal_mask * family_evidence,
+                family_pred_logits,
+                family_energy,
+                dst,
+                same_mask,
+                active_mask,
+                h.size(0),
+                labels=labels,
+            )
+            self._last_same_family_edge_ratio = family_stats['same_ratio']
+            self._last_explicit_family_edge_ratio = explicit_edge_mask.to(h.dtype).mean().detach()
+            self._last_family_energy_conf_mean = family_stats['energy_conf_mean']
+            self._last_family_diff_energy_mean = family_stats['diff_energy_mean']
+            self._last_family_mask_mean = causal_mask.detach().mean()
+            self._last_same_family_uncertainty_mean = family_stats['same_uncertainty_mean']
+            self._last_diff_family_uncertainty_mean = family_stats['diff_uncertainty_mean']
+            self._last_class_neighbor_causal_gate_mean = family_stats['causal_gate_mean']
+        else:
+            zero = h.new_zeros(())
+            aggregation_mask = edge_gate.new_ones(edge_gate.shape)
+            self._last_same_family_edge_ratio = zero
+            self._last_explicit_family_edge_ratio = zero
+            self._last_family_energy_conf_mean = zero
+            self._last_family_diff_energy_mean = zero
+            self._last_family_mask_mean = zero
+            self._last_class_neighbor_uncert_loss = zero
+            self._last_same_family_uncertainty_mean = zero
+            self._last_diff_family_uncertainty_mean = zero
+            self._last_class_neighbor_causal_gate_mean = edge_gate.detach().mean()
 
         norm = (deg[src].pow(-0.5) * deg[dst].pow(-0.5)).unsqueeze(-1)
         useful_weight = torch.nan_to_num(norm * edge_gate, nan=0.0, posinf=0.0, neginf=0.0)
-        noise_weight = torch.nan_to_num(norm * (1.0 - edge_gate), nan=0.0, posinf=0.0, neginf=0.0)
+        noise_weight = torch.nan_to_num(
+            norm * (1.0 - edge_gate) * aggregation_mask,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
 
         useful_summary = h.new_zeros(h.size())
         useful_summary.index_add_(0, dst, useful_weight * h_src)
@@ -1160,6 +1737,139 @@ class GraphFrontDoorDAG(nn.Module):
         denom = energy.mean(dim=-1, keepdim=True).clamp_min(1e-6)
         return energy / denom
 
+    def compute_logit_energy(self, logits):
+        if logits is None or logits.numel() == 0:
+            return None
+        if logits.size(-1) == 1:
+            return -F.softplus(logits.squeeze(-1))
+        return -torch.logsumexp(logits, dim=-1)
+
+    def propagate_scalar_signal(self, signal, edge_index):
+        if signal is None or signal.numel() == 0 or edge_index is None or edge_index.numel() == 0:
+            return signal
+        return gcn_backbone_conv(signal.view(-1, 1), edge_index).view(-1)
+
+    def compute_structure_energy_uncertainty(self, logits, edge_index):
+        energy_raw = self.compute_logit_energy(logits)
+        if energy_raw is None:
+            return None, None, None
+
+        energy_prop = energy_raw
+        for _ in range(self.energy_prop_steps):
+            energy_neigh = self.propagate_scalar_signal(energy_prop, edge_index)
+            energy_prop = self.energy_prop_gamma * energy_prop + (1.0 - self.energy_prop_gamma) * energy_neigh
+
+        uncertainty = self._normalize_score(energy_prop, default_value=0.5)
+        uncertainty_neigh = self._normalize_score(
+            self.propagate_scalar_signal(uncertainty, edge_index),
+            default_value=0.5,
+        )
+        uncertainty_delta = (uncertainty - uncertainty_neigh).abs()
+        if self.energy_detach:
+            uncertainty = uncertainty.detach()
+            uncertainty_neigh = uncertainty_neigh.detach()
+            uncertainty_delta = uncertainty_delta.detach()
+
+        self._last_energy_raw_mean = self._normalize_score(energy_raw.detach(), default_value=0.5).mean()
+        self._last_energy_prop_mean = uncertainty.detach().mean()
+        self._last_energy_delta_mean = uncertainty_delta.detach().mean()
+        return uncertainty, uncertainty_neigh, uncertainty_delta
+
+    def build_energy_cfam_bias(self, uncertainty, uncertainty_neigh, uncertainty_delta):
+        if (
+            not self.use_energy_cfam
+            or self.energy_cfam_bias_scale <= 0.0
+            or uncertainty is None
+            or uncertainty_neigh is None
+            or uncertainty_delta is None
+        ):
+            return None
+        features = torch.stack([uncertainty, uncertainty_neigh, uncertainty_delta], dim=-1)
+        return self.energy_cfam_bias_scale * self.energy_cfam_gate_bias(features)
+
+    def build_energy_node_gate(self, uncertainty, uncertainty_neigh, uncertainty_delta):
+        if (
+            not self.use_energy_node_gate
+            or self.energy_node_gate_scale <= 0.0
+            or uncertainty is None
+            or uncertainty_neigh is None
+            or uncertainty_delta is None
+        ):
+            return None
+        features = torch.stack([uncertainty, uncertainty_neigh, uncertainty_delta], dim=-1)
+        gate = torch.sigmoid(self.energy_node_gate(features) * self.energy_node_gate_scale)
+        self._last_energy_node_gate_mean = gate.detach().mean()
+        return gate
+
+    def _topk_edge_ratio_mask(self, scores, mask, min_ratio, max_ratio):
+        num_edges = scores.numel()
+        if num_edges == 0:
+            return mask
+
+        min_keep = int(math.ceil(max(0.0, min_ratio) * num_edges))
+        max_keep = int(math.ceil(max(0.0, min(max_ratio, 1.0)) * num_edges))
+        max_keep = max(max_keep, min_keep, 1)
+
+        if int(mask.sum().item()) < min_keep:
+            k = min(max(min_keep, 1), num_edges)
+            top_idx = torch.topk(scores, k=k, largest=True).indices
+            add_mask = torch.zeros_like(mask)
+            add_mask[top_idx] = True
+            mask = mask | add_mask
+
+        if max_ratio < 1.0 and int(mask.sum().item()) > max_keep:
+            selected_idx = mask.nonzero(as_tuple=False).view(-1)
+            selected_scores = scores[selected_idx]
+            keep_local = torch.topk(selected_scores, k=max_keep, largest=True).indices
+            new_mask = torch.zeros_like(mask)
+            new_mask[selected_idx[keep_local]] = True
+            mask = new_mask
+        return mask
+
+    def split_edges_by_energy_uncertainty(self, edge_index, uncertainty):
+        if (
+            not self.use_energy_edge_split
+            or uncertainty is None
+            or edge_index is None
+            or edge_index.numel() == 0
+        ):
+            return None
+
+        src, dst = edge_index
+        u_src = uncertainty[src]
+        u_dst = uncertainty[dst]
+        confidence = 1.0 - 0.5 * (u_src + u_dst)
+        consistency = 1.0 - (u_src - u_dst).abs()
+        edge_scores = confidence * (
+            (1.0 - self.energy_edge_consistency_weight)
+            + self.energy_edge_consistency_weight * consistency
+        )
+        edge_scores = edge_scores.clamp(1e-6, 1.0 - 1e-6)
+
+        causal_mask = edge_scores > self.energy_edge_threshold
+        causal_mask = self._topk_edge_ratio_mask(
+            edge_scores,
+            causal_mask,
+            self.energy_min_causal_edge_ratio,
+            self.energy_max_causal_edge_ratio,
+        )
+        if int(causal_mask.sum().item()) == 0:
+            causal_mask = torch.ones_like(causal_mask, dtype=torch.bool)
+        env_mask = ~causal_mask
+
+        self._last_energy_edge_score_mean = edge_scores.detach().mean()
+        self._last_energy_causal_edge_ratio = causal_mask.float().mean().detach()
+        self._last_energy_num_causal_edges = edge_scores.new_tensor(float(causal_mask.sum().item()))
+        self._last_energy_num_env_edges = edge_scores.new_tensor(float(env_mask.sum().item()))
+
+        return {
+            'causal_edge_index': edge_index[:, causal_mask],
+            'env_edge_index': edge_index[:, env_mask],
+            'edge_scores': edge_scores,
+            'causal_mask': causal_mask,
+            'env_mask': env_mask,
+        }
+
     def graph_cfam_adapt(
         self,
         h,
@@ -1167,6 +1877,11 @@ class GraphFrontDoorDAG(nn.Module):
         training=False,
         local_blend=None,
         residual_blend=None,
+        uncertainty=None,
+        uncertainty_neigh=None,
+        uncertainty_delta=None,
+        labels=None,
+        label_mask=None,
     ):
         """
         Graph-CFAM local decoupling.
@@ -1181,12 +1896,22 @@ class GraphFrontDoorDAG(nn.Module):
             h,
             edge_index,
             training=training,
+            labels=labels,
+            label_mask=label_mask,
         )
         residual = h - smooth
         smooth_energy = self._graph_cfam_energy(smooth)
         residual_energy = self._graph_cfam_energy(residual)
         gate_input = torch.cat([h, smooth, residual, smooth_energy, residual_energy], dim=-1)
-        gate = torch.sigmoid(self.graph_cfam_gate(gate_input) / self.graph_cfam_gate_temp)
+        gate_logits = self.graph_cfam_gate(gate_input)
+        energy_bias = self.build_energy_cfam_bias(
+            uncertainty,
+            uncertainty_neigh,
+            uncertainty_delta,
+        )
+        if energy_bias is not None:
+            gate_logits = gate_logits + energy_bias
+        gate = torch.sigmoid(gate_logits / self.graph_cfam_gate_temp)
 
         causal_local = gate * smooth
         domain_local = (1.0 - gate) * smooth
@@ -1300,7 +2025,7 @@ class GraphFrontDoorDAG(nn.Module):
             return zero
         return torch.stack(losses).mean()
 
-    def encode_representation(self, x, edge_index, training=False):
+    def encode_representation(self, x, edge_index, training=False, labels=None, label_mask=None):
         x = F.dropout(x, self.dropout, training=training)
         h = self.act_fn(self.input_proj(x))
         layerwise_states = []
@@ -1321,6 +2046,8 @@ class GraphFrontDoorDAG(nn.Module):
                 training=training,
                 local_blend=self.pre_graph_cfam_blend,
                 residual_blend=self.pre_graph_cfam_residual_blend,
+                labels=labels,
+                label_mask=label_mask,
             )
             graph_cfam_gate_mean = graph_cfam_gate_mean + cfam_gate_pre.mean()
             graph_cfam_gate_loss = graph_cfam_gate_loss + cfam_gate_loss_pre
@@ -1352,6 +2079,8 @@ class GraphFrontDoorDAG(nn.Module):
                         h,
                         edge_index,
                         training=training,
+                        labels=labels,
+                        label_mask=label_mask,
                     )
                     graph_cfam_gate_mean = graph_cfam_gate_mean + cfam_gate_l.mean()
                     graph_cfam_gate_loss = graph_cfam_gate_loss + cfam_gate_loss_l
@@ -1373,6 +2102,8 @@ class GraphFrontDoorDAG(nn.Module):
                         h,
                         edge_index,
                         training=training,
+                        labels=labels,
+                        label_mask=label_mask,
                     )
                     h = self.fuse_node_edge_representation(
                         h,
@@ -1424,11 +2155,60 @@ class GraphFrontDoorDAG(nn.Module):
         h_pre_enhance = h
         shortcut_summary = None
         cns_gate = None
-        if self.use_graph_cfam and self.use_final_graph_cfam:
+        energy_uncertainty = None
+        energy_uncertainty_neigh = None
+        energy_uncertainty_delta = None
+        if self.use_energy_cfam or self.use_energy_node_gate:
+            energy_probe_logits = self.classifier(h)
+            (
+                energy_uncertainty,
+                energy_uncertainty_neigh,
+                energy_uncertainty_delta,
+            ) = self.compute_structure_energy_uncertainty(
+                energy_probe_logits,
+                edge_index,
+            )
+        else:
+            zero_energy = h.new_zeros(())
+            self._last_energy_raw_mean = zero_energy
+            self._last_energy_prop_mean = zero_energy
+            self._last_energy_delta_mean = zero_energy
+            self._last_energy_node_gate_mean = zero_energy
+        if self.use_energy_node_gate:
+            edge_summary, noise_summary, _ = self.compute_edge_summaries(
+                h,
+                edge_index,
+                training=training,
+                labels=labels,
+                label_mask=label_mask,
+            )
+            enhanced = self.fuse_node_edge_representation(
+                h,
+                edge_summary,
+                noise_summary=noise_summary,
+                training=training,
+            )
+            node_gate = self.build_energy_node_gate(
+                energy_uncertainty,
+                energy_uncertainty_neigh,
+                energy_uncertainty_delta,
+            )
+            if node_gate is None:
+                node_gate = torch.full((h.size(0), 1), 0.5, device=h.device, dtype=h.dtype)
+                self._last_energy_node_gate_mean = node_gate.detach().mean()
+            z = h + node_gate * (enhanced - h)
+            shortcut_summary = noise_summary
+            cns_gate = node_gate.expand_as(z)
+        elif self.use_graph_cfam and self.use_final_graph_cfam:
             z, causal_local_final, edge_summary, cfam_gate_final, _, cfam_gate_loss_final = self.graph_cfam_adapt(
                 h,
                 edge_index,
                 training=training,
+                uncertainty=energy_uncertainty,
+                uncertainty_neigh=energy_uncertainty_neigh,
+                uncertainty_delta=energy_uncertainty_delta,
+                labels=labels,
+                label_mask=label_mask,
             )
             shortcut_summary = edge_summary
             cns_gate = cfam_gate_final
@@ -1442,12 +2222,24 @@ class GraphFrontDoorDAG(nn.Module):
             ) / denom
             self._last_graph_cfam_layers = prev_layers + 1
         elif self.use_graph_cfam:
-            edge_summary, _, _ = self.compute_edge_summaries(h, edge_index, training=training)
+            edge_summary, _, _ = self.compute_edge_summaries(
+                h,
+                edge_index,
+                training=training,
+                labels=labels,
+                label_mask=label_mask,
+            )
             z = h
             shortcut_summary = edge_summary
             cns_gate = torch.full_like(z, 0.5)
         else:
-            edge_summary, noise_summary, _ = self.compute_edge_summaries(h, edge_index, training=training)
+            edge_summary, noise_summary, _ = self.compute_edge_summaries(
+                h,
+                edge_index,
+                training=training,
+                labels=labels,
+                label_mask=label_mask,
+            )
             if self.use_layerwise_local_igm and not self.layerwise_final_edge_fuse:
                 z = self.node_edge_norm(h)
             else:
@@ -2246,7 +3038,7 @@ class GraphFrontDoorDAG(nn.Module):
         ) * (temp ** 2)
         return loss_kl, cf_shift.detach()
 
-    def forward(self, x, edge_index, training=False):
+    def forward(self, x, edge_index, training=False, labels=None, label_mask=None):
         (
             z,
             edge_summary,
@@ -2262,7 +3054,13 @@ class GraphFrontDoorDAG(nn.Module):
             layerwise_spurious,
             h_pre_enhance,
             cns_gate,
-        ) = self.encode_representation(x, edge_index, training=training)
+        ) = self.encode_representation(
+            x,
+            edge_index,
+            training=training,
+            labels=labels,
+            label_mask=label_mask,
+        )
 
         gmm_contexts = self.sample_frontdoor_contexts(
             self.sample_gmm_contexts(training=training),
@@ -2344,6 +3142,29 @@ class GraphFrontDoorDAG(nn.Module):
             out = F.log_softmax(logits, dim=1)
             target = y.squeeze(1)
             loss = criterion(out, target)
+        return loss
+
+    def compute_energy_regularization_loss(self, logits):
+        zero = self.A_feat.new_zeros(())
+        if self.lambda_energy_reg <= 0.0 or logits is None or logits.numel() == 0:
+            return zero
+
+        flat_logits = logits.reshape(-1, logits.size(-1))
+        logit_norm = flat_logits.norm(p=2, dim=-1)
+        if flat_logits.size(-1) == 1:
+            logit_mass = F.softplus(flat_logits.squeeze(-1))
+        else:
+            logit_mass = torch.logsumexp(flat_logits, dim=-1)
+
+        loss = zero
+        if self.energy_reg_norm_weight > 0.0:
+            loss = loss + self.energy_reg_norm_weight * logit_norm.var(unbiased=False)
+        if self.energy_reg_mass_weight > 0.0:
+            loss = loss + self.energy_reg_mass_weight * logit_mass.var(unbiased=False)
+        if self.energy_reg_mean_weight > 0.0:
+            loss = loss + self.energy_reg_mean_weight * (
+                logit_norm.mean().pow(2) + logit_mass.mean().pow(2)
+            )
         return loss
 
     def _per_node_loss(self, loss):
@@ -2782,6 +3603,8 @@ class GraphFrontDoorDAG(nn.Module):
         x, edge_index, y = data.x, data.edge_index, data.y
         y = y.to(x.device)
         train_idx = data.train_idx.to(device=x.device, dtype=torch.long)
+        train_label_mask = torch.zeros(x.size(0), device=x.device, dtype=torch.bool)
+        train_label_mask[train_idx] = True
 
         (
             _,
@@ -2801,7 +3624,13 @@ class GraphFrontDoorDAG(nn.Module):
             layerwise_spurious_all,
             h_pre_enhance_all,
             cns_gate_all,
-        ) = self.forward(x, edge_index, training=True)
+        ) = self.forward(
+            x,
+            edge_index,
+            training=True,
+            labels=y,
+            label_mask=train_label_mask,
+        )
 
         y_tr = y[train_idx]
         med_tr = z_mediator_all[train_idx]
@@ -2854,8 +3683,15 @@ class GraphFrontDoorDAG(nn.Module):
             contexts,
         )
 
+        zero = self.A_feat.new_zeros(())
         raw_loss_cls = self.compute_supervised_loss(final_logits_tr, y_tr, criterion, args)
         raw_loss_fd = self.compute_supervised_loss(fd_logits_tr, y_tr, criterion, args)
+        loss_energy_reg = self.compute_energy_regularization_loss(final_logits_tr)
+        loss_class_neighbor_uncert = (
+            zero
+            if self._last_class_neighbor_uncert_loss is None
+            else self._last_class_neighbor_uncert_loss
+        )
         loss_cls, loss_cls_mean, dro_entropy, dro_max_weight = self.compute_entropy_dro_loss(
             raw_loss_cls,
             edge_index,
@@ -2901,7 +3737,6 @@ class GraphFrontDoorDAG(nn.Module):
             criterion,
             args,
         )
-        zero = self.A_feat.new_zeros(())
         loss_dag = zero
         loss_dag_label = zero
         loss_ica_cov = zero if self._last_ica_cov_loss is None else self._last_ica_cov_loss
@@ -2987,6 +3822,8 @@ class GraphFrontDoorDAG(nn.Module):
             + self.lambda_graph_delf * loss_graph_delf
             + self.lambda_enhance_sem * loss_enhance_sem
             + self.lambda_nego * loss_nego
+            + self.lambda_energy_reg * loss_energy_reg
+            + self.lambda_class_neighbor_uncert * loss_class_neighbor_uncert
             + loss_class_proto
         )
 
@@ -3039,6 +3876,8 @@ class GraphFrontDoorDAG(nn.Module):
             'loss_graph_delf': loss_graph_delf,
             'loss_enhance_sem': loss_enhance_sem,
             'loss_nego': loss_nego,
+            'loss_energy_reg': loss_energy_reg,
+            'loss_class_neighbor_uncert': loss_class_neighbor_uncert,
             'loss_class_proto': loss_class_proto,
             'loss_class_proto_var': loss_class_proto_var,
             'loss_class_proto_pos': loss_class_proto_pos,
@@ -3060,6 +3899,54 @@ class GraphFrontDoorDAG(nn.Module):
             ),
             'dro_weight_entropy': dro_entropy.detach(),
             'dro_max_weight': dro_max_weight.detach(),
+            'energy_raw_mean': (
+                zero if self._last_energy_raw_mean is None else self._last_energy_raw_mean.detach()
+            ),
+            'energy_prop_mean': (
+                zero if self._last_energy_prop_mean is None else self._last_energy_prop_mean.detach()
+            ),
+            'energy_delta_mean': (
+                zero if self._last_energy_delta_mean is None else self._last_energy_delta_mean.detach()
+            ),
+            'energy_node_gate_mean': (
+                zero if self._last_energy_node_gate_mean is None else self._last_energy_node_gate_mean.detach()
+            ),
+            'same_family_edge_ratio': (
+                zero if self._last_same_family_edge_ratio is None else self._last_same_family_edge_ratio.detach()
+            ),
+            'explicit_family_edge_ratio': (
+                zero
+                if self._last_explicit_family_edge_ratio is None
+                else self._last_explicit_family_edge_ratio.detach()
+            ),
+            'family_energy_conf_mean': (
+                zero
+                if self._last_family_energy_conf_mean is None
+                else self._last_family_energy_conf_mean.detach()
+            ),
+            'family_diff_energy_mean': (
+                zero
+                if self._last_family_diff_energy_mean is None
+                else self._last_family_diff_energy_mean.detach()
+            ),
+            'family_mask_mean': (
+                zero if self._last_family_mask_mean is None else self._last_family_mask_mean.detach()
+            ),
+            'same_family_uncertainty_mean': (
+                zero
+                if self._last_same_family_uncertainty_mean is None
+                else self._last_same_family_uncertainty_mean.detach()
+            ),
+            'diff_family_uncertainty_mean': (
+                zero
+                if self._last_diff_family_uncertainty_mean is None
+                else self._last_diff_family_uncertainty_mean.detach()
+            ),
+            'class_neighbor_causal_gate_mean': (
+                zero
+                if self._last_class_neighbor_causal_gate_mean is None
+                else self._last_class_neighbor_causal_gate_mean.detach()
+            ),
             'cns_complement_mean': cns_complement_mean.detach(),
             'cns_gate_mean': cns_gate_mean.detach(),
             'cns_layer_complement_mean': zero.detach(),
