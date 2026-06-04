@@ -557,9 +557,9 @@ class GraphFrontDoorDAG(nn.Module):
         self.dropout = getattr(args, 'dropout', 0.0)
         self.gamma = getattr(args, 'gamma', 0.99)
         self.fd_blend = getattr(args, 'fd_blend', 0.5)
-        self.eval_pred_mode = getattr(args, 'eval_pred_mode', 'blend')
+        self.eval_pred_mode = getattr(args, 'eval_pred_mode', 'mediator')
         if self.eval_pred_mode not in ('blend', 'mediator', 'frontdoor'):
-            self.eval_pred_mode = 'blend'
+            self.eval_pred_mode = 'mediator'
         self.fd_sample_k = max(0, int(getattr(args, 'K', 0)))
         self.context_sample_seed = int(getattr(args, 'seed', 0))
         self.use_spu_gmm = bool(getattr(args, 'use_spu_gmm', True))

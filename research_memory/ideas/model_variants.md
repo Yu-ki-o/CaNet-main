@@ -101,6 +101,25 @@ Expected benefit: stabilize mediator-label information and reduce spurious ID fi
 
 Minimal caution: `model_gmm3_frontdoor_hsic_ebr.py` already has CGRL-style EBR, so the first experiment should vary `lambda_ebr` and add only small `lambda_intra/lambda_inter` values. Avoid adding the full CGRL branch reweighting module in the same run.
 
+## V009 - PrunE-Layerwise FrontDoor
+
+Sources: `P010`, `P003`, `P004`
+
+Add a scalar PrunE keep/prune gate before the current channel-wise layerwise enhancement gate:
+
+```text
+soft keep probability -> edge-budget and bottom-K alignment losses
+hard Gumbel keep mask -> layerwise message routing
+informative unstable messages -> multi-ratio front-door contexts
+bottom-K pruned messages -> discard
+```
+
+Expected benefit: preserve more useful/invariant neighborhood structure while avoiding the current
+assumption that every non-causal edge is a meaningful environment edge.
+
+Minimal caution: use a conservative keep budget and degree-aware node-level regularization; P010
+was evaluated primarily on graph classification.
+
 ## Deprecated / Caution
 
 - Do not combine V001 + V002 + V003 all at once. The loss surface and hyperparameter space will become hard to diagnose.
@@ -108,3 +127,4 @@ Minimal caution: `model_gmm3_frontdoor_hsic_ebr.py` already has CGRL-style EBR, 
 - Do not implement full bilevel `P007` CASPER before a lightweight DAG-ness-aware auxiliary score. The inner-loop scorer can destabilize current front-door training.
 - Do not use dense all-pair attention from `P008` on Arxiv without a memory-aware approximation.
 - Do not stack CGRL class compactness with strong HSIC/EBR weights before checking whether the mediator collapses on minority classes.
+- Do not directly use PrunE bottom-K pruned edges as the spurious context branch; they are intentionally selected for being uninformative.

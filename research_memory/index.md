@@ -13,6 +13,7 @@ This is the project-level memory set for the current CaNet/front-door graph OOD 
 - `P007` CASPER: DAG-ness-aware score function for differentiable DAG structure learning in a dynamic causal space.
 - `P008` AdvDIFFormer: advective diffusion graph transformer for topology-shift generalization.
 - `P009` CGRL: backdoor-guided causal representation learning with EBM graph reconstruction and MI-stability diagnostics.
+- `P010` PrunE: preserves invariant structure by conservatively pruning low-confidence spurious edges instead of directly identifying every invariant edge.
 
 ## Current Knowledge Map
 
@@ -66,6 +67,15 @@ Project synthesis: the current `model_gmm3_frontdoor_hsic_ebr.py` already uses `
 
 Project synthesis: the current `lambda_ind` loss should eventually become causal-strength-masked decorrelation.
 
+### Conservative Edge Pruning
+
+`P010` warns that directly identifying invariant edges can remove true invariant structure when
+strongly correlated spurious edges confuse the selector.
+
+Project synthesis: the active layerwise edge gate should first learn a conservative scalar keep/prune
+mask with budget and bottom-K alignment. Meaningful environment-context extraction should remain
+separate because the pruned bottom-K edges may be mostly uninformative noise.
+
 ## High-Priority Model Directions
 
 1. Multi-Level FrontDoor: use `P002` global/local environment contexts inside the current front-door context bank.
@@ -75,6 +85,7 @@ Project synthesis: the current `lambda_ind` loss should eventually become causal
 5. CASPER-FeatureDAG: use `P007` DAG-ness-aware scoring to make the learned feature DAG more structurally meaningful.
 6. Advective-FrontDoor Encoder: use `P008` non-local diffusion plus weighted adjacency advection to reduce topology-shift sensitivity.
 7. CGRL-Stabilized Mediator: use `P009` EBR plus class compactness/separation and MI-stability logging on the causal mediator.
+8. PrunE-Layerwise FrontDoor: conservatively prune low-confidence edges before layerwise enhancement, then construct multi-ratio environments separately from informative unstable messages.
 
 ## How To Use This Memory
 

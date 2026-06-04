@@ -142,6 +142,8 @@ def add_frontdoor_dag_args(parser):
                         help='temperature for edge semantic gate logits; larger values produce smoother gates')
     parser.add_argument('--edge_blend', type=float, default=0.2,
                         help='residual strength of edge-aware neighbor aggregation')
+    parser.add_argument('--disable_node_edge_norm', action='store_true',
+                        help='skip final LayerNorm after node-edge fusion for plain-backbone ablations')
     parser.add_argument('--edge_relation_model', type=str, default='mlp',
                         choices=['mlp', 'transformer'],
                         help='edge relation scorer used by direct gate models')
@@ -166,30 +168,6 @@ def add_frontdoor_dag_args(parser):
     parser.add_argument('--edge_gate_mode', type=str, default='vector',
                         choices=['scalar', 'vector'],
                         help='scalar uses one edge gate per neighbor; vector uses one gate per hidden dimension')
-    parser.add_argument('--use_class_neighbor_uncertainty', action='store_true',
-                        help='split neighbors into same/different predicted-class families and suppress high-variance dimensions')
-    parser.add_argument('--class_neighbor_label_source', type=str, default='pred',
-                        choices=['pred', 'detach_pred', 'train_label', 'label'],
-                        help='prediction source used to form same/different class neighbor families')
-    parser.add_argument('--class_neighbor_uncertainty_temp', type=float, default=1.0,
-                        help='temperature for converting family-wise dimension uncertainty into causal confidence')
-    parser.add_argument('--class_neighbor_uncertainty_blend', type=float, default=1.0,
-                        help='blend strength of family uncertainty in edge gates')
-    parser.add_argument('--class_neighbor_min_gate', type=float, default=0.05,
-                        help='minimum retained causal gate after class-family uncertainty modulation')
-    parser.add_argument('--class_neighbor_same_threshold', type=float, default=0.5,
-                        help='edge-feature similarity threshold used to infer same-class edges without labels')
-    parser.add_argument('--class_neighbor_test_agg', type=str, default='same_only',
-                        choices=['same_only', 'all_masked'],
-                        help='test-time aggregation ablation: same_only filters by edge-feature same-class score; all_masked aggregates all edges through learned masks')
-    parser.add_argument('--lambda_class_neighbor_uncert', type=float, default=0.0,
-                        help='weight for masked same/different-family prediction energy and variance loss')
-    parser.add_argument('--class_neighbor_ce_weight', type=float, default=1.0,
-                        help='inside class-neighbor uncertainty loss: supervised masked-relation prediction weight')
-    parser.add_argument('--class_neighbor_energy_weight', type=float, default=0.1,
-                        help='inside class-neighbor uncertainty loss: low-energy confidence weight')
-    parser.add_argument('--class_neighbor_var_weight', type=float, default=0.1,
-                        help='inside class-neighbor uncertainty loss: masked relation and energy variance weight')
     parser.add_argument('--use_layerwise_local_igm', action='store_true',
                         help='apply Local-IGM edge routing after each GNN layer before the next layer')
     parser.add_argument('--layerwise_local_igm_include_last', action='store_false',
@@ -232,30 +210,6 @@ def add_frontdoor_dag_args(parser):
                         help='target mean Graph-CFAM gate for optional balance regularization')
     parser.add_argument('--lambda_graph_cfam_gate', type=float, default=0.0,
                         help='weight of Graph-CFAM gate balance regularization')
-    parser.add_argument('--use_energy_cfam', action='store_true',
-                        help='condition the final Graph-CFAM gate with energy-based node uncertainty')
-    parser.add_argument('--use_energy_node_gate', action='store_true',
-                        help='skip Graph-CFAM and use energy uncertainty as a node-level enhancement gate')
-    parser.add_argument('--disable_energy_detach', action='store_false',
-                        dest='energy_detach',
-                        help='allow gradients to flow through the energy uncertainty probe')
-    parser.set_defaults(energy_detach=True)
-    parser.add_argument('--energy_prop_steps', type=int, default=2,
-                        help='number of structure-aware energy propagation steps before CFAM modulation')
-    parser.add_argument('--energy_prop_gamma', type=float, default=0.7,
-                        help='self-retention coefficient for structure-aware energy propagation')
-    parser.add_argument('--energy_cfam_bias_scale', type=float, default=1.0,
-                        help='scale of the uncertainty bias added to Graph-CFAM gate logits')
-    parser.add_argument('--energy_node_gate_scale', type=float, default=1.0,
-                        help='scale of the uncertainty MLP logits used by the node-level enhancement gate')
-    parser.add_argument('--lambda_energy_reg', type=float, default=0.0,
-                        help='weight of logits boundedness regularization for energy uncertainty')
-    parser.add_argument('--energy_reg_norm_weight', type=float, default=1.0,
-                        help='weight for logit-norm variance inside energy regularization')
-    parser.add_argument('--energy_reg_mass_weight', type=float, default=1.0,
-                        help='weight for logsumexp/logit-mass variance inside energy regularization')
-    parser.add_argument('--energy_reg_mean_weight', type=float, default=0.0,
-                        help='optional weight for penalizing mean logit norm and mass')
     parser.add_argument('--lambda_graph_delf', type=float, default=0.0,
                         help='weight of Graph-DELF ambiguous local shortcut decoupling loss')
     parser.add_argument('--graph_delf_top_frac', type=float, default=0.2,
@@ -264,9 +218,27 @@ def add_frontdoor_dag_args(parser):
                         help='cosine margin for pushing mediator away from shortcut prototypes in Graph-DELF')
     parser.add_argument('--graph_delf_shortcut_weight', type=float, default=0.5,
                         help='weight of shortcut-prototype push term inside Graph-DELF')
-    parser.add_argument('--direct_z_spurious_mode', type=str, default='zero',
-                        choices=['shortcut', 'zero', 'z_adapter'],
-                        help='spurious branch used with DAG-free direct-z mediator')
+    parser.add_argument('--direct_z_spurious_mode', type=str, default='shortcut',
+                        choices=['shortcut', 'zero', 'z_adapter','none'],
+                        help="'shortcut' uses local shortcut summary, 'zero' uses a zero spurious placeholder, 'z_adapter' derives it from z, 'none' predicts directly from enhanced node z and skips front-door context mixing")
+    parser.add_argument('--use_multi_ratio_spurious_fd', action='store_true',
+                        help='train front-door predictions from multiple masked ratios of z_spurious')
+    parser.add_argument('--multi_ratio_spurious_fd_as_main', action='store_true',
+                        help='use per-node multi-ratio z_spurious contexts as the main front-door path and skip global context banks')
+    parser.add_argument('--multi_ratio_spurious_mode', type=str, default='sample',
+                        choices=['sample', 'ratio'],
+                        help="'sample' randomly samples per-node spurious contexts; 'ratio' uses the original ratio-scaled self/shuffle contexts")
+    parser.add_argument('--multi_ratio_spurious_source', type=str, default='self',
+                        choices=['self', 'shuffle'],
+                        help='source of node-level spurious contexts: self uses each node, shuffle uses another shuffled node')
+    parser.add_argument('--multi_ratio_spurious_ratios', type=str, default='0,0.33,0.67,1.0',
+                        help='comma-separated spurious retention ratios; default keeps four ratios including 0 and 1')
+    parser.add_argument('--lambda_multi_ratio_fd', type=float, default=0.5,
+                        help='weight of mean supervised loss over multi-ratio spurious front-door predictions')
+    parser.add_argument('--lambda_multi_ratio_fd_worst', type=float, default=0.2,
+                        help='weight of worst-ratio supervised loss for multi-ratio spurious front-door predictions')
+    parser.add_argument('--lambda_multi_ratio_fd_cons', type=float, default=0.1,
+                        help='weight of prediction consistency among multi-ratio spurious front-door predictions')
     parser.add_argument('--use_layerwise_spurious_contexts', action='store_true',
                         help='add each GNN layer spurious branch to the front-door environment context bank')
     parser.add_argument('--layerwise_spurious_context_weight', type=float, default=1.0,
@@ -303,26 +275,16 @@ def add_frontdoor_dag_args(parser):
     parser.add_argument('--fd_context_source', type=str, default='mixed',
                         choices=['mixed', 'nego_only'],
                         help='front-door context bank source: merge all enabled contexts or use only NeGo contexts')
-    parser.add_argument('--class_proto_k', type=int, default=3,
-                        help='number of fine-grained intra-class environment prototypes')
-    parser.add_argument('--class_proto_temp', type=float, default=1.0,
-                        help='temperature for class-conditioned prototype assignment and negative scores')
-    parser.add_argument('--class_proto_momentum', type=float, default=0.9,
-                        help='EMA momentum for class-conditioned environment prototype bank')
-    parser.add_argument('--class_proto_min_mass', type=float, default=1e-3,
-                        help='minimum soft assignment mass needed to update a class prototype')
-    parser.add_argument('--disable_class_proto_detach_assign', action='store_false',
-                        dest='class_proto_detach_assign',
-                        help='allow gradients from prototype loss into the class prototype assignment head input')
-    parser.set_defaults(class_proto_detach_assign=True)
-    parser.add_argument('--lambda_class_proto_var', type=float, default=0.0,
-                        help='weight for equal response to same-class fine-grained environment prototypes')
-    parser.add_argument('--lambda_class_proto_pos', type=float, default=0.0,
-                        help='weight for attraction to same-class fine-grained environment prototypes')
-    parser.add_argument('--lambda_class_proto_neg', type=float, default=0.0,
-                        help='weight for repulsion from other-class fine-grained environment prototypes')
-    parser.add_argument('--lambda_class_proto_balance', type=float, default=0.0,
-                        help='weight for balanced use of K intra-class environment prototypes')
+    parser.add_argument('--lirs_proto_temp', type=float, default=1.0,
+                        help='temperature for layer-wise LIRS prototype matching')
+    parser.add_argument('--lirs_proto_momentum', type=float, default=0.9,
+                        help='EMA momentum for layer-wise LIRS class prototype bank')
+    parser.add_argument('--lirs_proto_min_count', type=int, default=1,
+                        help='minimum train nodes per class needed to update a layer-wise LIRS prototype')
+    parser.add_argument('--lambda_lirs_proto_causal', type=float, default=0.0,
+                        help='weight for aligning each Graph-CFAM causal-local branch to same-class layer prototypes')
+    parser.add_argument('--lambda_lirs_proto_spurious', type=float, default=0.0,
+                        help='weight for making each Graph-CFAM domain branch class-uninformative against layer prototypes')
     parser.add_argument('--use_global_info', action='store_true',
                         help='inject MLEI/AdvDIFFormer-style global information before DAG/front-door splitting')
     parser.add_argument('--disable_global_contexts', action='store_false', dest='use_global_contexts',
@@ -342,18 +304,6 @@ def add_frontdoor_dag_args(parser):
                         help='scale of global-attention environment prototypes used as front-door contexts')
     parser.add_argument('--lambda_global_env', type=float, default=0.0,
                         help='weight of local/global pseudo-environment consistency')
-    parser.add_argument('--use_latent_diffusion', action='store_true',
-                        help='enable DRGO-style latent diffusion denoising in the mediator path')
-    parser.add_argument('--lambda_latent_diffusion', type=float, default=0.0,
-                        help='weight of latent diffusion noise-prediction loss')
-    parser.add_argument('--diffusion_steps', type=int, default=20,
-                        help='number of latent diffusion noise schedule steps')
-    parser.add_argument('--diffusion_beta_start', type=float, default=1e-4,
-                        help='initial beta in the latent diffusion schedule')
-    parser.add_argument('--diffusion_beta_end', type=float, default=2e-2,
-                        help='final beta in the latent diffusion schedule')
-    parser.add_argument('--diffusion_blend', type=float, default=0.0,
-                        help='residual strength for replacing z by the denoised latent estimate')
     parser.add_argument('--lambda_entropy_dro', type=float, default=0.0,
                         help='mix ratio for entropy-smoothed DRO group loss')
     parser.add_argument('--dro_entropy_beta', type=float, default=1.0,
@@ -365,9 +315,9 @@ def add_frontdoor_dag_args(parser):
                         help='grouping rule for entropy-DRO nominal/worst-case buckets')
     parser.add_argument('--fd_blend', type=float, default=0.5,
                         help='blend ratio between mediator logits and front-door aggregated logits')
-    parser.add_argument('--eval_pred_mode', type=str, default='blend',
+    parser.add_argument('--eval_pred_mode', type=str, default='mediator',
                         choices=['blend', 'mediator', 'frontdoor'],
-                        help='prediction path used only during evaluation/inference')
+                        help='prediction path used only during evaluation/inference; default uses enhanced node z directly')
     parser.add_argument('--use_ica_split', action='store_true',
                         help='replace the DAG mediator/spurious split with an end-to-end ICA-like component split over enhanced z')
     parser.add_argument('--use_enhanced_as_causal', action='store_true',
@@ -449,19 +399,17 @@ def capture_lambda_state(model):
         'lambda_env',
         'lambda_inv',
         'lambda_global_env',
-        'lambda_latent_diffusion',
         'lambda_entropy_dro',
+        'lambda_multi_ratio_fd',
+        'lambda_multi_ratio_fd_worst',
+        'lambda_multi_ratio_fd_cons',
         'lambda_layerwise_gate',
         'lambda_graph_cfam_gate',
         'lambda_graph_delf',
         'lambda_enhance_sem',
         'lambda_nego',
-        'lambda_energy_reg',
-        'lambda_class_neighbor_uncert',
-        'lambda_class_proto_var',
-        'lambda_class_proto_pos',
-        'lambda_class_proto_neg',
-        'lambda_class_proto_balance',
+        'lambda_lirs_proto_causal',
+        'lambda_lirs_proto_spurious',
         'lambda_spu_y',
         'lambda_ica_cov',
         'lambda_ica_ng',
@@ -515,18 +463,16 @@ def apply_cipt_schedule(model, base_lambdas, epoch, args):
         'lambda_env',
         'lambda_inv',
         'lambda_role',
-        'lambda_latent_diffusion',
         'lambda_entropy_dro',
+        'lambda_multi_ratio_fd',
+        'lambda_multi_ratio_fd_worst',
+        'lambda_multi_ratio_fd_cons',
         'lambda_layerwise_gate',
         'lambda_graph_cfam_gate',
         'lambda_graph_delf',
         'lambda_nego',
-        'lambda_energy_reg',
-        'lambda_class_neighbor_uncert',
-        'lambda_class_proto_var',
-        'lambda_class_proto_pos',
-        'lambda_class_proto_neg',
-        'lambda_class_proto_balance',
+        'lambda_lirs_proto_causal',
+        'lambda_lirs_proto_spurious',
         'lambda_ica_cov',
         'lambda_ica_ng',
         'lambda_ica_gate',
@@ -637,15 +583,7 @@ print(
     f"ramp: {args.intervention_ramp_epochs} | grad clip: {args.grad_clip} | "
     f"DAG mixer: {model.use_dag_mixer} | edge feat: {args.edge_feat_mode} | "
     f"edge gate: {args.edge_gate_mode} | "
-    f"class-neighbor uncertainty: {args.use_class_neighbor_uncertainty} "
-    f"(label={args.class_neighbor_label_source}, temp={args.class_neighbor_uncertainty_temp}, "
-    f"blend={args.class_neighbor_uncertainty_blend}, min_gate={args.class_neighbor_min_gate}, "
-    f"same_thr={args.class_neighbor_same_threshold}, "
-    f"test_agg={args.class_neighbor_test_agg}, "
-    f"lambda={args.lambda_class_neighbor_uncert}) | "
-    f"latent diffusion: {model.use_latent_diffusion} "
-    f"(lambda={args.lambda_latent_diffusion}, steps={args.diffusion_steps}, "
-    f"blend={args.diffusion_blend}) | "
+    f"node-edge norm: {not args.disable_node_edge_norm} | "
     f"entropy-DRO: {args.lambda_entropy_dro} "
     f"(group={args.dro_group_by}, buckets={args.dro_num_groups}, beta={args.dro_entropy_beta}) | "
     f"CF: {args.lambda_cf} (target={args.cf_target}, mode={args.cf_mode}, "
@@ -670,11 +608,14 @@ print(
     f"final={args.use_final_graph_cfam}, "
     f"gate_lambda={args.lambda_graph_cfam_gate}, delf_lambda={args.lambda_graph_delf}, "
     f"delf_top={args.graph_delf_top_frac}, direct_z_spu={args.direct_z_spurious_mode}) | "
-    f"energy-CFAM: {args.use_energy_cfam} "
-    f"(steps={args.energy_prop_steps}, gamma={args.energy_prop_gamma}, "
-    f"detach={args.energy_detach}, bias_scale={args.energy_cfam_bias_scale}, "
-    f"node_gate={args.use_energy_node_gate}, node_gate_scale={args.energy_node_gate_scale}, "
-    f"lambda_reg={args.lambda_energy_reg}) | "
+    f"multi-ratio spu FD: {args.use_multi_ratio_spurious_fd} "
+    f"(main={args.multi_ratio_spurious_fd_as_main}, "
+    f"mode={args.multi_ratio_spurious_mode}, "
+    f"source={args.multi_ratio_spurious_source}, "
+    f"ratios={args.multi_ratio_spurious_ratios}, "
+    f"lambda_mean={args.lambda_multi_ratio_fd}, "
+    f"lambda_worst={args.lambda_multi_ratio_fd_worst}, "
+    f"lambda_cons={args.lambda_multi_ratio_fd_cons}) | "
     f"layerwise spurious ctx: {args.use_layerwise_spurious_contexts} "
     f"(weight={args.layerwise_spurious_context_weight}, "
     f"detach={args.layerwise_spurious_context_detach}) | "
@@ -682,9 +623,10 @@ print(
     f"lambda={args.lambda_nego}, source={args.nego_source}, temp={args.nego_temp}, "
     f"mode={args.nego_context_mode}, mix_k={args.nego_mix_k}, mix_alpha={args.nego_mix_alpha}, "
     f"ctx_weight={args.nego_context_weight}, fd_ctx_source={args.fd_context_source} | "
-    f"class proto: K={args.class_proto_k}, temp={args.class_proto_temp}, "
-    f"lambda_var={args.lambda_class_proto_var}, lambda_pos={args.lambda_class_proto_pos}, "
-    f"lambda_neg={args.lambda_class_proto_neg}, lambda_balance={args.lambda_class_proto_balance} | "
+    f"LIRS layer proto: temp={args.lirs_proto_temp}, momentum={args.lirs_proto_momentum}, "
+    f"min_count={args.lirs_proto_min_count}, "
+    f"lambda_causal={args.lambda_lirs_proto_causal}, "
+    f"lambda_spurious={args.lambda_lirs_proto_spurious} | "
     f"global info: {args.use_global_info} ({args.global_info_mode}, "
     f"alpha={args.global_alpha}, beta={args.global_beta}, steps={args.global_steps}, "
     f"local={args.global_local_source}) | "
@@ -762,36 +704,23 @@ for run in range(args.runs):
         writer.add_scalar('Loss/Inv', (model.lambda_inv * losses['loss_inv']).item(), global_step)
         writer.add_scalar('Loss/Var', (model.lambda_var * losses['loss_var']).item(), global_step)
         writer.add_scalar('Loss/GlobalEnv', (model.lambda_global_env * losses['loss_global_env']).item(), global_step)
-        writer.add_scalar('Loss/Diffusion', (model.lambda_latent_diffusion * losses['loss_diffusion']).item(), global_step)
         writer.add_scalar('Loss/LayerwiseGate', (model.lambda_layerwise_gate * losses['loss_layerwise_gate']).item(), global_step)
         writer.add_scalar('Loss/GraphCFAMGate', (model.lambda_graph_cfam_gate * losses['loss_graph_cfam_gate']).item(), global_step)
         writer.add_scalar('Loss/GraphDELF', (model.lambda_graph_delf * losses['loss_graph_delf']).item(), global_step)
         writer.add_scalar('Loss/EnhanceSem', (model.lambda_enhance_sem * losses['loss_enhance_sem']).item(), global_step)
+        writer.add_scalar('Loss/MultiRatioFD', (model.lambda_multi_ratio_fd * losses['loss_multi_ratio_fd']).item(), global_step)
+        writer.add_scalar('Loss/MultiRatioFDWorst', (model.lambda_multi_ratio_fd_worst * losses['loss_multi_ratio_fd_worst']).item(), global_step)
+        writer.add_scalar('Loss/MultiRatioFDCons', (model.lambda_multi_ratio_fd_cons * losses['loss_multi_ratio_fd_cons']).item(), global_step)
         writer.add_scalar('Loss/NeGo', (model.lambda_nego * losses['loss_nego']).item(), global_step)
-        writer.add_scalar('Loss/EnergyReg', (model.lambda_energy_reg * losses['loss_energy_reg']).item(), global_step)
-        writer.add_scalar('Loss/ClassNeighborUncert', (model.lambda_class_neighbor_uncert * losses['loss_class_neighbor_uncert']).item(), global_step)
-        writer.add_scalar('Loss/ClassProto', losses['loss_class_proto'].item(), global_step)
-        writer.add_scalar('Loss/ClassProtoVar', losses['loss_class_proto_var'].item(), global_step)
-        writer.add_scalar('Loss/ClassProtoPos', losses['loss_class_proto_pos'].item(), global_step)
-        writer.add_scalar('Loss/ClassProtoNeg', losses['loss_class_proto_neg'].item(), global_step)
-        writer.add_scalar('Loss/ClassProtoBalance', losses['loss_class_proto_balance'].item(), global_step)
+        writer.add_scalar('Loss/LIRSProto', losses['loss_lirs_proto'].item(), global_step)
+        writer.add_scalar('Loss/LIRSProtoCausal', (model.lambda_lirs_proto_causal * losses['loss_lirs_proto_causal']).item(), global_step)
+        writer.add_scalar('Loss/LIRSProtoSpurious', (model.lambda_lirs_proto_spurious * losses['loss_lirs_proto_spurious']).item(), global_step)
         writer.add_scalar('Diag/NeGoExtraScore', losses['nego_extra_score'].item(), global_step)
         writer.add_scalar('Diag/NeGoSelfScore', losses['nego_self_score'].item(), global_step)
-        writer.add_scalar('Diag/ClassProtoAssignEntropy', losses['class_proto_assign_entropy'].item(), global_step)
+        writer.add_scalar('Diag/LIRSProtoCausalAcc', losses['lirs_proto_causal_acc'].item(), global_step)
+        writer.add_scalar('Diag/LIRSProtoSpuriousEntropy', losses['lirs_proto_spurious_entropy'].item(), global_step)
         writer.add_scalar('DRO/WeightEntropy', losses['dro_weight_entropy'].item(), global_step)
         writer.add_scalar('DRO/MaxWeight', losses['dro_max_weight'].item(), global_step)
-        writer.add_scalar('Energy/RawMean', losses['energy_raw_mean'].item(), global_step)
-        writer.add_scalar('Energy/PropMean', losses['energy_prop_mean'].item(), global_step)
-        writer.add_scalar('Energy/DeltaMean', losses['energy_delta_mean'].item(), global_step)
-        writer.add_scalar('Energy/NodeGateMean', losses['energy_node_gate_mean'].item(), global_step)
-        writer.add_scalar('ClassNeighbor/SameEdgeRatio', losses['same_family_edge_ratio'].item(), global_step)
-        writer.add_scalar('ClassNeighbor/ExplicitEdgeRatio', losses['explicit_family_edge_ratio'].item(), global_step)
-        writer.add_scalar('ClassNeighbor/EnergyConfidence', losses['family_energy_conf_mean'].item(), global_step)
-        writer.add_scalar('ClassNeighbor/DiffEnergy', losses['family_diff_energy_mean'].item(), global_step)
-        writer.add_scalar('ClassNeighbor/MaskMean', losses['family_mask_mean'].item(), global_step)
-        writer.add_scalar('ClassNeighbor/SameUncertainty', losses['same_family_uncertainty_mean'].item(), global_step)
-        writer.add_scalar('ClassNeighbor/DiffUncertainty', losses['diff_family_uncertainty_mean'].item(), global_step)
-        writer.add_scalar('ClassNeighbor/CausalGateMean', losses['class_neighbor_causal_gate_mean'].item(), global_step)
         writer.add_scalar('Graph/LayerwiseGateMean', losses['layerwise_gate_mean'].item(), global_step)
         writer.add_scalar('Graph/LayerwiseGateLayers', losses['layerwise_gate_layers'].item(), global_step)
         writer.add_scalar('Graph/GraphCFAMGateMean', losses['graph_cfam_gate_mean'].item(), global_step)
@@ -807,8 +736,9 @@ for run in range(args.runs):
         writer.add_scalar('Graph/NumMixedContexts', losses['num_mixed_contexts'].item(), global_step)
         writer.add_scalar('Graph/NumGMMContexts', losses['num_gmm_contexts'].item(), global_step)
         writer.add_scalar('Graph/NumGlobalContexts', losses['num_global_contexts'].item(), global_step)
+        writer.add_scalar('Graph/NumMultiRatioContexts', losses['num_multi_ratio_contexts'].item(), global_step)
         writer.add_scalar('Graph/NumNeGoContexts', losses['num_nego_contexts'].item(), global_step)
-        writer.add_scalar('Graph/NumClassEnvProtos', losses['num_class_env_protos'].item(), global_step)
+        writer.add_scalar('Graph/NumLIRSLayerProtos', losses['num_lirs_layer_protos'].item(), global_step)
         writer.add_scalar('Schedule/LR', current_lr, global_step)
         writer.add_scalar('Schedule/InterventionScale', schedule_state['intervention_scale'], global_step)
         writer.add_scalar('Schedule/DAGScale', schedule_state['dag_scale'], global_step)
@@ -847,19 +777,12 @@ for run in range(args.runs):
                 f"Inv: {(model.lambda_inv * losses['loss_inv']).item():.4f}, "
                 f"Var: {(model.lambda_var * losses['loss_var']).item():.4f}, "
                 f"GlobalEnv: {(model.lambda_global_env * losses['loss_global_env']).item():.4f}, "
-                f"Diff: {(model.lambda_latent_diffusion * losses['loss_diffusion']).item():.4f}, "
                 f"LayerGate: {(model.lambda_layerwise_gate * losses['loss_layerwise_gate']).item():.4f}, "
                 f"GCFAMGate: {(model.lambda_graph_cfam_gate * losses['loss_graph_cfam_gate']).item():.4f}, "
                 f"GDELF: {(model.lambda_graph_delf * losses['loss_graph_delf']).item():.4f}, "
                 f"EnhSem: {(model.lambda_enhance_sem * losses['loss_enhance_sem']).item():.4f}, "
-                f"EnergyReg: {(model.lambda_energy_reg * losses['loss_energy_reg']).item():.4f}, "
-                f"ClsNbrLoss: {(model.lambda_class_neighbor_uncert * losses['loss_class_neighbor_uncert']).item():.4f}, "
-                f"EnergyDelta: {losses['energy_delta_mean'].item():.3f}, "
-                f"EnergyNodeGate: {losses['energy_node_gate_mean'].item():.3f}, "
-                f"ClsNbrSame: {losses['same_family_edge_ratio'].item():.3f}, "
-                f"ClsNbrGate: {losses['class_neighbor_causal_gate_mean'].item():.3f}, "
-                f"ClsNbrMask: {losses['family_mask_mean'].item():.3f}, "
-                f"CProto: {losses['loss_class_proto'].item():.4f}, "
+                f"MRFD: {((model.lambda_multi_ratio_fd * losses['loss_multi_ratio_fd']) + (model.lambda_multi_ratio_fd_worst * losses['loss_multi_ratio_fd_worst']) + (model.lambda_multi_ratio_fd_cons * losses['loss_multi_ratio_fd_cons'])).item():.4f}, "
+                f"LIRSProto: {losses['loss_lirs_proto'].item():.4f}, "
                 f"CFShift: {losses['cf_pred_shift'].item():.4f}, "
                 f"LayerGateMean: {losses['layerwise_gate_mean'].item():.3f}, "
                 f"GraphCFAMGate: {losses['graph_cfam_gate_mean'].item():.3f}, "
@@ -874,7 +797,8 @@ for run in range(args.runs):
                 f"Ctx: {int(losses['num_contexts'].item())}, "
                 f"GMMCtx: {int(losses['num_gmm_contexts'].item())}, "
                 f"GlobalCtx: {int(losses['num_global_contexts'].item())}, "
-                f"CProtoN: {int(losses['num_class_env_protos'].item())}, "
+                f"MRCtx: {int(losses['num_multi_ratio_contexts'].item())}, "
+                f"LIRSProtoN: {int(losses['num_lirs_layer_protos'].item())}, "
                 f"MixCtx: {int(losses['num_mixed_contexts'].item())}, "
                 f"Train: {100 * result[0]:.2f}%, Valid: {100 * result[1]:.2f}%, "
                 f"Test In: {100 * result[2]:.2f}% "

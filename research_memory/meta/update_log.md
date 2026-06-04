@@ -1,5 +1,32 @@
 # Update Log
 
+## 2026-06-04
+
+Added `P010` from the PrunE NeurIPS 2025 paper and official repository.
+
+Changed files:
+
+- Created `papers/P010_prune_spurious_subgraphs.md`.
+- Created `methods/spurious_edge_pruning.md`.
+- Updated `meta/paper_registry.csv`, `index.md`, `ideas/model_variants.md`, and
+  `ideas/experiment_queue.md`.
+
+New insights:
+
+- Conservative pruning can preserve invariant structure better than forcing an edge selector to
+  directly identify every causal edge.
+- For the active node-level layerwise model, PrunE should be a scalar keep/prune mask before any
+  vector channel gate.
+- Pruned bottom-K edges should not automatically become front-door contexts because PrunE
+  intentionally targets mostly uninformative edges.
+
+Unresolved uncertainties:
+
+- The best graph-size constraint for a single full node-classification graph may need per-node or
+  degree-bucket budgets rather than the graph-level budget used by PrunE.
+- Multi-ratio front-door contexts may benefit more from varying pruning budgets than from directly
+  aggregating the lowest-probability removed edges.
+
 ## 2026-05-12
 
 Added `P009` from `/public/wc/lunwen/CGRL Causal-Guided Representation Learning.pdf`.

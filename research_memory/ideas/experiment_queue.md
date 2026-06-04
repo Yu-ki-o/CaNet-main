@@ -103,3 +103,21 @@ Compare:
 Start with Cora/Citeseer/Pubmed feature shifts, then run Arxiv/Twitch only if mediator compactness does not collapse minority classes.
 
 Measure: OOD accuracy, validation-to-OOD gap, `loss_ebr_kl`, mediator class compactness, class-center margin, HSIC, and a lightweight MI or dependence proxy between mediator/spurious branches and labels.
+
+## E009 - PrunE Layerwise Gate
+
+Sources: `P010`
+
+Compare:
+
+- current binary layerwise Gumbel gate
+- scalar Gumbel keep gate only
+- keep gate plus edge-budget loss
+- keep gate plus edge-budget and bottom-K probability alignment
+- scalar keep gate followed by the existing vector channel gate
+
+Start with conservative keep budgets `{0.75, 0.85, 0.95}` and bottom fractions `{0.25, 0.5}`.
+Use a warmup before enabling pruning.
+
+Measure: OOD accuracy, retained-edge ratio, degree-bucket retained ratios, gate collapse, and
+whether low-degree/minority-class nodes lose accuracy.

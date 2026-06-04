@@ -1,1 +1,5 @@
 python main_gmm3_reviewed1_graph_cfam_nego.py --dataset pubmed --backbone gcn --lr 0.005 --weight_decay 5e-5 --tau 2 --K 2 --dropout 0.3 --hidden_channels 64 --num_layers 2 --env_type graph --combine_result --store --edge_feat_mode mul --gmm_sample_k 2 --edge_blend 0.2 --edge_score_temp 5.0 --dag_latent_dim 16 --lambda_dag 0.05 --lambda_dag_label 0.05 --lambda_spu 0.05 --lambda_env 0.05 --lambda_fd 0.5 --fd_blend 0.5  --runs 5 --epochs 500 --use_nego_prompt   --use_nego_context   --lambda_nego 0.01   --nego_source spurious   --nego_temp 0.2   --nego_context_weight 0.5 --use_graph_cfam 
+
+
+
+--use_layerwise_local_igm --direct_z_spurious_mode shortcut --multi_ratio_spurious_fd_as_main  --multi_ratio_spurious_source self

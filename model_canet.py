@@ -185,7 +185,7 @@ class CaNet(nn.Module):
         for enc in self.env_enc:
             enc.reset_parameters()
 
-    def forward(self, x, adj, idx=None, training=False):
+    def encode_representation(self, x, adj, training=False):
         self.training = training
         # 输入编码：把原始节点特征映射到隐空间，作为环境估计器和专家传播器的共同输入。
         x = F.dropout(x, self.dropout, training=self.training)
@@ -213,10 +213,14 @@ class CaNet(nn.Module):
             # 环境条件专家传播：由 e 选择并组合 K 个环境专家的输出。
             h = self.act_fn(con(h, adj, e))
 
+        return h, reg / self.num_layers
+
+    def forward(self, x, adj, idx=None, training=False):
+        h, reg = self.encode_representation(x, adj, training=training)
         h = F.dropout(h, self.dropout, training=self.training)
         out = self.fcs[-1](h)
         if self.training:
-            return out, reg / self.num_layers
+            return out, reg
         else:
             return out
 
