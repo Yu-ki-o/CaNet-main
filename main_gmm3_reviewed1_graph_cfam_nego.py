@@ -219,6 +219,29 @@ def add_frontdoor_dag_args(parser):
                         help='cosine margin for pushing mediator away from shortcut prototypes in Graph-DELF')
     parser.add_argument('--graph_delf_shortcut_weight', type=float, default=0.5,
                         help='weight of shortcut-prototype push term inside Graph-DELF')
+    parser.add_argument('--same_diff_temp', type=float, default=1.0,
+                        help='temperature for pseudo class distributions in layer-wise same/diff routing')
+    parser.add_argument('--disable_same_diff_detach_pred', action='store_false',
+                        dest='same_diff_detach_pred',
+                        help='allow same/diff routing weights to backpropagate through the pseudo-label predictor')
+    parser.set_defaults(same_diff_detach_pred=True)
+    parser.add_argument('--same_diff_hard', action='store_true',
+                        help='route edges by hard pseudo labels instead of thresholding soft same probabilities')
+    parser.add_argument('--same_diff_soft', action='store_false',
+                        dest='same_diff_hard',
+                        help='route edges by thresholding soft same probabilities instead of hard pseudo labels')
+    parser.set_defaults(same_diff_hard=True)
+    parser.add_argument('--same_diff_edge_threshold', type=float, default=0.5,
+                        help='soft same-probability threshold used to split same/diff edge subgraphs')
+    parser.add_argument('--same_diff_layer_fuse_blend', type=float, default=1.0,
+                        help='residual strength for fusing same/diff path states into the next layer state')
+    parser.add_argument('--same_diff_gate_blend', type=float, default=1.0,
+                        help='strength for using different-class dimension gate to guide same-class edge summary dimensions')
+    parser.add_argument('--same_diff_context_source', type=str, default='diff',
+                        choices=['diff', 'same_gate', 'mixed'],
+                        help="front-door context source: 'diff' uses heterophily-gated branch, 'same_gate' uses gated same edge summary, 'mixed' uses both")
+    parser.add_argument('--same_diff_context_k', type=int, default=0,
+                        help='number of other-node same-gate complement contexts sampled per node; 0 uses max(2, K)')
     parser.add_argument('--direct_z_spurious_mode', type=str, default='shortcut',
                         choices=['shortcut', 'zero', 'z_adapter','none'],
                         help="'shortcut' uses local shortcut summary, 'zero' uses a zero spurious placeholder, 'z_adapter' derives it from z, 'none' predicts directly from enhanced node z and skips front-door context mixing")
