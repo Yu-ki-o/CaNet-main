@@ -23,7 +23,8 @@ from dataset import *
 from eval import eval_acc, eval_f1, eval_rocauc, evaluate_full
 from ica_utils import infer_pseudo_envs_with_ica
 from logger import Logger
-from model_gmm3_reviewed1_graph_cfam_nego import GraphFrontDoorDAG as FrontDoorNeGoModel
+# from model_gmm3_reviewed1_graph_cfam_nego import GraphFrontDoorDAG as FrontDoorNeGoModel
+from model_gmm3_reviewed1_layerwise_samediff import GraphFrontDoorDAG as FrontDoorNeGoModel
 from model_graph_cfam_gate_direct import GraphFrontDoorDAG as GateDirectModel
 from parse import parser_add_main_args
 
