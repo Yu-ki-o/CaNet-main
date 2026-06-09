@@ -408,7 +408,9 @@ class GraphFrontDoorDAG(nn.Module):
         # is fused into the node state, while the complementary domain-local
         # part is kept as the edge/DAG pollution summary.
         self.use_graph_cfam = bool(getattr(args, 'use_graph_cfam', False))
+        self.use_layerwise_graph_cfam = bool(getattr(args, 'use_layerwise_graph_cfam', True))
         self.use_final_graph_cfam = bool(getattr(args, 'use_final_graph_cfam', True))
+        self.disable_final_edge_enhance = bool(getattr(args, 'disable_final_edge_enhance', False))
         self.graph_cfam_residual_blend = max(0.0, float(getattr(args, 'graph_cfam_residual_blend', 0.1)))
         self.use_pre_gnn_graph_cfam = bool(getattr(args, 'use_pre_gnn_graph_cfam', False))
         self.pre_graph_cfam_blend = max(0.0, float(getattr(args, 'pre_graph_cfam_blend', 0.1)))
@@ -1302,7 +1304,7 @@ class GraphFrontDoorDAG(nn.Module):
             # softly gated low-relevance context branch. Because h at layer l
             # already contains l-hop information, this implicitly filters
             # multi-hop information without materializing A^2/A^3 ego graphs.
-            if self.use_graph_cfam:
+            if self.use_graph_cfam and self.use_layerwise_graph_cfam:
                 should_route = not (
                     self.layerwise_local_igm_skip_last
                     and layer_idx == num_backbone_layers - 1
@@ -1426,17 +1428,22 @@ class GraphFrontDoorDAG(nn.Module):
                 shortcut_summary = noise_summary
             cns_gate = torch.full_like(z, 0.5)
         else:
-            edge_summary, noise_summary, _ = self.compute_edge_summaries(h, edge_index, training=training)
-            if self.use_layerwise_local_igm and not self.layerwise_final_edge_fuse:
-                z = self.node_edge_norm(h) if self.use_node_edge_norm else h
+            if self.disable_final_edge_enhance:
+                edge_summary = h.new_zeros(h.size())
+                noise_summary = h.new_zeros(h.size())
+                z = h
             else:
-                z = self.fuse_node_edge_representation(
-                    h,
-                    edge_summary,
-                    noise_summary=noise_summary,
-                    training=training,
-                )
-                # z = h
+                edge_summary, noise_summary, _ = self.compute_edge_summaries(h, edge_index, training=training)
+                if self.use_layerwise_local_igm and not self.layerwise_final_edge_fuse:
+                    z = self.node_edge_norm(h) if self.use_node_edge_norm else h
+                else:
+                    z = self.fuse_node_edge_representation(
+                        h,
+                        edge_summary,
+                        noise_summary=noise_summary,
+                        training=training,
+                    )
+                    # z = h
             shortcut_summary = noise_summary
             cns_gate = torch.full_like(z, 0.5)
         z_raw = z

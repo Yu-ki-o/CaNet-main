@@ -9,15 +9,15 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
     """
     Layer-wise same/different ego-relation front-door model.
 
-    This variant turns each GNN layer into two relation paths:
-    - same path: aggregates class-consistent neighbor support;
-    - different path: learns class-discriminative dimensions from boundary
-      neighbors.
+    This variant turns each GNN layer into two relation subgraphs:
+    - same path: runs the selected GNN backbone on class-consistent edges;
+    - different path: runs the same GNN backbone on boundary edges.
 
-    The two paths are computed layer by layer from predicted class relations,
+    The subgraphs are computed layer by layer from predicted class relations,
     not from ground-truth labels.  The different path produces a dimension
-    gate that guides the same-path edge summary.  The final guided same-path
-    state is used as z_causal, and the gated different-path state is used as
+    gate that guides the same-path GNN summary, but it is not written back
+    into the next-layer node state.  The final guided same-path state is used
+    as z_causal, and the gated different-path state is used as
     z_spurious/context.
     Graph-CFAM, multi-ratio contexts, global contexts, and NeGo contexts are
     intentionally disabled in this lightweight research variant.
@@ -59,6 +59,16 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
             self.same_diff_context_source = 'diff'
         requested_context_k = int(getattr(args, 'same_diff_context_k', 0))
         self.same_diff_context_k = max(0, requested_context_k)
+        self.use_same_diff_final_fuse = bool(
+            getattr(args, 'use_same_diff_final_fuse', True)
+        )
+        self.use_same_diff_layerwise_fuse = bool(
+            getattr(args, 'use_same_diff_layerwise_fuse', False)
+        )
+        self.lambda_same_diff_sep = max(
+            0.0,
+            float(getattr(args, 'lambda_same_diff_sep', 0.05)),
+        )
 
         self.same_path_mlps = nn.ModuleList([
             nn.Sequential(
@@ -71,14 +81,6 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         self.same_gate_mlps = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(self.d * 2, self.d),
-                nn.ReLU(),
-                nn.Linear(self.d, self.d),
-            )
-            for _ in range(self.num_layers)
-        ])
-        self.diff_edge_mlps = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(self.d * 4, self.d),
                 nn.ReLU(),
                 nn.Linear(self.d, self.d),
             )
@@ -102,7 +104,7 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         ])
         self.layer_fuse_mlps = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(self.d * 3, self.d),
+                nn.Linear(self.d * 2, self.d),
                 nn.ReLU(),
                 nn.Linear(self.d, self.d),
             )
@@ -122,6 +124,9 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         self._last_diff_dim_gate_mean = None
         self._last_same_dim_gate_mean = None
         self._last_same_context_mean = None
+        self._last_same_diff_sep_loss = None
+        self._last_same_diff_final_fuse_gate_mean = None
+        self._last_same_diff_layerwise_fuse_gate_mean = None
         self.reset_same_diff_parameters()
 
     def reset_parameters(self):
@@ -133,7 +138,6 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         for modules in (
             self.same_path_mlps,
             self.same_gate_mlps,
-            self.diff_edge_mlps,
             self.diff_gate_mlps,
             self.diff_path_mlps,
             self.layer_fuse_mlps,
@@ -157,6 +161,9 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         self._last_diff_dim_gate_mean = None
         self._last_same_dim_gate_mean = None
         self._last_same_context_mean = None
+        self._last_same_diff_sep_loss = None
+        self._last_same_diff_final_fuse_gate_mean = None
+        self._last_same_diff_layerwise_fuse_gate_mean = None
 
     def _class_relation_weights(self, h, edge_index):
         src, dst = edge_index
@@ -178,39 +185,38 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         diff_weight = (1.0 - same_weight).clamp(0.0, 1.0)
         return same_weight, diff_weight
 
-    def _weighted_dst_mean(self, values, dst, weight, num_nodes):
-        out = values.new_zeros(num_nodes, values.size(-1))
-        denom = values.new_zeros(num_nodes, 1)
-        out.index_add_(0, dst, weight.unsqueeze(-1) * values)
-        denom.index_add_(0, dst, weight.unsqueeze(-1))
-        return out / denom.clamp_min(1e-6)
+    def _split_relation_edges(self, edge_index, same_weight):
+        if edge_index.numel() == 0:
+            return edge_index, edge_index
+
+        threshold = 0.5 if self.same_diff_hard else self.same_diff_edge_threshold
+        same_mask = same_weight >= threshold
+        diff_mask = ~same_mask
+        return edge_index[:, same_mask], edge_index[:, diff_mask]
 
     def _same_diff_layer(self, h, edge_index, layer_idx, training=False):
         if edge_index.numel() == 0:
             zero = h.new_zeros(h.size())
             one = h.new_ones(h.size())
-            return h, h, zero, h, zero, one, h.new_zeros(())
+            return h, h, zero, h, zero, one, h.new_zeros(()), h.new_zeros(()), h.new_zeros(())
 
-        src, dst = edge_index
         same_weight, diff_weight = self._class_relation_weights(h, edge_index)
-        h_src = h[src]
-        h_dst = h[dst]
+        same_edge_index, diff_edge_index = self._split_relation_edges(edge_index, same_weight)
 
-        diff_edge_feat = torch.cat([h_dst, h_src, h_dst - h_src, h_dst * h_src], dim=-1)
-        diff_msg = self.diff_edge_mlps[layer_idx](diff_edge_feat)
-        diff_msg = F.dropout(diff_msg, self.dropout, training=training)
-        diff_summary = self._weighted_dst_mean(diff_msg, dst, diff_weight, h.size(0))
+        same_gnn = self.act_fn(self.backbone_layers[layer_idx](h, same_edge_index))
+        diff_gnn = self.act_fn(self.backbone_layers[layer_idx](h, diff_edge_index))
+
+        diff_summary = diff_gnn - h
         diff_summary = self.diff_summary_norms[layer_idx](diff_summary)
-
         diff_dim_gate = torch.sigmoid(
             self.diff_gate_mlps[layer_idx](torch.cat([h, diff_summary], dim=-1))
         )
         gated_diff_summary = diff_summary * diff_dim_gate
         diff_delta = self.diff_path_mlps[layer_idx](torch.cat([h, gated_diff_summary], dim=-1))
         diff_delta = F.dropout(diff_delta, self.dropout, training=training)
-        z_diff = self.diff_path_norms[layer_idx](h + self.diff_path_blend * diff_delta)
+        z_diff = self.diff_path_norms[layer_idx](diff_gnn + self.diff_path_blend * diff_delta)
 
-        same_summary = self._weighted_dst_mean(h_src, dst, same_weight, h.size(0))
+        same_summary = same_gnn - h
         same_summary = self.same_summary_norms[layer_idx](same_summary)
         same_dim_gate = torch.sigmoid(
             self.same_gate_mlps[layer_idx](torch.cat([h, same_summary], dim=-1))
@@ -223,18 +229,51 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         same_context = same_summary * (1.0 - guided_same_gate)
         same_delta = self.same_path_mlps[layer_idx](torch.cat([h, guided_same_summary], dim=-1))
         same_delta = F.dropout(same_delta, self.dropout, training=training)
-        z_same = self.same_path_norms[layer_idx](h + self.same_path_blend * same_delta)
+        z_same = self.same_path_norms[layer_idx](same_gnn + self.same_path_blend * same_delta)
 
-        fused_delta = self.layer_fuse_mlps[layer_idx](torch.cat([h, z_same, z_diff], dim=-1))
+        same_norm = F.normalize(z_same, dim=1)
+        diff_norm = F.normalize(z_diff, dim=1)
+        same_diff_sep_loss = (same_norm * diff_norm).sum(dim=1).pow(2).mean()
+
+        fused_delta = self.layer_fuse_mlps[layer_idx](torch.cat([h, z_same], dim=-1))
         fused_delta = F.dropout(fused_delta, self.dropout, training=training)
         h_next = self.layer_fuse_norms[layer_idx](h + self.layer_fuse_blend * fused_delta)
+        if self.use_same_diff_layerwise_fuse:
+            layer_edge_summary, _, layer_edge_gate = self.compute_edge_summaries(
+                h_next,
+                edge_index,
+                training=training,
+            )
+            h_next = self.fuse_node_edge_representation(
+                h_next,
+                layer_edge_summary,
+                noise_summary=None,
+                training=training,
+            )
+            layerwise_fuse_gate_mean = (
+                layer_edge_gate.mean()
+                if layer_edge_gate is not None
+                else h_next.new_zeros(())
+            )
+        else:
+            layerwise_fuse_gate_mean = h_next.new_zeros(())
 
         self._last_same_edge_weight_mean = same_weight.mean().detach()
         self._last_diff_edge_weight_mean = diff_weight.mean().detach()
         self._last_diff_dim_gate_mean = diff_dim_gate.mean().detach()
         self._last_same_dim_gate_mean = guided_same_gate.mean().detach()
         self._last_same_context_mean = same_context.mean().detach()
-        return h_next, z_same, z_diff, guided_same_summary, same_context, diff_dim_gate, same_weight.mean()
+        return (
+            h_next,
+            z_same,
+            z_diff,
+            guided_same_summary,
+            same_context,
+            diff_dim_gate,
+            same_weight.mean(),
+            same_diff_sep_loss,
+            layerwise_fuse_gate_mean,
+        )
 
     def encode_representation(self, x, edge_index, training=False):
         x = F.dropout(x, self.dropout, training=training)
@@ -243,6 +282,8 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
 
         layerwise_gate_loss = h.new_zeros(())
         layerwise_gate_mean = h.new_zeros(())
+        same_diff_sep_loss = h.new_zeros(())
+        layerwise_fuse_gate_mean = h.new_zeros(())
         layerwise_gate_layers = 0
         z_causal = h
         z_spurious = h.new_zeros(h.size())
@@ -252,13 +293,25 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
 
         for layer_idx in range(self.num_layers):
             h = F.dropout(h, self.dropout, training=training)
-            h, z_causal, z_spurious, edge_summary, same_context, diff_dim_gate, same_mean = self._same_diff_layer(
+            (
+                h,
+                z_causal,
+                z_spurious,
+                edge_summary,
+                same_context,
+                diff_dim_gate,
+                same_mean,
+                sep_loss_l,
+                fuse_gate_mean_l,
+            ) = self._same_diff_layer(
                 h,
                 edge_index,
                 layer_idx,
                 training=training,
             )
             layerwise_gate_mean = layerwise_gate_mean + same_mean
+            same_diff_sep_loss = same_diff_sep_loss + sep_loss_l
+            layerwise_fuse_gate_mean = layerwise_fuse_gate_mean + fuse_gate_mean_l
             if self.lambda_layerwise_gate > 0.0:
                 layerwise_gate_loss = layerwise_gate_loss + (
                     same_mean - self.layerwise_gate_target
@@ -268,10 +321,14 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         if layerwise_gate_layers > 0:
             layerwise_gate_mean = layerwise_gate_mean / float(layerwise_gate_layers)
             layerwise_gate_loss = layerwise_gate_loss / float(layerwise_gate_layers)
+            same_diff_sep_loss = same_diff_sep_loss / float(layerwise_gate_layers)
+            layerwise_fuse_gate_mean = layerwise_fuse_gate_mean / float(layerwise_gate_layers)
 
         self._last_layerwise_gate_mean = layerwise_gate_mean.detach()
         self._last_layerwise_gate_loss = layerwise_gate_loss
         self._last_layerwise_gate_layers = int(layerwise_gate_layers)
+        self._last_same_diff_sep_loss = same_diff_sep_loss
+        self._last_same_diff_layerwise_fuse_gate_mean = layerwise_fuse_gate_mean.detach()
         self._last_graph_cfam_gate_mean = h.new_zeros(())
         self._last_graph_cfam_gate_loss = h.new_zeros(())
         self._last_graph_cfam_layers = 0
@@ -280,6 +337,25 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         z_spurious = self.final_spurious_norm(z_spurious)
         edge_summary = self.final_causal_norm(edge_summary)
         same_context = self.final_same_context_norm(same_context)
+        if self.use_same_diff_final_fuse:
+            final_edge_summary, _, final_edge_gate = self.compute_edge_summaries(
+                z_causal,
+                edge_index,
+                training=training,
+            )
+            z_causal = self.fuse_node_edge_representation(
+                z_causal,
+                final_edge_summary,
+                noise_summary=None,
+                training=training,
+            )
+            edge_summary = final_edge_summary
+            if final_edge_gate is not None:
+                self._last_same_diff_final_fuse_gate_mean = final_edge_gate.mean().detach()
+            else:
+                self._last_same_diff_final_fuse_gate_mean = z_causal.new_zeros(())
+        else:
+            self._last_same_diff_final_fuse_gate_mean = z_causal.new_zeros(())
         z_causal = F.dropout(z_causal, self.dropout, training=training)
         z_spurious = F.dropout(z_spurious, self.dropout, training=training)
         edge_summary = F.dropout(edge_summary, self.dropout, training=training)
@@ -424,3 +500,18 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
                 cns_gate,
             )
         return logits
+
+    def compute_losses(self, data, criterion, args, update_state=False):
+        losses = super().compute_losses(data, criterion, args, update_state=update_state)
+        zero = losses['total_loss'].new_zeros(())
+        loss_same_diff_sep = (
+            zero
+            if self._last_same_diff_sep_loss is None
+            else self._last_same_diff_sep_loss
+        )
+        losses['loss_same_diff_sep'] = loss_same_diff_sep
+        losses['total_loss'] = (
+            losses['total_loss']
+            + self.lambda_same_diff_sep * loss_same_diff_sep
+        )
+        return losses

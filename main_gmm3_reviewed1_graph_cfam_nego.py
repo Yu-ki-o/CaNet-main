@@ -23,8 +23,8 @@ from dataset import *
 from eval import eval_acc, eval_f1, eval_rocauc, evaluate_full
 from ica_utils import infer_pseudo_envs_with_ica
 from logger import Logger
-# from model_gmm3_reviewed1_graph_cfam_nego import GraphFrontDoorDAG as FrontDoorNeGoModel
-from model_gmm3_reviewed1_layerwise_samediff import GraphFrontDoorDAG as FrontDoorNeGoModel
+from model_gmm3_reviewed1_graph_cfam_nego import GraphFrontDoorDAG as FrontDoorNeGoModel
+from model_gmm3_reviewed1_layerwise_samediff import GraphFrontDoorDAG as LayerwiseSameDiffModel
 from model_graph_cfam_gate_direct import GraphFrontDoorDAG as GateDirectModel
 from parse import parser_add_main_args
 
@@ -41,9 +41,9 @@ def fix_seed(seed):
 
 def add_frontdoor_dag_args(parser):
     parser.set_defaults(use_cipt_schedule=True, use_cosine_lr=True)
-    parser.add_argument('--model_variant', type=str, default='frontdoor_nego',
-                        choices=['frontdoor_nego', 'gate_direct'],
-                        help='frontdoor_nego keeps the previous model; gate_direct uses the direct Graph-CFAM gate model')
+    parser.add_argument('--model_variant', type=str, default='layerwise_samediff',
+                        choices=['frontdoor_nego', 'gate_direct', 'layerwise_samediff'],
+                        help='frontdoor_nego keeps the previous model; gate_direct uses the direct Graph-CFAM gate model; layerwise_samediff uses same/different ego-relation routing')
     parser.add_argument('--gamma', type=float, default=0.99,
                         help='EMA momentum for spurious context statistics')
     parser.add_argument('--lambda_l1', type=float, default=1e-5,
@@ -193,10 +193,16 @@ def add_frontdoor_dag_args(parser):
                         help='semantic anchoring metric for edge-enhanced node representations')
     parser.add_argument('--use_graph_cfam', action='store_true',
                         help='replace local edge enhancement with Graph-CFAM smooth/residual causal decoupling')
+    parser.add_argument('--disable_layerwise_graph_cfam', action='store_false',
+                        dest='use_layerwise_graph_cfam',
+                        help='ablation: skip Graph-CFAM inside backbone layers and keep only pre/final Graph-CFAM passes')
+    parser.set_defaults(use_layerwise_graph_cfam=True)
     parser.add_argument('--disable_final_graph_cfam', action='store_false',
                         dest='use_final_graph_cfam',
                         help='skip the final post-GNN Graph-CFAM pass while keeping pre/layer-wise CFAM enabled')
     parser.set_defaults(use_final_graph_cfam=True)
+    parser.add_argument('--disable_final_edge_enhance', action='store_true',
+                        help='ablation: use the raw backbone output as z and skip the final learned edge-summary fusion')
     parser.add_argument('--graph_cfam_residual_blend', type=float, default=0.1,
                         help='strength of graph high-pass residual in Graph-CFAM')
     parser.add_argument('--use_pre_gnn_graph_cfam', action='store_true',
@@ -234,7 +240,7 @@ def add_frontdoor_dag_args(parser):
     parser.add_argument('--same_diff_edge_threshold', type=float, default=0.5,
                         help='soft same-probability threshold used to split same/diff edge subgraphs')
     parser.add_argument('--same_diff_layer_fuse_blend', type=float, default=1.0,
-                        help='residual strength for fusing same/diff path states into the next layer state')
+                        help='residual strength for writing same-path causal state into the next layer state')
     parser.add_argument('--same_diff_gate_blend', type=float, default=1.0,
                         help='strength for using different-class dimension gate to guide same-class edge summary dimensions')
     parser.add_argument('--same_diff_context_source', type=str, default='diff',
@@ -242,6 +248,14 @@ def add_frontdoor_dag_args(parser):
                         help="front-door context source: 'diff' uses heterophily-gated branch, 'same_gate' uses gated same edge summary, 'mixed' uses both")
     parser.add_argument('--same_diff_context_k', type=int, default=0,
                         help='number of other-node same-gate complement contexts sampled per node; 0 uses max(2, K)')
+    parser.add_argument('--disable_same_diff_final_fuse', action='store_false',
+                        dest='use_same_diff_final_fuse',
+                        help='disable final useful edge-summary fusion on the same-path causal representation')
+    parser.set_defaults(use_same_diff_final_fuse=True)
+    parser.add_argument('--use_same_diff_layerwise_fuse', action='store_true',
+                        help='apply useful edge-summary fusion after each same/different routing layer without using noise summaries')
+    parser.add_argument('--lambda_same_diff_sep', type=float, default=0.05,
+                        help='weight of node-wise orthogonality loss between same-path causal and different-path context representations')
     parser.add_argument('--direct_z_spurious_mode', type=str, default='shortcut',
                         choices=['shortcut', 'zero', 'z_adapter','none'],
                         help="'shortcut' uses local shortcut summary, 'zero' uses a zero spurious placeholder, 'z_adapter' derives it from z, 'none' predicts directly from enhanced node z and skips front-door context mixing")
@@ -428,6 +442,7 @@ def capture_lambda_state(model):
         'lambda_multi_ratio_fd_worst',
         'lambda_multi_ratio_fd_cons',
         'lambda_layerwise_gate',
+        'lambda_same_diff_sep',
         'lambda_graph_cfam_gate',
         'lambda_graph_delf',
         'lambda_enhance_sem',
@@ -440,7 +455,7 @@ def capture_lambda_state(model):
         'lambda_ica_gate',
         'lambda_ica_entropy',
     )
-    return {name: float(getattr(model, name)) for name in lambda_names}
+    return {name: float(getattr(model, name, 0.0)) for name in lambda_names}
 
 
 def restore_lambda_state(model, lambda_state):
@@ -492,6 +507,7 @@ def apply_cipt_schedule(model, base_lambdas, epoch, args):
         'lambda_multi_ratio_fd_worst',
         'lambda_multi_ratio_fd_cons',
         'lambda_layerwise_gate',
+        'lambda_same_diff_sep',
         'lambda_graph_cfam_gate',
         'lambda_graph_delf',
         'lambda_nego',
@@ -571,7 +587,12 @@ for i in range(len(dataset.test_ood_idx)):
 print(m)
 print(f'[INFO] env numbers: {dataset.env_num} train env numbers: {dataset.train_env_num}')
 
-model_cls = GateDirectModel if args.model_variant == 'gate_direct' else FrontDoorNeGoModel
+if args.model_variant == 'gate_direct':
+    model_cls = GateDirectModel
+elif args.model_variant == 'layerwise_samediff':
+    model_cls = LayerwiseSameDiffModel
+else:
+    model_cls = FrontDoorNeGoModel
 model = model_cls(d, c, args, device).to(device)
 
 if args.dataset in ('elliptic', 'twitch'):
@@ -629,9 +650,10 @@ print(
     f"Graph-CFAM: {args.use_graph_cfam} "
     f"(residual={args.graph_cfam_residual_blend}, gate_temp={args.graph_cfam_gate_temp}, "
     f"pre={args.use_pre_gnn_graph_cfam}, pre_blend={args.pre_graph_cfam_blend}, "
-    f"final={args.use_final_graph_cfam}, "
+    f"layerwise={args.use_layerwise_graph_cfam}, final={args.use_final_graph_cfam}, "
     f"gate_lambda={args.lambda_graph_cfam_gate}, delf_lambda={args.lambda_graph_delf}, "
-    f"delf_top={args.graph_delf_top_frac}, direct_z_spu={args.direct_z_spurious_mode}) | "
+    f"delf_top={args.graph_delf_top_frac}, final_edge_enhance={not args.disable_final_edge_enhance}, "
+    f"direct_z_spu={args.direct_z_spurious_mode}) | "
     f"multi-ratio spu FD: {args.use_multi_ratio_spurious_fd} "
     f"(main={args.multi_ratio_spurious_fd_as_main}, "
     f"mode={args.multi_ratio_spurious_mode}, "
@@ -729,6 +751,14 @@ for run in range(args.runs):
         writer.add_scalar('Loss/Var', (model.lambda_var * losses['loss_var']).item(), global_step)
         writer.add_scalar('Loss/GlobalEnv', (model.lambda_global_env * losses['loss_global_env']).item(), global_step)
         writer.add_scalar('Loss/LayerwiseGate', (model.lambda_layerwise_gate * losses['loss_layerwise_gate']).item(), global_step)
+        writer.add_scalar(
+            'Loss/SameDiffSep',
+            (
+                getattr(model, 'lambda_same_diff_sep', 0.0)
+                * losses.get('loss_same_diff_sep', losses['total_loss'].new_zeros(()))
+            ).item(),
+            global_step,
+        )
         writer.add_scalar('Loss/GraphCFAMGate', (model.lambda_graph_cfam_gate * losses['loss_graph_cfam_gate']).item(), global_step)
         writer.add_scalar('Loss/GraphDELF', (model.lambda_graph_delf * losses['loss_graph_delf']).item(), global_step)
         writer.add_scalar('Loss/EnhanceSem', (model.lambda_enhance_sem * losses['loss_enhance_sem']).item(), global_step)
@@ -802,6 +832,7 @@ for run in range(args.runs):
                 f"Var: {(model.lambda_var * losses['loss_var']).item():.4f}, "
                 f"GlobalEnv: {(model.lambda_global_env * losses['loss_global_env']).item():.4f}, "
                 f"LayerGate: {(model.lambda_layerwise_gate * losses['loss_layerwise_gate']).item():.4f}, "
+                f"SameDiffSep: {(getattr(model, 'lambda_same_diff_sep', 0.0) * losses.get('loss_same_diff_sep', losses['total_loss'].new_zeros(()))).item():.4f}, "
                 f"GCFAMGate: {(model.lambda_graph_cfam_gate * losses['loss_graph_cfam_gate']).item():.4f}, "
                 f"GDELF: {(model.lambda_graph_delf * losses['loss_graph_delf']).item():.4f}, "
                 f"EnhSem: {(model.lambda_enhance_sem * losses['loss_enhance_sem']).item():.4f}, "
