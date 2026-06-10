@@ -69,6 +69,32 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
             0.0,
             float(getattr(args, 'lambda_same_diff_sep', 0.05)),
         )
+        self.use_same_dulreg = bool(getattr(args, 'use_same_dulreg', True))
+        self.lambda_same_dulreg = max(
+            0.0,
+            float(getattr(args, 'lambda_same_dulreg', 0.0)),
+        )
+        self.same_dulreg_blend = min(
+            max(float(getattr(args, 'same_dulreg_blend', 1.0)), 0.0),
+            1.0,
+        )
+        self.same_dulreg_logvar_min = float(getattr(args, 'same_dulreg_logvar_min', -8.0))
+        self.same_dulreg_logvar_max = float(getattr(args, 'same_dulreg_logvar_max', 8.0))
+        if self.same_dulreg_logvar_min > self.same_dulreg_logvar_max:
+            self.same_dulreg_logvar_min, self.same_dulreg_logvar_max = (
+                self.same_dulreg_logvar_max,
+                self.same_dulreg_logvar_min,
+            )
+        self.same_dulreg_precision_max = max(
+            1.0,
+            float(getattr(args, 'same_dulreg_precision_max', 1e4)),
+        )
+        self.same_dulreg_detach_target = bool(
+            getattr(args, 'same_dulreg_detach_target', True)
+        )
+        self.same_dulreg_normalize_loss = bool(
+            getattr(args, 'same_dulreg_normalize_loss', True)
+        )
 
         self.same_path_mlps = nn.ModuleList([
             nn.Sequential(
@@ -110,6 +136,16 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
             )
             for _ in range(self.num_layers)
         ])
+        self.same_dulreg_edge_mlps = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(self.d * 4, self.d),
+                nn.ReLU(),
+                nn.Linear(self.d, self.d * 2),
+            )
+            for _ in range(self.num_layers)
+        ])
+        self.same_dulreg_logvar_gamma = nn.Parameter(torch.full((self.num_layers, 1), 1e-4))
+        self.same_dulreg_logvar_beta = nn.Parameter(torch.full((self.num_layers, 1), -7.0))
         self.same_path_norms = nn.ModuleList([nn.LayerNorm(self.d) for _ in range(self.num_layers)])
         self.diff_path_norms = nn.ModuleList([nn.LayerNorm(self.d) for _ in range(self.num_layers)])
         self.layer_fuse_norms = nn.ModuleList([nn.LayerNorm(self.d) for _ in range(self.num_layers)])
@@ -125,6 +161,11 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         self._last_same_dim_gate_mean = None
         self._last_same_context_mean = None
         self._last_same_diff_sep_loss = None
+        self._last_same_dulreg_mu = None
+        self._last_same_dulreg_logvar = None
+        self._last_same_dulreg_valid_mask = None
+        self._last_same_dulreg_logvar_mean = None
+        self._last_same_dulreg_precision_mean = None
         self._last_same_diff_final_fuse_gate_mean = None
         self._last_same_diff_layerwise_fuse_gate_mean = None
         self.reset_same_diff_parameters()
@@ -141,9 +182,13 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
             self.diff_gate_mlps,
             self.diff_path_mlps,
             self.layer_fuse_mlps,
+            self.same_dulreg_edge_mlps,
         ):
             for module in modules:
                 self._reset_module_parameters(module)
+        with torch.no_grad():
+            self.same_dulreg_logvar_gamma.fill_(1e-4)
+            self.same_dulreg_logvar_beta.fill_(-7.0)
         for norms in (
             self.same_path_norms,
             self.diff_path_norms,
@@ -162,6 +207,11 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         self._last_same_dim_gate_mean = None
         self._last_same_context_mean = None
         self._last_same_diff_sep_loss = None
+        self._last_same_dulreg_mu = None
+        self._last_same_dulreg_logvar = None
+        self._last_same_dulreg_valid_mask = None
+        self._last_same_dulreg_logvar_mean = None
+        self._last_same_dulreg_precision_mean = None
         self._last_same_diff_final_fuse_gate_mean = None
         self._last_same_diff_layerwise_fuse_gate_mean = None
 
@@ -194,18 +244,80 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         diff_mask = ~same_mask
         return edge_index[:, same_mask], edge_index[:, diff_mask]
 
+    def _same_dulreg_aggregate(self, h, same_edge_index, same_gnn, layer_idx):
+        if (not self.use_same_dulreg) or same_edge_index.numel() == 0:
+            logvar = h.new_full(h.size(), self.same_dulreg_logvar_max)
+            valid_mask = h.new_zeros(h.size(0), dtype=torch.bool)
+            return same_gnn, logvar, valid_mask, h.new_zeros(()), h.new_zeros(())
+
+        src, dst = same_edge_index
+        h_src = h[src]
+        h_dst = h[dst]
+        edge_feat = torch.cat([h_src, h_dst, h_src - h_dst, h_src * h_dst], dim=-1)
+        edge_stats = self.same_dulreg_edge_mlps[layer_idx](edge_feat)
+        msg_mu, raw_logvar = edge_stats.chunk(2, dim=-1)
+        msg_logvar = (
+            self.same_dulreg_logvar_gamma[layer_idx] * raw_logvar
+            + self.same_dulreg_logvar_beta[layer_idx]
+        ).clamp(self.same_dulreg_logvar_min, self.same_dulreg_logvar_max)
+        precision = torch.exp(-msg_logvar).clamp(max=self.same_dulreg_precision_max)
+
+        weighted_mu = h.new_zeros(h.size())
+        precision_sum = h.new_zeros(h.size())
+        weighted_mu.index_add_(0, dst, precision * msg_mu)
+        precision_sum.index_add_(0, dst, precision)
+
+        dulreg_same = weighted_mu / precision_sum.clamp_min(1e-6)
+        valid_dim_mask = precision_sum > 0
+        valid_node_mask = valid_dim_mask.any(dim=-1)
+        dulreg_same = torch.where(valid_dim_mask, dulreg_same, same_gnn)
+        if self.same_dulreg_blend < 1.0:
+            dulreg_same = (
+                (1.0 - self.same_dulreg_blend) * same_gnn
+                + self.same_dulreg_blend * dulreg_same
+            )
+
+        node_logvar = -torch.log(precision_sum.clamp_min(1e-6))
+        node_logvar = node_logvar.clamp(self.same_dulreg_logvar_min, self.same_dulreg_logvar_max)
+        node_logvar = torch.where(
+            valid_dim_mask,
+            node_logvar,
+            node_logvar.new_full(node_logvar.size(), self.same_dulreg_logvar_max),
+        )
+        return (
+            dulreg_same,
+            node_logvar,
+            valid_node_mask,
+            msg_logvar.mean().detach(),
+            precision.mean().detach(),
+        )
+
     def _same_diff_layer(self, h, edge_index, layer_idx, training=False):
         if edge_index.numel() == 0:
             zero = h.new_zeros(h.size())
             one = h.new_ones(h.size())
+            self._last_same_dulreg_mu = h
+            self._last_same_dulreg_logvar = h.new_full(h.size(), self.same_dulreg_logvar_max)
+            self._last_same_dulreg_valid_mask = h.new_zeros(h.size(0), dtype=torch.bool)
+            self._last_same_dulreg_logvar_mean = h.new_zeros(())
+            self._last_same_dulreg_precision_mean = h.new_zeros(())
             return h, h, zero, h, zero, one, h.new_zeros(()), h.new_zeros(()), h.new_zeros(())
 
         same_weight, diff_weight = self._class_relation_weights(h, edge_index)
         same_edge_index, diff_edge_index = self._split_relation_edges(edge_index, same_weight)
-
+        
+        #这里先经过一层gnn计算basic结果传入_same_dulreg_aggregate函数，这个函数根据same_dulreg_blend参数决定是否将dulreg结果和basic结果融合后输出，设置为1时完全使用dulreg结果，设置为0时完全使用basic结果，介于0和1之间时进行线性融合。
         same_gnn = self.act_fn(self.backbone_layers[layer_idx](h, same_edge_index))
         diff_gnn = self.act_fn(self.backbone_layers[layer_idx](h, diff_edge_index))
+        (
+            same_gnn,
+            same_dulreg_logvar,
+            same_dulreg_valid_mask,
+            same_dulreg_logvar_mean,
+            same_dulreg_precision_mean,
+        ) = self._same_dulreg_aggregate(h, same_edge_index, same_gnn, layer_idx)
 
+        
         diff_summary = diff_gnn - h
         diff_summary = self.diff_summary_norms[layer_idx](diff_summary)
         diff_dim_gate = torch.sigmoid(
@@ -263,6 +375,11 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
         self._last_diff_dim_gate_mean = diff_dim_gate.mean().detach()
         self._last_same_dim_gate_mean = guided_same_gate.mean().detach()
         self._last_same_context_mean = same_context.mean().detach()
+        self._last_same_dulreg_mu = same_gnn
+        self._last_same_dulreg_logvar = same_dulreg_logvar
+        self._last_same_dulreg_valid_mask = same_dulreg_valid_mask
+        self._last_same_dulreg_logvar_mean = same_dulreg_logvar_mean
+        self._last_same_dulreg_precision_mean = same_dulreg_precision_mean
         return (
             h_next,
             z_same,
@@ -501,6 +618,54 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
             )
         return logits
 
+    def _same_dulreg_class_targets(self, labels):
+        weight = self.classifier.weight
+        if weight.size(0) == 1:
+            centers = torch.cat([-weight, weight], dim=0)
+            labels = labels.clamp(min=0, max=1)
+        else:
+            centers = weight
+            labels = labels.clamp(min=0, max=centers.size(0) - 1)
+        targets = centers.index_select(0, labels.to(device=centers.device, dtype=torch.long))
+        if self.same_dulreg_detach_target:
+            targets = targets.detach()
+        return targets
+
+    def compute_same_dulreg_loss(self, y, train_idx):
+        mu = self._last_same_dulreg_mu
+        logvar = self._last_same_dulreg_logvar
+        valid_mask = self._last_same_dulreg_valid_mask
+        if (
+            mu is None
+            or logvar is None
+            or valid_mask is None
+            or train_idx is None
+            or train_idx.numel() == 0
+        ):
+            return self.A_feat.new_zeros(())
+
+        train_idx = train_idx.to(device=mu.device, dtype=torch.long)
+        selected_mask = valid_mask.index_select(0, train_idx)
+        if not selected_mask.any():
+            return mu.new_zeros(())
+
+        selected_idx = train_idx[selected_mask]
+        labels = self._flat_class_labels(y).to(device=mu.device).index_select(0, selected_idx)
+        mu_sel = mu.index_select(0, selected_idx)
+        logvar_sel = logvar.index_select(0, selected_idx).clamp(
+            self.same_dulreg_logvar_min,
+            self.same_dulreg_logvar_max,
+        )
+        targets = self._same_dulreg_class_targets(labels)
+        if targets.size(-1) != mu_sel.size(-1):
+            return mu.new_zeros(())
+
+        fit_loss = (targets - mu_sel).pow(2) / (1e-10 + torch.exp(logvar_sel))
+        reg_loss = 0.5 * (fit_loss + logvar_sel)
+        if self.same_dulreg_normalize_loss:
+            return reg_loss.mean()
+        return reg_loss.sum(dim=1).mean()
+
     def compute_losses(self, data, criterion, args, update_state=False):
         losses = super().compute_losses(data, criterion, args, update_state=update_state)
         zero = losses['total_loss'].new_zeros(())
@@ -509,9 +674,23 @@ class GraphFrontDoorDAG(BaseGraphFrontDoorDAG):
             if self._last_same_diff_sep_loss is None
             else self._last_same_diff_sep_loss
         )
+        train_idx = data.train_idx.to(device=data.x.device, dtype=torch.long)
+        loss_same_dulreg = self.compute_same_dulreg_loss(data.y, train_idx)
         losses['loss_same_diff_sep'] = loss_same_diff_sep
+        losses['loss_same_dulreg'] = loss_same_dulreg
+        losses['same_dulreg_logvar_mean'] = (
+            zero.detach()
+            if self._last_same_dulreg_logvar_mean is None
+            else self._last_same_dulreg_logvar_mean.detach()
+        )
+        losses['same_dulreg_precision_mean'] = (
+            zero.detach()
+            if self._last_same_dulreg_precision_mean is None
+            else self._last_same_dulreg_precision_mean.detach()
+        )
         losses['total_loss'] = (
             losses['total_loss']
             + self.lambda_same_diff_sep * loss_same_diff_sep
+            + self.lambda_same_dulreg * loss_same_dulreg
         )
         return losses

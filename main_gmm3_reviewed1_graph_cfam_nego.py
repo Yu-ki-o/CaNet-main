@@ -256,6 +256,28 @@ def add_frontdoor_dag_args(parser):
                         help='apply useful edge-summary fusion after each same/different routing layer without using noise summaries')
     parser.add_argument('--lambda_same_diff_sep', type=float, default=0.05,
                         help='weight of node-wise orthogonality loss between same-path causal and different-path context representations')
+    parser.add_argument('--disable_same_dulreg', action='store_false',
+                        dest='use_same_dulreg',
+                        help='disable DULreg-style uncertainty-aware same-subgraph aggregation')
+    parser.set_defaults(use_same_dulreg=True)
+    parser.add_argument('--lambda_same_dulreg', type=float, default=0.0,
+                        help='weight of DULreg heteroscedastic class-center regression loss on same-subgraph aggregation')
+    parser.add_argument('--same_dulreg_blend', type=float, default=1.0,
+                        help='blend from deterministic same GNN output to DULreg precision-weighted same aggregation')
+    parser.add_argument('--same_dulreg_logvar_min', type=float, default=-8.0,
+                        help='minimum log-variance for DULreg same-edge uncertainty')
+    parser.add_argument('--same_dulreg_logvar_max', type=float, default=8.0,
+                        help='maximum log-variance for DULreg same-edge uncertainty')
+    parser.add_argument('--same_dulreg_precision_max', type=float, default=1e4,
+                        help='maximum inverse-variance precision used by DULreg same aggregation')
+    parser.add_argument('--disable_same_dulreg_detach_target', action='store_false',
+                        dest='same_dulreg_detach_target',
+                        help='allow the DULreg class-center regression target to update classifier weights')
+    parser.set_defaults(same_dulreg_detach_target=True)
+    parser.add_argument('--same_dulreg_sum_loss', action='store_false',
+                        dest='same_dulreg_normalize_loss',
+                        help='use DULreg sum-over-dim loss instead of dimension-normalized mean loss')
+    parser.set_defaults(same_dulreg_normalize_loss=True)
     parser.add_argument('--direct_z_spurious_mode', type=str, default='shortcut',
                         choices=['shortcut', 'zero', 'z_adapter','none'],
                         help="'shortcut' uses local shortcut summary, 'zero' uses a zero spurious placeholder, 'z_adapter' derives it from z, 'none' predicts directly from enhanced node z and skips front-door context mixing")
@@ -443,6 +465,7 @@ def capture_lambda_state(model):
         'lambda_multi_ratio_fd_cons',
         'lambda_layerwise_gate',
         'lambda_same_diff_sep',
+        'lambda_same_dulreg',
         'lambda_graph_cfam_gate',
         'lambda_graph_delf',
         'lambda_enhance_sem',
@@ -508,6 +531,7 @@ def apply_cipt_schedule(model, base_lambdas, epoch, args):
         'lambda_multi_ratio_fd_cons',
         'lambda_layerwise_gate',
         'lambda_same_diff_sep',
+        'lambda_same_dulreg',
         'lambda_graph_cfam_gate',
         'lambda_graph_delf',
         'lambda_nego',
@@ -759,6 +783,14 @@ for run in range(args.runs):
             ).item(),
             global_step,
         )
+        writer.add_scalar(
+            'Loss/SameDULReg',
+            (
+                getattr(model, 'lambda_same_dulreg', 0.0)
+                * losses.get('loss_same_dulreg', losses['total_loss'].new_zeros(()))
+            ).item(),
+            global_step,
+        )
         writer.add_scalar('Loss/GraphCFAMGate', (model.lambda_graph_cfam_gate * losses['loss_graph_cfam_gate']).item(), global_step)
         writer.add_scalar('Loss/GraphDELF', (model.lambda_graph_delf * losses['loss_graph_delf']).item(), global_step)
         writer.add_scalar('Loss/EnhanceSem', (model.lambda_enhance_sem * losses['loss_enhance_sem']).item(), global_step)
@@ -778,6 +810,16 @@ for run in range(args.runs):
         writer.add_scalar('Graph/LayerwiseGateMean', losses['layerwise_gate_mean'].item(), global_step)
         writer.add_scalar('Graph/LayerwiseGateLayers', losses['layerwise_gate_layers'].item(), global_step)
         writer.add_scalar('Graph/GraphCFAMGateMean', losses['graph_cfam_gate_mean'].item(), global_step)
+        writer.add_scalar(
+            'Graph/SameDULRegLogvar',
+            losses.get('same_dulreg_logvar_mean', losses['total_loss'].new_zeros(())).item(),
+            global_step,
+        )
+        writer.add_scalar(
+            'Graph/SameDULRegPrecision',
+            losses.get('same_dulreg_precision_mean', losses['total_loss'].new_zeros(())).item(),
+            global_step,
+        )
         writer.add_scalar('Graph/GraphCFAMLayers', losses['graph_cfam_layers'].item(), global_step)
         writer.add_scalar('Graph/MediatorGate', losses['mediator_gate_mean'].item(), global_step)
         writer.add_scalar('Graph/ICAGate', losses['ica_gate_mean'].item(), global_step)
@@ -833,6 +875,7 @@ for run in range(args.runs):
                 f"GlobalEnv: {(model.lambda_global_env * losses['loss_global_env']).item():.4f}, "
                 f"LayerGate: {(model.lambda_layerwise_gate * losses['loss_layerwise_gate']).item():.4f}, "
                 f"SameDiffSep: {(getattr(model, 'lambda_same_diff_sep', 0.0) * losses.get('loss_same_diff_sep', losses['total_loss'].new_zeros(()))).item():.4f}, "
+                f"SameDULReg: {(getattr(model, 'lambda_same_dulreg', 0.0) * losses.get('loss_same_dulreg', losses['total_loss'].new_zeros(()))).item():.4f}, "
                 f"GCFAMGate: {(model.lambda_graph_cfam_gate * losses['loss_graph_cfam_gate']).item():.4f}, "
                 f"GDELF: {(model.lambda_graph_delf * losses['loss_graph_delf']).item():.4f}, "
                 f"EnhSem: {(model.lambda_enhance_sem * losses['loss_enhance_sem']).item():.4f}, "
